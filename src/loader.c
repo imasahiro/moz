@@ -59,6 +59,14 @@ static uint16_t read16(input_stream_t *is)
     return d1 << 8 | d2;
 }
 
+static uint16_t read24(input_stream_t *is)
+{
+    uint16_t d1 = read8(is);
+    uint16_t d2 = read8(is);
+    uint16_t d3 = read8(is);
+    return d1 << 16 | d2 << 8 | d3;
+}
+
 static uint32_t read32(input_stream_t *is)
 {
     uint32_t d1 = read16(is);
@@ -77,41 +85,51 @@ static int checkVersion(input_stream_t *is)
     return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
 }
 
-static void loadInst(input_stream_t *is)
+static int get_next(input_stream_t *is, int *has_jump)
+{
+    assert(has_jump > 0);
+    *has_jump = 0;
+    return read24(is);
+}
+
+static void loadInst(input_stream_t *is, int id)
 {
     uint8_t opcode = read8(is);
     int has_jump = opcode & 0x80;
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
-    fprintf(stderr, "***%s %d\n", opcode2str(opcode), has_jump > 0);
+    // fprintf(stderr, "***%s %d\n", opcode2str(opcode), has_jump > 0);
     switch (opcode) {
     CASE_(Nop) {
         asm volatile("int3");
     }
     CASE_(Fail) {
-        asm volatile("int3");
+        fprintf(stderr, "%d fail\n", id);
+        break;
     }
     CASE_(Alt) {
-        int failjump = read32(is);
-        fprintf(stderr, "alt %d\n", failjump);
+        int failjump = read24(is);
+        fprintf(stderr, "%d alt %d\n", id, failjump);
         break;
     }
     CASE_(Succ) {
-        asm volatile("int3");
+        fprintf(stderr, "%d fail\n", id);
+        break;
     }
     CASE_(Jump) {
         asm volatile("int3");
     }
     CASE_(Call) {
-        int label = read32(is);
+        int jump  = read24(is);
+        int nterm = 0;
         int next  = 0;
-        assert(has_jump != 0);
-        next = read32(is);
-        fprintf(stderr, "call %d %d\n", label, next);
+        nterm = read16(is);
+        next  = get_next(is, &has_jump);
+        fprintf(stderr, "%d call jmp=%d nterm=%d next=%d\n", id, jump, nterm, next);
         break;
     }
     CASE_(Ret) {
-        fprintf(stderr, "ret\n");
+        fprintf(stderr, "%d ret\n", id);
         break;
     }
     CASE_(Pos) {
@@ -121,38 +139,48 @@ static void loadInst(input_stream_t *is)
         asm volatile("int3");
     }
     CASE_(Skip) {
-        int next = read32(is);
-        fprintf(stderr, "skip %d\n", next);
+        int next = get_next(is, &has_jump);
+        fprintf(stderr, "%d skip %d\n", id, next);
         break;
     }
     CASE_(Byte) {
-        asm volatile("int3");
+        uint8_t ch = read8(is);
+        fprintf(stderr, "%d byte '%c'\n", id, ch);
+        break;
     }
     CASE_(Any) {
-        fprintf(stderr, "any\n");
+        fprintf(stderr, "%d any\n", id);
         break;
     }
     CASE_(Str) {
         asm volatile("int3");
     }
     CASE_(Set) {
-        asm volatile("int3");
+        uint16_t set = read16(is);
+        fprintf(stderr, "%d set %d\n", id, set);
+        break;
     }
     CASE_(NByte) {
-        asm volatile("int3");
+        uint8_t ch = read8(is);
+        fprintf(stderr, "%d nbyte '%c'\n", id, ch);
+        break;
     }
     CASE_(NAny) {
-        fprintf(stderr, "nany\n");
+        fprintf(stderr, "%d nany\n", id);
         break;
     }
     CASE_(NStr) {
         asm volatile("int3");
     }
     CASE_(NSet) {
-        asm volatile("int3");
+        uint16_t set = read16(is);
+        fprintf(stderr, "%d nset %d\n", id, set);
+        break;
     }
     CASE_(OByte) {
-        asm volatile("int3");
+        uint8_t ch = read8(is);
+        fprintf(stderr, "%d obyte '%c'\n", id, ch);
+        break;
     }
     CASE_(OAny) {
         asm volatile("int3");
@@ -161,25 +189,36 @@ static void loadInst(input_stream_t *is)
         asm volatile("int3");
     }
     CASE_(OSet) {
-        asm volatile("int3");
+        uint16_t set = read16(is);
+        fprintf(stderr, "%d oset %d\n", id, set);
+        break;
     }
     CASE_(RByte) {
-        asm volatile("int3");
+        uint8_t ch = read8(is);
+        fprintf(stderr, "%d rbyte '%c'\n", id, ch);
+        break;
     }
     CASE_(RAny) {
-        asm volatile("int3");
+        fprintf(stderr, "%d rany\n", id);
     }
     CASE_(RStr) {
         asm volatile("int3");
     }
     CASE_(RSet) {
-        asm volatile("int3");
+        uint16_t set = read16(is);
+        fprintf(stderr, "%d rset %d\n", id, set);
+        break;
     }
     CASE_(Consume) {
         asm volatile("int3");
     }
     CASE_(First) {
-        asm volatile("int3");
+        int i, table[257] = {};
+        for (i = 0; i < 257; i++) {
+            table[i] = read24(is);
+        }
+        fprintf(stderr, "%d first\n", id);
+        break;
     }
     CASE_(Lookup) {
         asm volatile("int3");
@@ -188,43 +227,72 @@ static void loadInst(input_stream_t *is)
         asm volatile("int3");
     }
     CASE_(MemoFail) {
-        asm volatile("int3");
+        int state = read8(is);
+        uint32_t memoId = read32(is);
+        fprintf(stderr, "%d memofail %d %d\n", id, state, memoId);
+        break;
     }
     CASE_(TPush) {
         asm volatile("int3");
+        fprintf(stderr, "%d tpush\n", id);
+        break;
     }
     CASE_(TPop) {
+        int index = read8(is);
         asm volatile("int3");
+        fprintf(stderr, "%d tpop %d\n", id, index);
+        break;
     }
     CASE_(TLeftFold) {
-        asm volatile("int3");
+        uint8_t shift = read8(is);
+        fprintf(stderr, "%d tleftfold %d\n", id, shift);
+        break;
     }
     CASE_(TNew) {
-        asm volatile("int3");
+        uint8_t shift = read8(is);
+        fprintf(stderr, "%d tnew %d\n", id, shift);
+        break;
     }
     CASE_(TCapture) {
-        asm volatile("int3");
+        uint8_t shift = read8(is);
+        fprintf(stderr, "%d tcap %d\n", id, shift);
+        break;
     }
     CASE_(TTag) {
-        asm volatile("int3");
+        int tagId = read16(is);
+        fprintf(stderr, "%d ttag %d\n", id, tagId);
+        break;
     }
     CASE_(TReplace) {
         asm volatile("int3");
+        break;
     }
     CASE_(TStart) {
-        asm volatile("int3");
+        fprintf(stderr, "%d tstart\n", id);
+        break;
     }
     CASE_(TCommit) {
-        asm volatile("int3");
+        int index = read8(is);
+        fprintf(stderr, "%d tcommit %d\n", id, index);
+        break;
     }
     CASE_(TAbort) {
         asm volatile("int3");
+        break;
     }
     CASE_(TLookup) {
-        asm volatile("int3");
+        int state = read8(is);
+        uint32_t memoId = read32(is);
+        int skip = read24(is);
+        int index = read8(is);
+        fprintf(stderr, "%d tlookup %d %d %d %d\n", id, state, memoId, skip, index);
+        break;
     }
     CASE_(TMemo) {
-        asm volatile("int3");
+        int state = read8(is);
+        uint32_t memoId = read32(is);
+        fprintf(stderr, "%d tlookup %d %d\n", id, state, memoId);
+        break;
     }
     CASE_(SOpen) {
         asm volatile("int3");
@@ -263,14 +331,17 @@ static void loadInst(input_stream_t *is)
         asm volatile("int3");
     }
     CASE_(Label) {
-        uint16_t len = read16(is);
-        asm volatile("int3");
-        char *label = peek(is); skip(is, len);
-        (void)len; (void)label;
+        uint16_t label = read16(is);
+        fprintf(stderr, "%d label %d\n", id, label);
+        (void)label;
         break;
     }
     }
 #undef CASE_
+    if (has_jump) {
+        int jump = get_next(is, &has_jump);
+        fprintf(stderr, "- jump %d\n", jump);
+    }
 }
 
 typedef struct moz_bytecode_t {
@@ -383,17 +454,20 @@ int main(int argc, char const* argv[])
     PRINT_FIELD(bc, tag_size);
     PRINT_FIELD(bc, table_size);
     // PRINT_FIELD(bc, sym_size);
-    i = 0;
-    while (is.pos + i < is.end) {
-        fprintf(stderr, "%02x ", (uint8_t)(is.data[is.pos + i]));
-        if (i != 0 && i % 16 == 15) {
-            fprintf(stderr, "\n");
+    if (0) {
+        i = 0;
+        while (is.pos + i < is.end) {
+            fprintf(stderr, "%02x ", (uint8_t)(is.data[is.pos + i]));
+            if (i != 0 && i % 16 == 15) {
+                fprintf(stderr, "\n");
+            }
+            i++;
         }
-        i++;
+        fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
+    i = 0;
     while (is.pos < is.end) {
-        loadInst(&is);
+        loadInst(&is, i++);
     }
     return 0;
 }
