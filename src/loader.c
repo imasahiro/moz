@@ -74,22 +74,79 @@ static uint32_t read32(input_stream_t *is)
     return d1 << 16 | d2;
 }
 
-static int checkFileType(input_stream_t *is)
-{
-    return read8(is) == 'N' && read8(is) == 'E' && read8(is) == 'Z';
-}
-
-#define MOZ_SUPPORTED_NEZ_VERSION 0
-static int checkVersion(input_stream_t *is)
-{
-    return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
-}
-
 static int get_next(input_stream_t *is, int *has_jump)
 {
     assert(has_jump > 0);
     *has_jump = 0;
     return read24(is);
+}
+
+static char *write_char(char *p, unsigned char ch)
+{
+    switch (ch) {
+    case '\\':
+        *p++ = '\\';
+        break;
+    case '\b':
+        *p++ = '\\';
+        *p++ = 'b';
+        break;
+    case '\f':
+        *p++ = '\\';
+        *p++ = 'f';
+        break;
+    case '\n':
+        *p++ = '\\';
+        *p++ = 'n';
+        break;
+    case '\r':
+        *p++ = '\\';
+        *p++ = 'r';
+        break;
+    case '\t':
+        *p++ = '\\';
+        *p++ = 't';
+        break;
+    default:
+        if (32 <= ch && ch <= 126) {
+            *p++ = ch;
+        }
+        else {
+            *p++ = '\\';
+            *p++ = "0123456789abcdef"[ch / 16];
+            *p++ = "0123456789abcdef"[ch % 16];
+        }
+    }
+    return p;
+}
+
+static void dump_set(bitset_t *set, char *buf)
+{
+    unsigned i, j;
+    *buf++ = '[';
+    for (i = 0; i < 256; i++) {
+        if (bitset_get(set, i)) {
+            buf = write_char(buf, i);
+            for (j = i + 1; j < 256; j++) {
+                if (!bitset_get(set, j)) {
+                    if (j == i + 1) {}
+                    else {
+                        *buf++ = '-';
+                        buf = write_char(buf, j - 1);
+                        i = j - 1;
+                    }
+                    break;
+                }
+            }
+            if (j == 256) {
+                *buf++ = '-';
+                buf = write_char(buf, j - 1);
+                break;
+            }
+        }
+    }
+    *buf++ = ']';
+    *buf++ = '\0';
 }
 
 static void loadInst(input_stream_t *is, int id)
@@ -98,7 +155,9 @@ static void loadInst(input_stream_t *is, int id)
     int has_jump = opcode & 0x80;
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
-    // fprintf(stderr, "***%s %d\n", opcode2str(opcode), has_jump > 0);
+    if (0) {
+        fprintf(stderr, "---%s %d\n", opcode2str(opcode), has_jump > 0);
+    }
     switch (opcode) {
     CASE_(Nop) {
         asm volatile("int3");
@@ -133,10 +192,12 @@ static void loadInst(input_stream_t *is, int id)
         break;
     }
     CASE_(Pos) {
-        asm volatile("int3");
+        fprintf(stderr, "%d pos\n", id);
+        break;
     }
     CASE_(Back) {
-        asm volatile("int3");
+        fprintf(stderr, "%d back\n", id);
+        break;
     }
     CASE_(Skip) {
         int next = get_next(is, &has_jump);
@@ -221,10 +282,17 @@ static void loadInst(input_stream_t *is, int id)
         break;
     }
     CASE_(Lookup) {
-        asm volatile("int3");
+        int state = read8(is);
+        uint32_t memoId = read32(is);
+        int skip = read24(is);
+        fprintf(stderr, "%d lookup %d %d %d\n", id, state, memoId, skip);
+        break;
     }
     CASE_(Memo) {
-        asm volatile("int3");
+        int state = read8(is);
+        uint32_t memoId = read32(is);
+        fprintf(stderr, "%d memo %d %d\n", id, state, memoId);
+        break;
     }
     CASE_(MemoFail) {
         int state = read8(is);
@@ -364,6 +432,17 @@ typedef struct moz_bytecode_t {
     // void *syms;
 } moz_bytecode_t;
 
+static int checkFileType(input_stream_t *is)
+{
+    return read8(is) == 'N' && read8(is) == 'E' && read8(is) == 'Z';
+}
+
+#define MOZ_SUPPORTED_NEZ_VERSION 0
+static int checkVersion(input_stream_t *is)
+{
+    return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
+}
+
 int main(int argc, char const* argv[])
 {
     unsigned i;
@@ -395,24 +474,20 @@ int main(int argc, char const* argv[])
 #define INT_BIT (sizeof(int) * CHAR_BIT)
 #define N (256 / INT_BIT)
         for (i = 0; i < bc.set_size; i++) {
-            unsigned j;
+            unsigned j, k, l;
+            char buf[512] = {};
             bitset_t *set = &bc.sets[i];
             bitset_init(set);
-            for (j = 0; j < N; j+= 2) {
-                unsigned low  = read32(&is);
-                unsigned high = read32(&is);
-                for (int i = 0; i < INT_BIT; i++) {
-                    unsigned mask = 1U << i;
-                    if ((low & mask) == mask)
-                        bitset_set(set, i);
-                    if ((high & mask) == mask)
-                        bitset_set(set, i + INT_BIT);
+            for (k = 0; k < 256/INT_BIT; k++) {
+                unsigned v = read32(&is);
+                for (l = 0; l < INT_BIT; l++) {
+                    unsigned mask = 1U << l;
+                    if ((v & mask) == mask)
+                        bitset_set(set, l + INT_BIT * k);
                 }
             }
-            if (0) {
-                // asm volatile("int3");
-                fprintf(stderr, "%d\n", bitset_get(set, '0'));
-            }
+            dump_set(set, buf);
+            fprintf(stderr, "set: %s\n", buf);
         }
 #undef N
     }
