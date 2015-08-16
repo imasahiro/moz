@@ -11,6 +11,10 @@
 #define CHAR_BIT 8
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static char *load_file(const char *path, size_t *size)
 {
     size_t len;
@@ -528,3 +532,8 @@ int main(int argc, char const* argv[])
     }
     return 0;
 }
+
+
+#ifdef __cplusplus
+}
+#endif

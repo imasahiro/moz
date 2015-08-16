@@ -8,6 +8,10 @@
 #include "token.h"
 #include "symtable.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct moz_runtime_t {
     AstMachine *ast;
     char *head;
@@ -112,3 +116,7 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
     assert(0 && "unreachable");
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

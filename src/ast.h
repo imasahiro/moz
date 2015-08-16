@@ -1,7 +1,9 @@
+#include <stdint.h>
 #ifndef AST_H
 #define AST_H
 
-typedef void AstMachine;
+struct AstMachine;
+typedef struct AstMachine AstMachine;
 long ast_save_tx(AstMachine *ast);
 void ast_rollback_tx(AstMachine *ast, long tx);
 void ast_commit_tx(AstMachine *ast, uint8_t index, long tx);

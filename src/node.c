@@ -1,5 +1,8 @@
 #include "node.h"
 #include <stdio.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 DEF_ARRAY_OP_NOPOINTER(Node);
 
@@ -122,5 +125,9 @@ int main(int argc, char const* argv[])
     Node_print(root);
     Node_free(root);
     return 0;
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
