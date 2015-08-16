@@ -25,6 +25,10 @@ extern "C" {
 
 #define MOZVM_MEMORY_USE_BOEHM_GC 0
 
+#ifndef LOG2
+#define LOG2(N) ((uint32_t)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
+#endif
+
 #ifdef __cplusplus
 }
 #endif
