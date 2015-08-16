@@ -1,0 +1,374 @@
+DEF(Nop)
+{
+    /* do nothing */
+}
+DEF(Fail)
+{
+    FAIL();
+}
+DEF(Alt, int failjump)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    PUSH_FRAME(CURRENT, PC + failjump, ast_save_tx(ast), symtable_savepoint());
+}
+DEF(Succ)
+{
+    long saved, ast_tx, jump;
+    char *pos;
+    POP_FRAME(pos, jump, ast_tx, saved);
+    (void)saved; (void)ast_tx; (void)jump; (void)pos;
+}
+DEF(Jump, int jump)
+{
+    JUMP(jump);
+}
+DEF(Call, int jump, int next)
+{
+    PUSH(jump);
+    JUMP(next);
+}
+DEF(Ret)
+{
+    long addr = POP();
+    JUMP(addr);
+}
+DEF(Pos)
+{
+    PUSH(CURRENT);
+}
+DEF(Back)
+{
+    CURRENT = (char *)POP();
+}
+DEF(Skip)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    long *saved = PEEK_N(0);
+    long *ast_tx = PEEK_N(1);
+    long *jump = PEEK_N(2);
+    char **cur = (char **) PEEK_N(3);
+    if (*cur == CURRENT) {
+        FAIL();
+    }
+    *cur = CURRENT;
+    *ast_tx = ast_save_tx(ast);
+    *saved  = symtable_savepoint();
+}
+DEF(Byte, uint8_t ch)
+{
+    if (unlikely(*CURRENT != ch)) {
+        FAIL();
+    }
+    CONSUME();
+}
+DEF(Any)
+{
+    if (EOS()) {
+        FAIL();
+    }
+    CONSUME();
+}
+DEF(Str, STRING_t strId)
+{
+    char *str = STRING_GET_IMPL(strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(CURRENT, str, len) == 0) {
+        FAIL();
+    }
+    CONSUME_N(len);
+}
+DEF(Set, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(setId);
+    if (!bitset_get(set, *CURRENT)) {
+        FAIL();
+    }
+    CONSUME();
+}
+DEF(NByte, uint8_t ch)
+{
+    if (unlikely(*CURRENT == ch)) {
+        FAIL();
+    }
+}
+DEF(NAny)
+{
+    if (!EOS()) {
+        FAIL();
+    }
+
+}
+DEF(NStr, STRING_t strId)
+{
+    char *str = STRING_GET_IMPL(strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(CURRENT, str, len) == 1) {
+        FAIL();
+    }
+}
+DEF(NSet, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(setId);
+    if (bitset_get(set, *CURRENT)) {
+        FAIL();
+    }
+}
+DEF(OByte, uint8_t ch)
+{
+    if (likely(*CURRENT == ch)) {
+        CONSUME();
+    }
+}
+DEF(OAny)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(OStr, STRING_t strId)
+{
+    char *str = STRING_GET_IMPL(strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(CURRENT, str, len) == 1) {
+        CONSUME_N(len);
+    }
+}
+DEF(OSet, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(setId);
+    if (bitset_get(set, *CURRENT)) {
+        CONSUME();
+    }
+}
+DEF(RByte, uint8_t ch)
+{
+    while (*CURRENT == ch) {
+        CONSUME();
+    }
+}
+DEF(RAny)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(RStr, STRING_t strId)
+{
+    char *str = STRING_GET_IMPL(strId);
+    unsigned len = pstring_length(str);
+    while (pstring_starts_with(CURRENT, str, len) == 1) {
+        CONSUME_N(len);
+    }
+}
+DEF(RSet, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(setId);
+    while (bitset_get(set, *CURRENT)) {
+        CONSUME();
+    }
+}
+DEF(Consume, int shift)
+{
+    CONSUME_N(shift);
+}
+DEF(First, JMPTBL_t tblId)
+{
+    int *jmpTable = JMPTBL_GET_IMPL(tblId);
+    JUMP(jmpTable[*CURRENT]);
+}
+DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
+{
+    MemoEntry_t *entry = memo_get(memoId, state);
+    if (entry) {
+        if (entry->failed) {
+            memo_failhit();
+            FAIL();
+        }
+        memo_hit();
+        CONSUME_N(entry->consumed);
+        JUMP(skip);
+    }
+    memo_miss();
+}
+DEF(Memo, uint8_t state, uint32_t memoId)
+{
+    long saved, ast_tx, jump;
+    char *pos;
+    POP_FRAME(pos, jump, ast_tx, saved);
+    long length = CURRENT - pos;
+    memo_set(pos, memoId, 0, NULL, length, state);
+    (void)saved; (void)ast_tx; (void)jump;
+}
+DEF(MemoFail, uint8_t state, uint32_t memoId)
+{
+    memo_set(CURRENT, memoId, 1, NULL, 0, state);
+}
+DEF(TPush)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_push(ast);
+}
+DEF(TPop, int8_t index)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_pop(ast, index);
+}
+DEF(TLeftFold, uint8_t shift)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_swap(ast, CURRENT + shift);
+}
+DEF(TNew, uint8_t shift)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_new(ast, CURRENT + shift);
+}
+DEF(TCapture, uint8_t shift)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_capture(ast, CURRENT + shift);
+}
+DEF(TTag, TAG_t tagId)
+{
+    tag_t *tag = TAG_GET_IMPL(tagId);
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_tag(ast, tag);
+}
+DEF(TReplace, STRING_t strId)
+{
+    char *str = STRING_GET_IMPL(strId);
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_replace(ast, str);
+}
+DEF(TStart)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    PUSH(ast_save_tx(ast));
+}
+DEF(TCommit, int8_t index)
+{
+    long tx = POP();
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_commit_tx(ast, index, tx);
+}
+DEF(TAbort)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(TLookup, int8_t index, uint8_t state, uint32_t memoId, int skip)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    MemoEntry_t *entry = memo_get(memoId, state);
+    if (entry) {
+        if (entry->failed) {
+            memo_failhit();
+            FAIL();
+        }
+        memo_hit();
+        CONSUME_N(entry->consumed);
+        ast_log_link(ast, index, entry->result);
+        JUMP(skip);
+    }
+    memo_miss();
+}
+DEF(TMemo, uint8_t state, uint32_t memoId)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    long saved, ast_tx, jump;
+    long length;
+    char *pos;
+
+    POP_FRAME(pos, jump, ast_tx, saved);
+    length = CURRENT - pos;
+    memo_set(pos, memoId, 0, ast_get_last_linked_node(ast), length, state);
+    (void)saved; (void)ast_tx; (void)jump;
+}
+DEF(SOpen)
+{
+    PUSH(symtable_savepoint());
+}
+DEF(SClose)
+{
+    long saved = POP();
+    symtable_rollback(saved);
+}
+DEF(SMask, TAG_t tagId)
+{
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    PUSH(symtable_savepoint());
+    symtable_add_symbol_mask(tableName);
+}
+DEF(SDef, TAG_t tagId)
+{
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    token_t captured;
+    token_init(&captured, (char *)POP(), CURRENT);
+    symtable_add_symbol(tableName, &captured);
+}
+DEF(SIsDef)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(SExists, TAG_t tagId)
+{
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    if (!symtable_has_symbol(tableName)) {
+        FAIL();
+    }
+}
+DEF(SMatch, TAG_t tagId)
+{
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    token_t t;
+    if (symtable_get_symbol(tableName, &t)) {
+        long pos = POP();
+        if (token_equal_string(&t, CURRENT)) {
+            CONSUME_N(token_length(&t));
+            NEXT();
+        }
+    }
+    FAIL();
+}
+DEF(SIs, TAG_t tagId)
+{
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    token_t t;
+    if (symtable_get_symbol(tableName, &t)) {
+        token_t captured;
+        token_init(&captured, (char *)POP(), CURRENT);
+        if (token_equal(&t, &captured)) {
+            CONSUME_N(token_length(&t));
+            NEXT();
+        }
+    }
+    FAIL();
+}
+DEF(SIsa, TAG_t tagId)
+{
+    token_t captured;
+    tag_t *tableName = TAG_GET_IMPL(tagId);
+    token_init(&captured, (char *)POP(), CURRENT);
+    if (!symtable_contains(tableName, &captured)) {
+        FAIL();
+    }
+    CONSUME_N(token_length(&captured));
+}
+DEF(SDefNum)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(SCount)
+{
+    /* not implemented */
+    ABORT();
+}
+DEF(Exit, uint8_t status)
+{
+    TODO();
+    return status;
+}
+DEF(Label)
+{
+    /* do nothing */
+}

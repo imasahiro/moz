@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifndef MOZ_INSTRUCTION_H
 #define MOZ_INSTRUCTION_H
 
@@ -72,6 +73,7 @@ enum MozOpcode {
 struct Instruction {
     uint8_t opcode;
 };
+
 static const char *opcode2str(int opcode)
 {
     switch (opcode) {

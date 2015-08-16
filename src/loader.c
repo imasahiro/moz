@@ -3,9 +3,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <limits.h>
-#include "bitset.c"
 #include "pstring.h"
 #include "instruction.h"
+#include "mozvm.h"
 
 #ifndef CHAR_BIT
 #define CHAR_BIT 8
@@ -227,6 +227,7 @@ static void loadInst(input_stream_t *is, int id)
         break;
     }
     CASE_(NAny) {
+        asm volatile("int3");
         fprintf(stderr, "%d nany\n", id);
         break;
     }
@@ -267,6 +268,7 @@ static void loadInst(input_stream_t *is, int id)
     }
     CASE_(RSet) {
         uint16_t set = read16(is);
+        // dump_set(set, buf);
         fprintf(stderr, "%d rset %d\n", id, set);
         break;
     }
@@ -327,7 +329,7 @@ static void loadInst(input_stream_t *is, int id)
         break;
     }
     CASE_(TTag) {
-        int tagId = read16(is);
+        uint16_t tagId = read16(is);
         fprintf(stderr, "%d ttag %d\n", id, tagId);
         break;
     }
@@ -396,7 +398,8 @@ static void loadInst(input_stream_t *is, int id)
         asm volatile("int3");
     }
     CASE_(Exit) {
-        asm volatile("int3");
+        uint8_t status = read8(is);
+        fprintf(stderr, "%d exit %d\n", id, status);
     }
     CASE_(Label) {
         uint16_t label = read16(is);
@@ -411,26 +414,6 @@ static void loadInst(input_stream_t *is, int id)
         fprintf(stderr, "- jump %d\n", jump);
     }
 }
-
-typedef struct moz_bytecode_t {
-    /* header */
-    unsigned inst_size;
-    unsigned prod_size;
-    unsigned memo_size;
-    /* const data */
-    uint16_t nterm_size;
-    const char **nterms;
-    uint16_t set_size;
-    bitset_t *sets;
-    uint16_t str_size;
-    const char **strs;
-    uint16_t tag_size;
-    const char **tags;
-    uint16_t table_size;
-    void *table;
-    // uint16_t sym_size;
-    // void *syms;
-} moz_bytecode_t;
 
 static int checkFileType(input_stream_t *is)
 {
@@ -453,8 +436,8 @@ int main(int argc, char const* argv[])
     assert(checkFileType(&is));
     assert(checkVersion(&is));
     bc.inst_size = (unsigned) read16(&is);
-    bc.prod_size = (unsigned) read16(&is);
     bc.memo_size = (unsigned) read16(&is);
+    bc.jumptable_size = (unsigned) read16(&is);
 
     bc.nterm_size = read16(&is);
     if (bc.nterm_size > 0) {
@@ -521,14 +504,13 @@ int main(int argc, char const* argv[])
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
     PRINT_FIELD(bc, inst_size);
-    PRINT_FIELD(bc, prod_size);
     PRINT_FIELD(bc, memo_size);
+    PRINT_FIELD(bc, jumptable_size);
     PRINT_FIELD(bc, nterm_size);
     PRINT_FIELD(bc, set_size);
     PRINT_FIELD(bc, str_size);
     PRINT_FIELD(bc, tag_size);
     PRINT_FIELD(bc, table_size);
-    // PRINT_FIELD(bc, sym_size);
     if (0) {
         i = 0;
         while (is.pos + i < is.end) {
