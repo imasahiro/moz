@@ -70,10 +70,8 @@ enum MozOpcode {
     Label    = 127,  // 7-bit
 };
 
-struct Instruction {
-    uint8_t opcode;
-};
 
+#ifdef MOZVM_DUMP_OPCODE
 static const char *opcode2str(int opcode)
 {
     switch (opcode) {
@@ -138,4 +136,5 @@ static const char *opcode2str(int opcode)
     }
     return "???";
 }
+#endif /*MOZVM_DUMP_OPCODE*/
 #endif /* end of include guard */

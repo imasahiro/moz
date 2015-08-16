@@ -82,6 +82,18 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
     register long *SP = runtime->stack;
     char *tail = input + runtime->input_size;
     AstMachine *AST = runtime->ast;
+
+#define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
+#define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
+#define read_int(PC)      *((int *)PC);      PC += sizeof(int)
+#define read_uint32_t(PC) *((uint32_t *)PC); PC += sizeof(uint32_t)
+#define read_STRING_t(PC) *((STRING_t *)PC); PC += sizeof(STRING_t)
+#define read_BITSET_t(PC) *((BITSET_t *)PC); PC += sizeof(BITSET_t)
+#define read_TAG_t(PC)    *((TAG_t *)PC);    PC += sizeof(TAG_t)
+#define read_JMPTBL_t(PC) *((JMPTBL_t *)PC); PC += sizeof(JMPTBL_t)
+// #define read_int(PC) ((int *)PC); PC += sizeof(int)
+// #define read_int(PC) ((int *)PC); PC += sizeof(int)
+
 #define PUSH(X) *SP++ = (long)(X)
 #define POP()  --*SP
 #define PEEK() PEEK_N(1)
@@ -107,7 +119,7 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
 #define DISPATCH() goto L_vm_head
 #define NEXT() ++PC; DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
-#define DISPATCH_START(PC) L_vm_head:;switch (*PC) {
+#define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
 #define DISPATCH_END() default: ABORT(); }
 #define OP_CASE(OP) case OP:
     DISPATCH_START(PC);

@@ -53,6 +53,7 @@ DEF(Skip)
     *cur = CURRENT;
     *ast_tx = ast_save_tx(ast);
     *saved  = symtable_savepoint();
+    (void)jump;
 }
 DEF(Byte, uint8_t ch)
 {
@@ -172,7 +173,7 @@ DEF(Consume, int shift)
 DEF(First, JMPTBL_t tblId)
 {
     int *jmpTable = JMPTBL_GET_IMPL(tblId);
-    JUMP(jmpTable[*CURRENT]);
+    JUMP(jmpTable[(unsigned)*CURRENT]);
 }
 DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
 {
@@ -321,7 +322,6 @@ DEF(SMatch, TAG_t tagId)
     tag_t *tableName = TAG_GET_IMPL(tagId);
     token_t t;
     if (symtable_get_symbol(tableName, &t)) {
-        long pos = POP();
         if (token_equal_string(&t, CURRENT)) {
             CONSUME_N(token_length(&t));
             NEXT();

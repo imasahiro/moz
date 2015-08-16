@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #ifndef MEMO_H
 #define MEMO_H
 

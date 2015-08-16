@@ -5,11 +5,11 @@
 extern "C" {
 #endif
 
-typedef struct MemoEntry {
-    uint8_t failed;
-    uint32_t consumed;
-    void *result;
-} MemoEntry_t;
+// typedef struct MemoEntry {
+//     uint8_t failed;
+//     uint32_t consumed;
+//     void *result;
+// } MemoEntry_t;
 
 typedef struct memo {
 } memo_t;
@@ -27,6 +27,7 @@ static memo_stat_t stat = {};
 
 memo_t *memo_init(unsigned init_size)
 {
+    return NULL;
 }
 
 void memo_dispose(memo_t *memo)
@@ -56,6 +57,13 @@ void memo_miss()
 {
     stat.memo_miss++;
 }
+
+#ifdef DEBUG
+int main(int argc, char const* argv[])
+{
+    return 0;
+}
+#endif
 
 #ifdef __cplusplus
 }

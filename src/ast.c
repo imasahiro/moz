@@ -58,6 +58,13 @@ void *ast_get_last_linked_node(AstMachine *ast)
     return NULL;
 }
 
+#ifdef DEBUG
+int main(int argc, char const* argv[])
+{
+    return 0;
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

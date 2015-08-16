@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <limits.h>
+
 #include "pstring.h"
+#define MOZVM_DUMP_OPCODE 1
 #include "instruction.h"
 #include "mozvm.h"
 
@@ -461,16 +463,16 @@ int main(int argc, char const* argv[])
 #define INT_BIT (sizeof(int) * CHAR_BIT)
 #define N (256 / INT_BIT)
         for (i = 0; i < bc.set_size; i++) {
-            unsigned j, k, l;
+            unsigned j, k;
             char buf[512] = {};
             bitset_t *set = &bc.sets[i];
             bitset_init(set);
-            for (k = 0; k < 256/INT_BIT; k++) {
+            for (j = 0; j < 256/INT_BIT; j++) {
                 unsigned v = read32(&is);
-                for (l = 0; l < INT_BIT; l++) {
-                    unsigned mask = 1U << l;
+                for (k = 0; k < INT_BIT; k++) {
+                    unsigned mask = 1U << k;
                     if ((v & mask) == mask)
-                        bitset_set(set, l + INT_BIT * k);
+                        bitset_set(set, k + INT_BIT * j);
                 }
             }
             dump_set(set, buf);

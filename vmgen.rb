@@ -2,6 +2,7 @@
 TAB="    "
 $line = 0
 FILE="src/instruction.def"
+
 open(FILE) {|f|
   while l = f.gets
     if l =~ /DEF\((.*)\)/
@@ -10,7 +11,8 @@ open(FILE) {|f|
       puts "#line #{$line} \"#{FILE}\""
       puts "OP_CASE(#{a.shift}) {"
       a.each {|e|
-        puts TAB + e + ";"
+        type, name = e.split(" ")
+        puts TAB + e + " = read_#{type}(PC);"
       }
     elsif l == "{\n"
     elsif l == "}\n"
