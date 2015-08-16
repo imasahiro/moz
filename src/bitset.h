@@ -23,6 +23,8 @@
  ***************************************************************************/
 
 #include <stdint.h>
+#ifndef BITSET_H
+#define BITSET_H
 
 #define BITSET_USE_ULONG 1
 #if defined(BITSET_USE_ULONG)
@@ -71,3 +73,4 @@ int main(int argc, char const* argv[])
     return 0;
 }
 #endif
+#endif /* end of include guard */
