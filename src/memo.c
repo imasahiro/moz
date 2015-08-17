@@ -27,20 +27,24 @@ static memo_stat_t stat = {};
 
 memo_t *memo_init(unsigned init_size)
 {
+    assert(0 && "not implemented");
     return NULL;
 }
 
 void memo_dispose(memo_t *memo)
 {
+    assert(0 && "not implemented");
 }
 
 MemoEntry_t *memo_get(uint32_t memoId, uint8_t state)
 {
+    assert(0 && "not implemented");
     return NULL;
 }
 
 void memo_set(char *pos, uint32_t memoId, int failed, void *result, unsigned consumed, int state)
 {
+    assert(0 && "not implemented");
 }
 
 void memo_hit()
@@ -61,6 +65,8 @@ void memo_miss()
 #ifdef DEBUG
 int main(int argc, char const* argv[])
 {
+    memo_t *memo = memo_init(12);
+    memo_dispose(memo);
     return 0;
 }
 #endif
