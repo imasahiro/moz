@@ -20,8 +20,8 @@ src/vm_core.c: vmgen.rb src/instruction.def
 ast: src/ast.c src/node.c $(NEZ_LIB)
 	clang src/ast.c src/node.c -o $(BUILD)/ast $(OPTION) -DDEBUG=1
 
-sym: src/symtable.c $(NEZ_LIB)
-	clang src/symtable.c -o $(BUILD)/sym $(OPTION) -DDEBUG=1
+sym: src/symtable.c src/kmap.c $(NEZ_LIB)
+	clang src/symtable.c src/kmap.c -o $(BUILD)/sym $(OPTION) -DDEBUG=1
 
 memo: src/memo.c $(NEZ_LIB)
 	clang src/memo.c -o $(BUILD)/memo $(OPTION) -DDEBUG=1

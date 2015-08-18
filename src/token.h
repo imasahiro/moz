@@ -12,6 +12,12 @@ static inline void token_init(token_t *t, char *s, char *e)
     t->len = e - s;
 }
 
+static inline void token_copy(token_t *t, token_t *t2)
+{
+    t->s   = t2->s;
+    t->len = t2->len;
+}
+
 static inline unsigned token_length(token_t *t)
 {
     return t->len;

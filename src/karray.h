@@ -70,7 +70,7 @@ static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
         return;\
     }\
     while(a->size + size > a->capacity) {\
-        a->capacity *= 2;\
+        a->capacity = 1 << LOG2(a->capacity * 2 + 1);\
     }\
     a->list = (T *)realloc(a->list, sizeof(T) * a->capacity);\
 }\
@@ -81,10 +81,7 @@ static inline void ARRAY_##T##_dispose(ARRAY(T) *a) {\
     a->list     = NULL;\
 }\
 static inline void ARRAY_##T##_add(ARRAY(T) *a, ValueType v) {\
-    if(a->size + 1 >= a->capacity) {\
-        a->capacity = 1 << LOG2(a->capacity * 2 + 1);\
-        a->list = (T *)realloc(a->list, sizeof(T) * a->capacity);\
-    }\
+    ARRAY_##T##_ensureSize(a, a->size + 1);\
     ARRAY_##T##_set(a, a->size++, v);\
 }
 
@@ -116,6 +113,7 @@ DEF_ARRAY_OP__(T, T)
 #define ARRAY_ensureSize(T, a, size) ARRAY_##T##_ensureSize(a, size)
 #define ARRAY_n(a, n)  ((a).list+n)
 #define ARRAY_size(a)  ((a).size)
+#define ARRAY_first(a) ARRAY_BEGIN(a)
 #define ARRAY_last(a)  ARRAY_n(a, ((a).size-1))
 #define ARRAY_init_1(T, a, e1) do {\
     ARRAY_init(T, a, 4);\
