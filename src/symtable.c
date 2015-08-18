@@ -6,8 +6,8 @@
 extern "C" {
 #endif
 
-typedef struct symtable_t {
-} symtable_t;
+struct symtable_t {
+};
 
 symtable_t *symtable_init()
 {
@@ -20,41 +20,41 @@ void symtable_dispose(symtable_t *sym)
     assert(0 && "not implemented");
 }
 
-void symtable_add_symbol_mask(char *tableName)
+void symtable_add_symbol_mask(symtable_t *tbl, char *tableName)
 {
     assert(0 && "not implemented");
 }
 
-void symtable_add_symbol(char *tableName, token_t *captured)
+void symtable_add_symbol(symtable_t *tbl, char *tableName, token_t *captured)
 {
     assert(0 && "not implemented");
 }
 
-int symtable_has_symbol(char *tableName)
-{
-    assert(0 && "not implemented");
-    return 0;
-}
-
-int symtable_get_symbol(char *tableName, token_t *t)
+int symtable_has_symbol(symtable_t *tbl, char *tableName)
 {
     assert(0 && "not implemented");
     return 0;
 }
 
-int symtable_contains(char *tableName, token_t *t)
+int symtable_get_symbol(symtable_t *tbl, char *tableName, token_t *t)
 {
     assert(0 && "not implemented");
     return 0;
 }
 
-long symtable_savepoint()
+int symtable_contains(symtable_t *tbl, char *tableName, token_t *t)
+{
+    assert(0 && "not implemented");
+    return 0;
+}
+
+long symtable_savepoint(symtable_t *tbl)
 {
     assert(0 && "not implemented");
     return -1;
 }
 
-void symtable_rollback(long saved)
+void symtable_rollback(symtable_t *tbl, long saved)
 {
     assert(0 && "not implemented");
 }

@@ -14,6 +14,7 @@ extern "C" {
 
 typedef struct moz_runtime_t {
     AstMachine *ast;
+    symtable_t *table;
     char *head;
     char *input;
     size_t input_size;
@@ -70,7 +71,7 @@ typedef int *JMPTBL_t;
         CURRENT = pos_; \
     } \
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
-    symtable_rollback(saved_); \
+    symtable_rollback(SYMTABLE_GET(), saved_); \
     JUMP(jump_); \
 } while (0)
 
@@ -82,6 +83,7 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
     register long *SP = runtime->stack;
     char *tail = input + runtime->input_size;
     AstMachine *AST = runtime->ast;
+    symtable_t *TBL = runtime->table;
 
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
@@ -113,6 +115,7 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
     POS    = (char *)POP();\
 } while (0)
 
+#define SYMTABLE_GET() (TBL)
 #define AST_MACHINE_GET() (AST)
 #define HEAD (runtime)->head
 #define EOS() (CURRENT == tail)
