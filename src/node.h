@@ -13,6 +13,10 @@ DEF_ARRAY_T(Node);
 
 #define NODE_SMALL_ARRAY_LIMIT 2
 struct pegvm_node {
+    char *tag;
+    char *pos;
+    char *value;
+    unsigned len;
 #if 1
     union entry {
         struct node_small_array {
@@ -31,7 +35,7 @@ static inline unsigned Node_length(Node o)
     return o->entry.raw.size;
 }
 
-Node Node_new(unsigned elm_size);
+Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value);
 void Node_free(Node o);
 void Node_append(Node o, Node n);
 Node Node_get(Node o, unsigned index);

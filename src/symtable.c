@@ -1,4 +1,5 @@
 #include "symtable.h"
+#include <stdlib.h>
 #include <assert.h>
 
 #ifdef __cplusplus

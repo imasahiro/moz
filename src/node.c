@@ -6,9 +6,15 @@ extern "C" {
 
 DEF_ARRAY_OP_NOPOINTER(Node);
 
-Node Node_new(unsigned elm_size)
+Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
 {
     Node o = (Node) VM_MALLOC(sizeof(*o));
+    o->tag = tag;
+    o->pos = str;
+    o->len = len;
+    o->value = value;
+
+    assert(o->len < 100);
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_init(Node, &o->entry.array, elm_size);
@@ -32,8 +38,11 @@ Node Node_get(Node o, unsigned index)
 
 void Node_set(Node o, unsigned index, Node n)
 {
-    unsigned len = Node_length(o);
-    assert (index < len);
+    unsigned len;
+    while (index >= Node_length(o)) {
+        Node_append(o, NULL);
+    }
+    len = Node_length(o);
     if (len > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_set(Node, &o->entry.array, index, n);
     }
@@ -94,15 +103,16 @@ static void Node_print2(Node o, unsigned level)
     unsigned i, len = Node_length(o);
 
     print_indent(level);
+    fprintf(stderr, "#%s", o->tag);
     if (len == 0) {
-        fprintf(stderr, "[]");
+        fprintf(stderr, "['%.*s']", o->len, o->pos);
         return;
     }
     else {
         fprintf(stderr, "[\n");
 
         for (i = 0; i < len; i++) {
-            Node node = ARRAY_get(Node, &o->entry.array, i);
+            Node node = Node_get(o, i);
             print_indent(level);
             Node_print2(node, level + 1);
             fprintf(stderr, ",\n");
