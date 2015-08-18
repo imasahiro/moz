@@ -116,13 +116,19 @@ static inline unsigned kmap_size(kmap_t *m)
     return m->h.used_size;
 }
 
-extern const kmap_api_t DICT_API;
-extern const kmap_api_t HASH_API;
-static inline void kmap_init(kmap_t *m, unsigned init)
+static inline void kmap_init_core(kmap_t *m, unsigned init, kmap_api_t *api)
 {
-    const kmap_api_t *api = (init > DICTMAP_THRESHOLD) ? &HASH_API:&DICT_API;
     m->h.base.api = api;
     api->_init(m, init);
+}
+
+extern const kmap_api_t DICT_API;
+extern const kmap_api_t HASH_API;
+
+static inline void kmap_init(kmap_t *m, unsigned init)
+{
+    const kmap_api_t *api = (init > DICTMAP_THRESHOLD) ? &HASH_API: &DICT_API;
+    kmap_init_core(m, init, api);
 }
 
 #ifdef __cplusplus
