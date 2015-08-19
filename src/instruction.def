@@ -23,10 +23,10 @@ DEF(Jump, int jump)
 {
     JUMP(jump);
 }
-DEF(Call, int jump, int next)
+DEF(Call, int jump)
 {
-    PUSH(jump);
-    JUMP(next);
+    PUSH(PC);
+    JUMP(jump);
 }
 DEF(Ret)
 {

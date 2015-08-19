@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-moz_runtime_t *moz_runtime_init(unsigned memo_size)
+moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -22,6 +22,9 @@ moz_runtime_t *moz_runtime_init(unsigned memo_size)
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo_size, MEMO_TYPE_ELASTIC);
     r->head = r->input = r->tail = NULL;
+    if (jmptbl_size) {
+        r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl_size);
+    }
     r->stack = r->stack_;
     return r;
 }

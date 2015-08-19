@@ -37,7 +37,7 @@ typedef struct moz_runtime_t {
     bitset_t *sets;
     char **tags;
     char **strs;
-    int **tables;
+    int *jumps;
     long stack_[1];
 } moz_runtime_t;
 
@@ -68,14 +68,14 @@ typedef bitset_t *BITSET_t;
 
 #ifdef MOZVM_SMALL_JMPTBL_INST
 typedef uint16_t JMPTBL_t;
-#define JMPTBL_GET_IMPL(runtime, ID) runtime->tables[(ID)]
+#define JMPTBL_GET_IMPL(runtime, ID) ((runtime)->jumps+(MOZ_JMPTABLE_SIZE * (ID)))
 #else
 typedef int *JMPTBL_t;
 #define JMPTBL_GET_IMPL(runtime, ID) (ID)
 #endif
 
 typedef uint8_t moz_inst_t;
-moz_runtime_t *moz_runtime_init(unsigned memo_size);
+moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 
 int moz_runtime_parse(moz_runtime_t *r, char *start, char *end, moz_inst_t *inst);

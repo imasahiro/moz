@@ -5,4 +5,5 @@ GRTAGS
 GTAGS
 a.out*
 src/vm_core.c
+src/vm_inst.h
 *.nzc
