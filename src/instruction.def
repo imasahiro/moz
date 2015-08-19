@@ -179,7 +179,7 @@ DEF(First, JMPTBL_t tblId)
 }
 DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
 {
-    MemoEntry_t *entry = memo_get(memoId, state);
+    MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
     if (entry) {
         if (entry->failed) {
             memo_failhit();
@@ -197,12 +197,12 @@ DEF(Memo, uint8_t state, uint32_t memoId)
     char *pos;
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = CURRENT - pos;
-    memo_set(pos, memoId, 0, NULL, length, state);
+    memo_set(MEMO_GET(), pos, memoId, 0, NULL, length, state);
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(MemoFail, uint8_t state, uint32_t memoId)
 {
-    memo_set(CURRENT, memoId, 1, NULL, 0, state);
+    memo_set(MEMO_GET(), CURRENT, memoId, 1, NULL, 0, state);
 }
 DEF(TPush)
 {
@@ -260,7 +260,7 @@ DEF(TAbort)
 DEF(TLookup, int8_t index, uint8_t state, uint32_t memoId, int skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    MemoEntry_t *entry = memo_get(memoId, state);
+    MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
     if (entry) {
         if (entry->failed) {
             memo_failhit();
@@ -279,10 +279,11 @@ DEF(TMemo, uint8_t state, uint32_t memoId)
     long saved, ast_tx, jump;
     long length;
     char *pos;
-
+    Node node;
     POP_FRAME(pos, jump, ast_tx, saved);
     length = CURRENT - pos;
-    memo_set(pos, memoId, 0, ast_get_last_linked_node(ast), length, state);
+    node = ast_get_last_linked_node(ast);
+    memo_set(MEMO_GET(), pos, memoId, 0, node, length, state);
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(SOpen)
