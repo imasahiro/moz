@@ -9,7 +9,7 @@ BUILD=build
 all: loader vm ast memo sym
 
 loader: src/loader.c src/vm_core.c $(NEZ_LIB)
-	clang src/loader.c src/vm.c $(NEZ_CORE) -o $(BUILD)/loader $(OPTION)
+	clang src/loader.c src/vm.c $(NEZ_CORE) -DDEBUG -o $(BUILD)/loader $(OPTION)
 
 vm: src/instruction.h src/vm.c src/vm_core.c $(NEZ_CORE) $(NEZ_LIB)
 	clang src/vm.c src/loader.c $(NEZ_CORE) -o $(BUILD)/vm $(OPTION)

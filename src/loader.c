@@ -21,6 +21,14 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
+#ifdef DEBUG
+#define VERBOSE_DEBUG 1
+#else
+#define VERBOSE_DEBUG 0
+#endif
+
+static int loader_debug = VERBOSE_DEBUG;
+
 static char *load_file(const char *path, size_t *size)
 {
     size_t len;
@@ -180,15 +188,9 @@ static mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 static moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
-    unsigned offset = 0;
     free(L->table);
     L->table = NULL;
-
-    /* skip first Label inst */
-    if (ARRAY_get(uint8_t, &L->buf, offset) == (uint8_t)Label) {
-        offset += 1;
-    }
-    return ARRAY_n(L->buf, offset);
+    return ARRAY_n(L->buf, 0);
 }
 
 static void mozvm_loader_dispose(mozvm_loader_t *L)
@@ -251,45 +253,30 @@ static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, voi
     }
 }
 
-#if 0
-#define OP_PRINT(FMT, ...) fprintf(stderr, FMT, __VA_ARGS__);
-#else
-#define OP_PRINT(FMT, ...)
-#endif
-
-static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id)
+static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 {
     uint8_t opcode = read8(is);
     int has_jump = opcode & 0x80;
-    // moz_inst_t *inst;
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
-    if (0) {
-        fprintf(stderr, "---%s %d\n", opcode2str(opcode), has_jump > 0);
+    if (opcode == Nop || opcode == Label) {/* skip */}
+    else {
+        mozvm_loader_write8(L, opcode);
     }
-    mozvm_loader_write8(L, opcode);
     switch (opcode) {
-    CASE_(Nop) {
-        asm volatile("int3");
-    }
-    CASE_(Fail) {
-        OP_PRINT("%d fail\n", id);
+    CASE_(Nop);
+    CASE_(Fail);
+    CASE_(Succ) {
         break;
     }
     CASE_(Alt) {
         int failjump = read24(is);
-        OP_PRINT("%d alt %d\n", id, failjump);
         mozvm_loader_write32(L, failjump);
-        break;
-    }
-    CASE_(Succ) {
-        OP_PRINT("%d fail\n", id);
         break;
     }
     CASE_(Jump) {
         int jump = get_next(is, &has_jump);
         mozvm_loader_write32(L, jump);
-        OP_PRINT("%d jump %d\n", id, jump);
         break;
     }
     CASE_(Call) {
@@ -297,107 +284,49 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         int nterm = read16(is);
         int jump  = get_next(is, &has_jump);
         mozvm_loader_write32(L, jump);
-        OP_PRINT("%d call next=%d nterm=%d jmp=%d\n", id, next, nterm, jump);
         break;
         (void)next;(void)nterm;
     }
-    CASE_(Ret) {
-        OP_PRINT("%d ret\n", id);
-        break;
-    }
-    CASE_(Pos) {
-        OP_PRINT("%d pos\n", id);
-        break;
-    }
-    CASE_(Back) {
-        OP_PRINT("%d back\n", id);
-        break;
-    }
+    CASE_(Ret);
+    CASE_(Pos);
+    CASE_(Back);
     CASE_(Skip) {
-        OP_PRINT("%d skip %d\n", id);
         break;
     }
-    CASE_(Byte) {
-        uint8_t ch = read8(is);
-        mozvm_loader_write8(L, ch);
-        OP_PRINT("%d byte '%c'\n", id, ch);
-        break;
-    }
-    CASE_(Any) {
-        OP_PRINT("%d any\n", id);
-        break;
-    }
-    CASE_(Str) {
-        asm volatile("int3");
-    }
-    CASE_(Set) {
-        uint16_t set = read16(is);
-        bitset_t *impl = BITSET_GET_IMPL(L->R, set);
-        mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, set, (void *)impl);
-        OP_PRINT("%d set %d\n", id, set);
-        break;
-    }
-    CASE_(NByte) {
-        uint8_t ch = read8(is);
-        mozvm_loader_write8(L, ch);
-        OP_PRINT("%d nbyte '%c'\n", id, ch);
-        break;
-    }
-    CASE_(NAny) {
-        asm volatile("int3");
-        OP_PRINT("%d nany\n", id);
-        break;
-    }
-    CASE_(NStr) {
-        asm volatile("int3");
-    }
-    CASE_(NSet) {
-        uint16_t set = read16(is);
-        bitset_t *impl = BITSET_GET_IMPL(L->R, set);
-        mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, set, (void *)impl);
-        OP_PRINT("%d nset %d\n", id, set);
-        break;
-    }
-    CASE_(OByte) {
-        uint8_t ch = read8(is);
-        mozvm_loader_write8(L, ch);
-        OP_PRINT("%d obyte '%c'\n", id, ch);
-        break;
-    }
-    CASE_(OAny) {
-        asm volatile("int3");
-    }
-    CASE_(OStr) {
-        asm volatile("int3");
-    }
-    CASE_(OSet) {
-        uint16_t set = read16(is);
-        bitset_t *impl = BITSET_GET_IMPL(L->R, set);
-        mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, set, (void *)impl);
-        OP_PRINT("%d oset %d\n", id, set);
-        break;
-    }
+    CASE_(Byte);
+    CASE_(NByte);
+    CASE_(OByte);
     CASE_(RByte) {
         uint8_t ch = read8(is);
         mozvm_loader_write8(L, ch);
-        OP_PRINT("%d rbyte '%c'\n", id, ch);
         break;
     }
+    CASE_(Any);
+    CASE_(NAny);
+    CASE_(OAny);
     CASE_(RAny) {
-        OP_PRINT("%d rany\n", id);
+        break;
     }
+    CASE_(Str);
+    CASE_(NStr);
+    CASE_(OStr);
     CASE_(RStr) {
         asm volatile("int3");
+        break;
     }
+
+    CASE_(Set);
+    CASE_(NSet);
+    CASE_(OSet);
     CASE_(RSet) {
         uint16_t set = read16(is);
         bitset_t *impl = BITSET_GET_IMPL(L->R, set);
         mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, set, (void *)impl);
-        OP_PRINT("%d rset %d\n", id, set);
         break;
     }
     CASE_(Consume) {
         asm volatile("int3");
+        break;
     }
     CASE_(First) {
         int i, table[257] = {};
@@ -408,7 +337,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         }
         memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
         mozvm_loader_write_id(L, MOZVM_SMALL_JMPTBL_INST, id, (void *)impl);
-        OP_PRINT("%d first\n", id);
         break;
     }
     CASE_(Lookup) {
@@ -418,7 +346,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         mozvm_loader_write8(L, (int8_t)state);
         mozvm_loader_write32(L, memoId);
         mozvm_loader_write32(L, skip);
-        OP_PRINT("%d lookup %d %d %d\n", id, state, memoId, skip);
         break;
     }
     CASE_(Memo) {
@@ -426,7 +353,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, state);
         mozvm_loader_write32(L, memoId);
-        OP_PRINT("%d memo %d %d\n", id, state, memoId);
         break;
     }
     CASE_(MemoFail) {
@@ -434,44 +360,37 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, (int8_t)state);
         mozvm_loader_write32(L, memoId);
-        OP_PRINT("%d memofail %d %d\n", id, state, memoId);
         break;
     }
     CASE_(TPush) {
         asm volatile("int3");
-        OP_PRINT("%d tpush\n", id);
         break;
     }
     CASE_(TPop) {
         int index = read8(is);
         mozvm_loader_write8(L, index);
         asm volatile("int3");
-        OP_PRINT("%d tpop %d\n", id, index);
         break;
     }
     CASE_(TLeftFold) {
         int8_t shift = read8(is);
         mozvm_loader_write8(L, shift);
-        OP_PRINT("%d tleftfold %d\n", id, shift);
         break;
     }
     CASE_(TNew) {
         int8_t shift = read8(is);
         mozvm_loader_write8(L, shift);
-        OP_PRINT("%d tnew %d\n", id, shift);
         break;
     }
     CASE_(TCapture) {
         int8_t shift = read8(is);
         mozvm_loader_write8(L, shift);
-        OP_PRINT("%d tcap %d\n", id, shift);
         break;
     }
     CASE_(TTag) {
         uint16_t tagId = read16(is);
         tag_t *impl = TAG_GET_IMPL(L->R, tagId);
         mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, impl);
-        OP_PRINT("%d ttag %d\n", id, tagId);
         break;
     }
     CASE_(TReplace) {
@@ -479,17 +398,15 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         break;
     }
     CASE_(TStart) {
-        OP_PRINT("%d tstart\n", id);
+        break;
+    }
+    CASE_(TAbort) {
+        asm volatile("int3");
         break;
     }
     CASE_(TCommit) {
         int index = read8(is);
         mozvm_loader_write8(L, index);
-        OP_PRINT("%d tcommit %d\n", id, index);
-        break;
-    }
-    CASE_(TAbort) {
-        asm volatile("int3");
         break;
     }
     CASE_(TLookup) {
@@ -501,7 +418,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         mozvm_loader_write8(L, state);
         mozvm_loader_write32(L, memoId);
         mozvm_loader_write32(L, skip);
-        OP_PRINT("%d tlookup %d %d %d %d\n", id, state, memoId, skip, index);
         break;
     }
     CASE_(TMemo) {
@@ -509,7 +425,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, state);
         mozvm_loader_write32(L, memoId);
-        OP_PRINT("%d tlookup %d %d\n", id, state, memoId);
         break;
     }
     CASE_(SOpen) {
@@ -548,40 +463,252 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, int id
     CASE_(Exit) {
         uint8_t status = read8(is);
         mozvm_loader_write8(L, status);
-        OP_PRINT("%d exit %d\n", id, status);
+        break;
     }
     CASE_(Label) {
-        uint16_t label = read16(is);
-        OP_PRINT("%d label %d\n", id, label);
-        (void)label;
+        /*uint16_t label =*/ read16(is);
         break;
     }
     }
 #undef CASE_
     if (has_jump) {
         int jump = get_next(is, &has_jump);
-        OP_PRINT("- jump %d\n", jump);
-        // mozvm_loader_write8(L, Jump);
-        // mozvm_loader_write32(L, jump);
+        mozvm_loader_write8(L, Jump);
+        mozvm_loader_write32(L, jump);
     }
 }
 
+#if 1
+#define OP_PRINT(FMT, ...) if (loader_debug) { fprintf(stderr, FMT, __VA_ARGS__); }
+#else
+#define OP_PRINT(FMT, ...)
+#endif
+
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
-    unsigned i = 0, j = 0;
+    int id = 0, j = 0;
     while (is->pos < is->end) {
-        unsigned cur = ARRAY_size(L->buf);
-        L->table[i] = ARRAY_size(L->buf);
-        mozvm_loader_load_inst(L, is, i++);
-        fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, &L->buf, cur)), ARRAY_size(L->buf) - cur);
+        // unsigned cur = ARRAY_size(L->buf);
+        L->table[id++] = ARRAY_size(L->buf);
+        mozvm_loader_load_inst(L, is);
+        // fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, L->buf, cur)), ARRAY_size(L->buf) - cur);
     }
 
+    // fprintf(stderr, "\n");
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = ARRAY_get(uint8_t, &L->buf, j);
         unsigned shift = opcode_size(opcode);
-        fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
-        // assert(j == L->table[j]);
+        int *ref;
+#define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + IDX))
+        switch (opcode) {
+        case Alt:
+        case Jump:
+        case Call:
+        case Lookup:
+        case TLookup:
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(int));
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case First: {
+            uint8_t *p = L->buf.list + j + shift - sizeof(JMPTBL_t);
+            int i, *table = NULL;
+            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
+            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                table[i] = L->table[table[i]] - j;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+#undef GET_JUMP_ADDR
+        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
         j += shift;
+    }
+
+    id = 0;
+    j = 0;
+    while (j < ARRAY_size(L->buf)) {
+        uint8_t *p = L->buf.list + j;
+        uint8_t opcode = *p;
+        unsigned shift = opcode_size(opcode);
+        OP_PRINT("%d %s ", id, opcode2str(opcode));
+        switch (opcode) {
+#define CASE_(OP) case OP:
+        CASE_(Nop);
+        CASE_(Fail);
+        CASE_(Succ) {
+            break;
+        }
+        CASE_(Alt);
+        CASE_(Jump);
+        CASE_(Call) {
+            OP_PRINT("%d", *(int *)(p + 1));
+            break;
+        }
+        CASE_(Ret);
+        CASE_(Pos);
+        CASE_(Back);
+        CASE_(Skip) {
+            break;
+        }
+        CASE_(Byte);
+        CASE_(NByte);
+        CASE_(OByte);
+        CASE_(RByte) {
+            OP_PRINT("'%c'", *(p + 1));
+            break;
+        }
+        CASE_(Any);
+        CASE_(NAny);
+        CASE_(OAny);
+        CASE_(RAny) {
+            break;
+        }
+        CASE_(Str);
+        CASE_(NStr);
+        CASE_(OStr);
+        CASE_(RStr) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(Set);
+        CASE_(NSet);
+        CASE_(OSet);
+        CASE_(RSet) {
+            BITSET_t setId = *(BITSET_t *)(p + 1);
+            bitset_t *impl = BITSET_GET_IMPL(L->R, setId);
+            OP_PRINT("%p", impl);
+            break;
+        }
+        CASE_(Consume) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(First) {
+            JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
+            int *impl = JMPTBL_GET_IMPL(L->R, tblId);
+            OP_PRINT("%p", impl);
+            break;
+        }
+        CASE_(Lookup) {
+            int state = *(int8_t *)(p + 1);
+            uint32_t memoId = *(uint32_t *)(p + 2);
+            int skip = *(int *)(p + 6);
+            OP_PRINT("%d %d %d", state, memoId, skip);
+            break;
+        }
+        CASE_(Memo);
+        CASE_(MemoFail) {
+            int state = *(int8_t *)(p + 1);
+            uint32_t memoId = *(uint32_t *)(p + 2);
+            OP_PRINT("%d %d", state, memoId);
+            break;
+        }
+        CASE_(TPush) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(TPop) {
+            int index = *(int8_t *)(p + 1);
+            asm volatile("int3");
+            OP_PRINT("%d", index);
+            break;
+        }
+        CASE_(TLeftFold) {
+            int shift = *(int8_t *)(p + 1);
+            OP_PRINT("%d", shift);
+            break;
+        }
+        CASE_(TNew);
+        CASE_(TCapture) {
+            int shift = *(int8_t *)(p + 1);
+            OP_PRINT("%d", shift);
+            break;
+        }
+        CASE_(TTag) {
+            TAG_t tagId = *(TAG_t *)(p + 1);
+            tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+            OP_PRINT("%p", impl);
+            break;
+        }
+        CASE_(TReplace) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(TStart) {
+            break;
+        }
+        CASE_(TCommit) {
+            int index = *(int8_t *)(p + 1);
+            OP_PRINT("%d", index);
+            break;
+        }
+        CASE_(TAbort) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(TLookup) {
+            int index = *(int8_t *)(p + 1);
+            int8_t state = *(int8_t *)(p + 2);
+            uint32_t memoId = *(uint32_t *)(p + 3);
+            int skip = *(int *)(p + 7);
+            OP_PRINT("%d %d %d %d", state, memoId, skip, index);
+            break;
+        }
+        CASE_(TMemo) {
+            int state = *(int8_t *)(p + 1);
+            uint32_t memoId = *(uint32_t *)(p + 2);
+            OP_PRINT("%d %d", state, memoId);
+            break;
+        }
+        CASE_(SOpen) {
+            asm volatile("int3");
+        }
+        CASE_(SClose) {
+            asm volatile("int3");
+        }
+        CASE_(SMask) {
+            asm volatile("int3");
+        }
+        CASE_(SDef) {
+            asm volatile("int3");
+        }
+        CASE_(SIsDef) {
+            asm volatile("int3");
+        }
+        CASE_(SExists) {
+            asm volatile("int3");
+        }
+        CASE_(SMatch) {
+            asm volatile("int3");
+        }
+        CASE_(SIs) {
+            asm volatile("int3");
+        }
+        CASE_(SIsa) {
+            asm volatile("int3");
+        }
+        CASE_(SDefNum) {
+            asm volatile("int3");
+        }
+        CASE_(SCount) {
+            asm volatile("int3");
+        }
+        CASE_(Exit) {
+            OP_PRINT("%d", *(p + 1));
+            break;
+        }
+        CASE_(Label) {
+            break;
+        }
+#undef CASE_
+        }
+        if (loader_debug) {
+            fprintf(stderr, "\n");
+        }
+        j += shift;
+        id++;
     }
 }
 
@@ -596,16 +723,14 @@ static int checkVersion(input_stream_t *is)
     return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
 }
 
-int main(int argc, char const* argv[])
+moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 {
     unsigned i;
     moz_bytecode_t bc = {};
-    mozvm_loader_t L = {};
     input_stream_t is;
-    moz_inst_t *insts = NULL;
 
     is.pos = 0;
-    is.data = load_file(argv[1], &is.end);
+    is.data = load_file(file, &is.end);
     assert(checkFileType(&is));
     assert(checkVersion(&is));
     bc.inst_size = (unsigned) read16(&is);
@@ -674,11 +799,11 @@ int main(int argc, char const* argv[])
     //     // assert(0 && "we do not have any specification about set field");
     // }
 
-    mozvm_loader_init(&L, bc.inst_size);
-    L.R = moz_runtime_init(bc.jumptable_size, bc.memo_size);
-    L.R->sets = bc.sets;
-    L.R->tags = (char **)bc.tags;
-    L.R->strs = (char **)bc.strs;
+    mozvm_loader_init(L, bc.inst_size);
+    L->R = moz_runtime_init(bc.jumptable_size, bc.memo_size);
+    L->R->sets = bc.sets;
+    L->R->tags = (char **)bc.tags;
+    L->R->strs = (char **)bc.strs;
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
     PRINT_FIELD(bc, inst_size);
@@ -700,12 +825,21 @@ int main(int argc, char const* argv[])
         }
         fprintf(stderr, "\n");
     }
-    mozvm_loader_load(&L, &is);
-    insts = mozvm_loader_freeze(&L);
+    mozvm_loader_load(L, &is);
+    return mozvm_loader_freeze(L);
+}
+
+#ifdef DEBUG
+int main(int argc, char const* argv[])
+{
+    mozvm_loader_t L = {};
+    moz_inst_t *inst = mozvm_loader_load_file(&L, argv[1]);
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
+    (void)inst;
     return 0;
 }
+#endif
 
 #ifdef __cplusplus
 }
