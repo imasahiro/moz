@@ -29,6 +29,15 @@ extern "C" {
 #define LOG2(N) ((uint32_t)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
 #endif
 
+// AstMachine
+#define MOZ_AST_MACHINE_DEFAULT_LOG_SIZE 128
+
+// Memo
+#define MOZ_MEMO_DEFAULT_WINDOW_SIZE 32
+
+// Runtime
+#define MOZ_DEFAULT_STACK_SIZE  128
+
 #ifdef __cplusplus
 }
 #endif

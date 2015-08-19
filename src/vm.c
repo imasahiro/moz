@@ -12,19 +12,27 @@
 extern "C" {
 #endif
 
-typedef struct moz_runtime_t {
-    AstMachine *ast;
-    symtable_t *table;
-    char *head;
-    char *input;
-    size_t input_size;
-    long *stack;
+moz_runtime_t *moz_runtime_init(unsigned memo_size)
+{
+    moz_runtime_t *r;
+    unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
 
-    bitset_t *sets;
-    const char **tags;
-    const char **strs;
-    int **tables;
-} moz_runtime_t;
+    r = (moz_runtime_t *)malloc(size);
+    r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
+    r->table = symtable_init();
+    r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo_size, MEMO_TYPE_ELASTIC);
+    r->head = r->input = r->tail = NULL;
+    r->stack = r->stack_;
+    return r;
+}
+
+void moz_runtime_dispose(moz_runtime_t *r)
+{
+    AstMachine_dispose(r->ast);
+    symtable_dispose(r->table);
+    memo_dispose(r->memo);
+    free(r);
+}
 
 #ifdef MOZVM_SMALL_STRING_INST
 typedef uint16_t STRING_t
@@ -75,15 +83,17 @@ typedef int *JMPTBL_t;
     JUMP(jump_); \
 } while (0)
 
-typedef uint8_t moz_inst_t;
-int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
+int parse(moz_runtime_t *runtime, char *start, char *end, moz_inst_t *inst)
 {
-    register char *CURRENT = input;
+    register char *CURRENT = start;
     register moz_inst_t *PC = inst;
     register long *SP = runtime->stack;
-    char *tail = input + runtime->input_size;
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
+    memo_t *memo = runtime->memo;
+    runtime->head = CURRENT;
+    runtime->tail = end;
+    AstMachine_setSource(AST, CURRENT);
 
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
@@ -117,8 +127,9 @@ int parse(moz_runtime_t *runtime, char *input, moz_inst_t *inst)
 
 #define SYMTABLE_GET() (TBL)
 #define AST_MACHINE_GET() (AST)
+#define MEMO_GET() (memo)
 #define HEAD (runtime)->head
-#define EOS() (CURRENT == tail)
+#define EOS() (CURRENT == runtime->tail)
 #define DISPATCH() goto L_vm_head
 #define NEXT() ++PC; DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()

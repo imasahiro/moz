@@ -6,6 +6,9 @@
 struct symtable_t;
 typedef struct symtable_t symtable_t;
 
+symtable_t *symtable_init();
+void symtable_dispose(symtable_t *tbl);
+
 void symtable_add_symbol_mask(symtable_t *tbl, char *tableName);
 void symtable_add_symbol(symtable_t *tbl, char *tableName, token_t *captured);
 int symtable_has_symbol(symtable_t *tbl, char *tableName);

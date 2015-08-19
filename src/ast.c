@@ -84,6 +84,11 @@ void AstMachine_dispose(AstMachine *ast)
     free(ast);
 }
 
+void AstMachine_setSource(AstMachine *ast, char *source)
+{
+    ast->source = source;
+}
+
 #ifdef DEBUG2
 static void AstMachine_dumpLog(AstMachine *ast)
 {

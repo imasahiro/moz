@@ -499,7 +499,7 @@ int main(int argc, char const* argv[])
     bc.table_size = read16(&is);
     if (bc.table_size > 0) {
         bc.table = peek(&is);
-        assert(0 && "we do not have any specification about set field");
+        assert(0 && "we do not have any specification about table");
     }
     // bc.sym_size = read16(&is);
     // if (bc.sym_size > 0) {
