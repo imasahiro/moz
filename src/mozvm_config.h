@@ -23,8 +23,6 @@ extern "C" {
 
 #define VM_SMALL_ARRAY_LIMIT 2
 
-#define MOZVM_MEMORY_USE_BOEHM_GC 0
-
 #ifndef LOG2
 #define LOG2(N) ((uint32_t)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
 #endif
@@ -41,6 +39,10 @@ extern "C" {
 // jump table
 #define MOZ_JMPTABLE_SIZE 256
 // #define MOZ_JMPTABLE_SIZE 257
+
+// node
+#define MOZVM_MEMORY_USE_RCGC 1
+// #define MOZVM_MEMORY_USE_BOEHM_GC 1
 
 // VM / bytecode
 #define MOZVM_SMALL_STRING_INST 1

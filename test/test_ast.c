@@ -38,6 +38,7 @@ int main(int argc, char const* argv[])
         struct tag *t = &tags[i];
         t->tag = (char *)pstring_alloc(t->txt, t->len);
     }
+    NodeManager_init();
     ast = AstMachine_init(128, str);
     /*00*/ast_log_new(ast, str + 0);
     /*01*/ast_log_new(ast, str + 2);
@@ -128,5 +129,6 @@ int main(int argc, char const* argv[])
         pstring_delete(t->tag);
     }
     pstring_delete(str);
+    NodeManager_dispose();
     return 0;
 }

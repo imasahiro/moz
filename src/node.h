@@ -1,4 +1,5 @@
 #include "karray.h"
+#include "mozvm_config.h"
 
 #ifndef NODE_H
 #define NODE_H
@@ -11,8 +12,37 @@ typedef struct pegvm_node *Node;
 DEF_ARRAY_STRUCT0(Node, unsigned);
 DEF_ARRAY_T(Node);
 
+// #define MOZVM_MEMORY_USE_BOEHM_GC
+#ifdef MOZVM_MEMORY_USE_BOEHM_GC
+#define NODE_GC_HEADER
+#define NODE_GC_INIT(O)          ((void)O)
+#define NODE_GC_RETAIN(O)        ((void)O)
+#define NODE_GC_RELEASE(O)       ((void)O)
+#define NODE_GC_WRITE(DST, SRC) *(DST) = (SRC)
+
+#elif defined(MOZVM_MEMORY_USE_RCGC)
+#define NODE_GC_HEADER  long refc
+#define NODE_GC_INIT(O) (O)->refc = 0
+#define NODE_GC_RETAIN(O)  (O)->refc++
+#define NODE_GC_RELEASE(O) do {\
+    (O)->refc--; \
+    if ((O)->refc == 0) { \
+        Node_sweep((O)); \
+    } \
+} while (0)
+
+#define NODE_GC_WRITE(DST, SRC) do {\
+    NODE_GC_RETAIN(SRC); \
+    NODE_GC_RELEASE(DST); \
+    (DST) = (SRC); \
+} while (0)
+#else
+#error node gc
+#endif
+
 #define NODE_SMALL_ARRAY_LIMIT 2
 struct pegvm_node {
+    NODE_GC_HEADER;
     char *tag;
     char *pos;
     char *value;
@@ -41,6 +71,12 @@ void Node_append(Node o, Node n);
 Node Node_get(Node o, unsigned index);
 void Node_set(Node o, unsigned index, Node n);
 void Node_print(Node o);
+#ifdef MOZVM_MEMORY_USE_RCGC
+void Node_sweep(Node o);
+#endif
+
+void NodeManager_init();
+void NodeManager_dispose();
 
 #ifdef __cplusplus
 }

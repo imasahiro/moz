@@ -194,12 +194,13 @@ DEF(Memo, uint8_t state, uint32_t memoId)
     char *pos;
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = CURRENT - pos;
-    memo_set(MEMO_GET(), pos, memoId, 0, NULL, length, state);
+    memo_set(MEMO_GET(), pos, memoId, NULL, length, state);
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(MemoFail, uint8_t state, uint32_t memoId)
 {
-    memo_set(MEMO_GET(), CURRENT, memoId, 1, NULL, 0, state);
+    memo_fail(MEMO_GET(), CURRENT, memoId);
+    (void)state; // FIXME MemoFail needs state???
 }
 DEF(TPush)
 {
@@ -280,7 +281,7 @@ DEF(TMemo, uint8_t state, uint32_t memoId)
     POP_FRAME(pos, jump, ast_tx, saved);
     length = CURRENT - pos;
     node = ast_get_last_linked_node(ast);
-    memo_set(MEMO_GET(), pos, memoId, 0, node, length, state);
+    memo_set(MEMO_GET(), pos, memoId, node, length, state);
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(SOpen)

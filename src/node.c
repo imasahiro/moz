@@ -1,14 +1,65 @@
 #include "node.h"
 #include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 DEF_ARRAY_OP_NOPOINTER(Node);
 
+#ifdef MOZVM_MEMORY_USE_RCGC
+static Node free_list = NULL;
+
+void NodeManager_init()
+{
+}
+
+void NodeManager_dispose()
+{
+    while (free_list) {
+        Node next = (Node)free_list->tag;
+        VM_FREE(free_list);
+        free_list = next;
+    }
+}
+
+static inline Node node_alloc()
+{
+    if (free_list) {
+        Node o = free_list;
+        free_list = (Node)o->tag;
+        return o;
+    }
+    return (Node) VM_MALLOC(sizeof(struct pegvm_node));
+}
+
+static inline void node_free(Node o)
+{
+    assert(o->refc == 0);
+    o->refc = -1;
+    o->tag = (char *)free_list;
+    free_list = o;
+}
+
+void Node_sweep(Node o)
+{
+    // FIXME stack over flow
+    unsigned i, len = Node_length(o);
+    for (i = 0; i < len; i++) {
+        Node node = Node_get(o, i);
+        --node->refc;
+        if (node->refc == 0) {
+            Node_sweep(node);
+        }
+    }
+    node_free(o);
+}
+
+#endif
+
 Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
 {
-    Node o = (Node) VM_MALLOC(sizeof(*o));
+    Node o = node_alloc();
     o->tag = tag;
     o->pos = str;
     o->len = len;
@@ -39,6 +90,14 @@ Node Node_get(Node o, unsigned index)
 void Node_set(Node o, unsigned index, Node n)
 {
     unsigned len;
+
+    if (MOZVM_MEMORY_USE_RCGC) {
+        Node v = Node_get(o, index);
+        if (v) {
+            NODE_GC_RELEASE(v);
+        }
+        NODE_GC_RETAIN(n);
+    }
     while (index >= Node_length(o)) {
         Node_append(o, NULL);
     }
@@ -54,6 +113,9 @@ void Node_set(Node o, unsigned index, Node n)
 void Node_append(Node o, Node n)
 {
     unsigned len = Node_length(o);
+    if (n) {
+        NODE_GC_RETAIN(n);
+    }
     if (len > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_ensureSize(Node, &o->entry.array, 1);
         ARRAY_add(Node, &o->entry.array, n);
@@ -124,6 +186,7 @@ static void Node_print2(Node o, unsigned level)
 
 void Node_print(Node o)
 {
+    // fprintf(stderr, "%d\n", sizeof(*o));
     Node_print2(o, 0);
     fprintf(stderr, "\n");
 }

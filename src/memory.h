@@ -32,8 +32,6 @@
 #define VM_MALLOC(N)        GC_MALLOC(N)
 #define VM_REALLOC(PTR, N)  GC_REALLOC(PTR, N)
 #define VM_FREE(PTR)        ((void)PTR)
-
-#elif MOZVM_MEMORY_USE_REFCOUNT
 #endif
 
 #ifndef VM_MALLOC

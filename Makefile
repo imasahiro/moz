@@ -45,7 +45,7 @@ test_ast: $(BUILD)/ast.o $(BUILD)/node.o test/test_ast.c
 test_sym: $(BUILD)/symtable.o test/test_sym.c
 	$(CC) $(OPTION) $? -o $(BUILD)/test_sym
 
-test_memo: $(BUILD)/memo.o test/test_memo.c
+test_memo: $(BUILD)/node.o $(BUILD)/memo.o test/test_memo.c
 	$(CC) $(OPTION) $? -o $(BUILD)/test_memo
 
 test_loader: $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c

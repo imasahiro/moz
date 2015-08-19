@@ -10,6 +10,7 @@ extern "C" {
 typedef struct memo_api_t {
     void (*_init)(memo_t *, unsigned w, unsigned n);
     int  (*_set)(memo_t *, char *pos, unsigned id, MemoEntry_t *);
+    int  (*_fail)(memo_t *, char *pos, unsigned id);
     MemoEntry_t *(*_get)(memo_t *, char *pos, unsigned id, unsigned state);
     void (*_dispose)(memo_t *);
 } memo_api_t;
@@ -51,6 +52,11 @@ static int memo_null_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
     return 0;
 }
 
+static int memo_null_fail(memo_t *m, char *pos, unsigned id)
+{
+    return 0;
+}
+
 static MemoEntry_t *memo_null_get(memo_t *m, char *pos, unsigned id, unsigned state)
 {
     return NULL;
@@ -64,6 +70,7 @@ static void memo_null_dispose(memo_t *memo)
 static const memo_api_t MEMO_API_NULL = {
     memo_null_init,
     memo_null_set,
+    memo_null_fail,
     memo_null_get,
     memo_null_dispose
 };
@@ -85,8 +92,27 @@ static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
 {
     uintptr_t hash = (((uintptr_t)pos << m->e.shift) | id);
     unsigned idx = hash % ARRAY_size(m->e.ary);
+    MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->e.ary, idx);
+    if (old->failed != UINTPTR_MAX && old->result) {
+        NODE_GC_RELEASE(old->result);
+    }
+    if (e->result) {
+        NODE_GC_RETAIN(e->result);
+    }
     ARRAY_set(MemoEntry_t, &m->e.ary, idx, e);
     return 1;
+}
+
+static int memo_elastic_fail(memo_t *m, char *pos, unsigned id)
+{
+    uintptr_t hash = (((uintptr_t)pos << m->e.shift) | id);
+    unsigned idx = hash % ARRAY_size(m->e.ary);
+    MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->e.ary, idx);
+    if (old->failed != UINTPTR_MAX && old->result) {
+        NODE_GC_RELEASE(old->result);
+    }
+    old->failed = UINTPTR_MAX;
+    return 0;
 }
 
 static MemoEntry_t *memo_elastic_get(memo_t *m, char *pos, unsigned id, unsigned state)
@@ -104,12 +130,20 @@ static MemoEntry_t *memo_elastic_get(memo_t *m, char *pos, unsigned id, unsigned
 
 static void memo_elastic_dispose(memo_t *m)
 {
+    unsigned i;
+    for (i = 0; i < ARRAY_size(m->e.ary); i++) {
+        MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->e.ary, i);
+        if (e->failed != UINTPTR_MAX && e->result) {
+            NODE_GC_RELEASE(e->result);
+        }
+    }
     ARRAY_dispose(MemoEntry_t, &m->e.ary);
 }
 
 static const memo_api_t MEMO_API_ELASTIC = {
     memo_elastic_init,
     memo_elastic_set,
+    memo_elastic_fail,
     memo_elastic_get,
     memo_elastic_dispose
 };
@@ -145,10 +179,14 @@ MemoEntry_t *memo_get(memo_t *m, char *pos, uint32_t memoId, uint8_t state)
     return m->api->_get(m, pos, memoId, state);
 }
 
-int memo_set(memo_t *m, char *pos, uint32_t memoId, int failed, void *result, unsigned consumed, int state)
+int memo_fail(memo_t *m, char *pos, uint32_t memoId)
+{
+    return m->api->_fail(m, pos, memoId);
+}
+
+int memo_set(memo_t *m, char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
 {
     MemoEntry_t e;
-    e.failed   = failed;
     e.consumed = consumed;
     e.state    = state;
     e.result   = result;
