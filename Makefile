@@ -8,8 +8,8 @@ BUILD=build
 
 all: loader vm ast memo sym
 
-loader: src/loader.c $(NEZ_LIB)
-	clang src/loader.c -o $(BUILD)/loader $(OPTION)
+loader: src/loader.c src/vm_core.c $(NEZ_LIB)
+	clang src/loader.c src/vm.c -o $(BUILD)/loader $(OPTION)
 
 vm: src/instruction.h src/vm.c src/vm_core.c $(NEZ_CORE) $(NEZ_LIB)
 	clang src/vm.c src/loader.c $(NEZ_CORE) -o $(BUILD)/vm $(OPTION)
@@ -33,6 +33,6 @@ sample/%.nzc: sample/%.nez
 	java -jar $(NEZ) compile -p $<
 
 clean:
-	-rm -rf sample/*.nzc build/* src/vm_core.c
+	-rm -rf sample/*.nzc build/* src/vm_core.c src/vm_inst.h
 
 .PHONY: all gen clean

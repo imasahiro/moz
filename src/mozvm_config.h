@@ -38,6 +38,12 @@ extern "C" {
 // Runtime
 #define MOZ_DEFAULT_STACK_SIZE  128
 
+// VM / bytecode
+#define MOZVM_SMALL_STRING_INST 1
+#define MOZVM_SMALL_TAG_INST    1
+#define MOZVM_SMALL_BITSET_INST 1
+#define MOZVM_SMALL_JMPTBL_INST 1
+
 #ifdef __cplusplus
 }
 #endif

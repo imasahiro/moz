@@ -35,11 +35,44 @@ typedef struct moz_runtime_t {
     long *stack;
 
     bitset_t *sets;
-    const char **tags;
-    const char **strs;
+    char **tags;
+    char **strs;
     int **tables;
     long stack_[1];
 } moz_runtime_t;
+
+#ifdef MOZVM_SMALL_STRING_INST
+typedef uint16_t STRING_t;
+#define STRING_GET_IMPL(runtime, ID) runtime->strs[(ID)]
+#else
+typedef char *STRING_t;
+#define STRING_GET_IMPL(runtime, ID) (ID)
+#endif
+
+typedef char tag_t;
+#ifdef MOZVM_SMALL_TAG_INST
+typedef uint16_t TAG_t;
+#define TAG_GET_IMPL(runtime, ID) runtime->tags[(ID)]
+#else
+typedef tag_t *TAG_t;
+#define TAG_GET_IMPL(runtime, ID) (ID)
+#endif
+
+#ifdef MOZVM_SMALL_BITSET_INST
+typedef uint16_t BITSET_t;
+#define BITSET_GET_IMPL(runtime, ID) &(runtime->sets[(ID)])
+#else
+typedef bitset_t *BITSET_t;
+#define BITSET_GET_IMPL(runtime, ID) (ID)
+#endif
+
+#ifdef MOZVM_SMALL_JMPTBL_INST
+typedef uint16_t JMPTBL_t;
+#define JMPTBL_GET_IMPL(runtime, ID) runtime->tables[(ID)]
+#else
+typedef int *JMPTBL_t;
+#define JMPTBL_GET_IMPL(runtime, ID) (ID)
+#endif
 
 typedef uint8_t moz_inst_t;
 moz_runtime_t *moz_runtime_init(unsigned memo_size);
