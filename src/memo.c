@@ -123,7 +123,6 @@ memo_t *memo_init(unsigned w, unsigned n, enum memo_type type)
         // memo->api = &MEMO_API_HASH;
         break;
     case MEMO_TYPE_ELASTIC:
-        assert(0);
         memo->api = &MEMO_API_ELASTIC;
         break;
     case MEMO_TYPE_NULL:
