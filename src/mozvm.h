@@ -77,6 +77,7 @@ typedef int *JMPTBL_t;
 typedef uint8_t moz_inst_t;
 moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
+void moz_runtime_reset(moz_runtime_t *r);
 
 int moz_runtime_parse(moz_runtime_t *r, char *start, char *end, moz_inst_t *inst);
 

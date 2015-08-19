@@ -269,6 +269,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             break;
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
+            NODE_GC_RETAIN(tmp);
             cur->e.ref = tmp;
             cur->pos = 0;
             SetTag(cur, TypeLink);
@@ -280,6 +281,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         case TypePop:
             assert(pushed != NULL);
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
+            NODE_GC_RETAIN(tmp);
             pushed->e.ref = tmp;
             pushed->pos = cur->pos;
             SetTag(pushed, TypeLink);

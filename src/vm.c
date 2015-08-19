@@ -12,28 +12,51 @@
 extern "C" {
 #endif
 
+unsigned last_jmptbl_size = 0;
+unsigned last_memo_size   = 0;
+
+static void moz_runtime_init2(moz_runtime_t *r, unsigned jmptbl, unsigned memo)
+{
+    r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
+    r->table = symtable_init();
+    r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
+    r->head = r->input = r->tail = NULL;
+    if (jmptbl) {
+        r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
+    }
+    r->stack = r->stack_;
+    last_jmptbl_size = jmptbl;
+    last_memo_size   = memo;
+}
+
 moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
-
     r = (moz_runtime_t *)malloc(size);
-    r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
-    r->table = symtable_init();
-    r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo_size, MEMO_TYPE_ELASTIC);
-    r->head = r->input = r->tail = NULL;
-    if (jmptbl_size) {
-        r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl_size);
-    }
-    r->stack = r->stack_;
+    moz_runtime_init2(r, jmptbl_size, memo_size);
     return r;
 }
 
-void moz_runtime_dispose(moz_runtime_t *r)
+static void moz_runtime_dispose2(moz_runtime_t *r)
 {
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
+    if (r->jumps) {
+        free(r->jumps);
+    }
+}
+
+void moz_runtime_reset(moz_runtime_t *r)
+{
+    moz_runtime_dispose2(r);
+    moz_runtime_init2(r, last_jmptbl_size, last_memo_size);
+}
+
+void moz_runtime_dispose(moz_runtime_t *r)
+{
+    moz_runtime_dispose2(r);
     free(r);
 }
 
@@ -53,7 +76,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     JUMP(jump_); \
 } while (0)
 
-int parse(moz_runtime_t *runtime, char *start, char *end, moz_inst_t *inst)
+int moz_runtime_parse(moz_runtime_t *runtime, char *start, char *end, moz_inst_t *inst)
 {
     register char *CURRENT = start;
     register moz_inst_t *PC = inst;

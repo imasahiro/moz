@@ -187,6 +187,9 @@ moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 void mozvm_loader_dispose(mozvm_loader_t *L)
 {
     ARRAY_dispose(uint8_t, &L->buf);
+    if (L->input) {
+        free(L->input);
+    }
 }
 
 static moz_inst_t *mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
@@ -712,6 +715,12 @@ static int checkFileType(input_stream_t *is)
 static int checkVersion(input_stream_t *is)
 {
     return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
+}
+
+int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
+{
+    L->input = load_file(file, &L->input_size);
+    return L->input != NULL;
 }
 
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
