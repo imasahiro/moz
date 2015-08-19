@@ -170,18 +170,6 @@ void memo_miss()
     stat.memo_miss++;
 }
 
-#ifdef DEBUG
-int main(int argc, char const* argv[])
-{
-    char *str = "hello world";
-    memo_t *memo = memo_init(3, 4, MEMO_TYPE_NULL);
-    assert(memo_set(memo, str, 0, 0, NULL, 0, 0) == 0);
-    assert(memo_get(memo, str, 0, 0) == 0);
-    memo_dispose(memo);
-    return 0;
-}
-#endif
-
 #ifdef __cplusplus
 }
 #endif

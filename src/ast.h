@@ -22,5 +22,6 @@ void ast_log_swap(AstMachine *ast, char *cur);
 void ast_log_tag(AstMachine *ast, char *tag);
 void ast_log_link(AstMachine *ast, int index, Node result);
 Node ast_get_last_linked_node(AstMachine *ast);
+Node ast_get_parsed_node(AstMachine *ast);
 
 #endif /* end of include guard */

@@ -8,7 +8,7 @@
 #define MOZVM_DUMP_OPCODE 1
 #include "instruction.h"
 #include "karray.h"
-#include "mozvm.h"
+#include "loader.h"
 
 #ifndef CHAR_BIT
 #define CHAR_BIT 8
@@ -167,18 +167,9 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = '\0';
 }
 
-DEF_ARRAY_STRUCT(uint8_t);
-DEF_ARRAY_T(uint8_t);
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
-typedef struct mozvm_loader_t {
-    unsigned jmptbl_id;
-    moz_runtime_t *R;
-    unsigned *table;
-    ARRAY(uint8_t) buf;
-} mozvm_loader_t;
-
-static mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
+mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 {
     L->jmptbl_id = 0;
     L->table = (unsigned *) malloc(sizeof(unsigned) * inst_size);
@@ -186,14 +177,14 @@ static mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
     return L;
 }
 
-static moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
+moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
     free(L->table);
     L->table = NULL;
     return ARRAY_n(L->buf, 0);
 }
 
-static void mozvm_loader_dispose(mozvm_loader_t *L)
+void mozvm_loader_dispose(mozvm_loader_t *L)
 {
     ARRAY_dispose(uint8_t, &L->buf);
 }
@@ -828,18 +819,6 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     mozvm_loader_load(L, &is);
     return mozvm_loader_freeze(L);
 }
-
-#ifdef DEBUG
-int main(int argc, char const* argv[])
-{
-    mozvm_loader_t L = {};
-    moz_inst_t *inst = mozvm_loader_load_file(&L, argv[1]);
-    moz_runtime_dispose(L.R);
-    mozvm_loader_dispose(&L);
-    (void)inst;
-    return 0;
-}
-#endif
 
 #ifdef __cplusplus
 }

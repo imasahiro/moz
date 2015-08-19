@@ -128,16 +128,6 @@ void Node_print(Node o)
     fprintf(stderr, "\n");
 }
 
-#if 0 && DEBUG
-int main(int argc, char const* argv[])
-{
-    Node root = Node_new(0);
-    Node_print(root);
-    Node_free(root);
-    return 0;
-}
-#endif
-
 #ifdef __cplusplus
 }
 #endif
