@@ -45,7 +45,7 @@ int main(int argc, char const* argv[])
     /*02*/ast_log_new(ast, str + 3);
     /*03*/ast_log_tag(ast, TAG_String);
     /*04*/ast_log_capture(ast, str + 6);
-    /*05*/ast_commit_tx(ast, -1, 1);
+    /*05*/ast_commit_tx(ast, -1, 2);
     // #String[ 'key']
     key = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -56,7 +56,7 @@ int main(int argc, char const* argv[])
     /*07*/ast_log_new(ast, str + 11);
     /*08*/ast_log_tag(ast, TAG_Integer);
     /*09*/ast_log_capture(ast, str + 13);
-    /*10*/ast_commit_tx(ast, -1, 3);
+    /*10*/ast_commit_tx(ast, -1, 4);
     // #Integer[ '12']
     elm0 = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -66,7 +66,7 @@ int main(int argc, char const* argv[])
     /*11*/ast_log_new(ast, str + 15);
     /*12*/ast_log_tag(ast, TAG_Integer);
     /*13*/ast_log_capture(ast, str + 18);
-    /*14*/ast_commit_tx(ast, -1, 4);
+    /*14*/ast_commit_tx(ast, -1, 5);
     // #Integer[ '345']
     elm1 = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -75,7 +75,7 @@ int main(int argc, char const* argv[])
 
     /*15*/ast_log_tag(ast, TAG_List);
     /*16*/ast_log_capture(ast, str + 19);
-    /*17*/ast_commit_tx(ast, -1, 2);
+    /*17*/ast_commit_tx(ast, -1, 3);
     // #List[
     //    #Integer[ '12']
     //    #Integer[ '345']
@@ -88,7 +88,7 @@ int main(int argc, char const* argv[])
 
     /*18*/ast_log_tag(ast, TAG_KeyValue);
     /*19*/ast_log_capture(ast, str + 19);
-    /*20*/ast_commit_tx(ast, -1, 0);
+    /*20*/ast_commit_tx(ast, -1, 1);
     kv = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 2 &&
             node->tag == TAG_KeyValue &&
