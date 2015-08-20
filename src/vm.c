@@ -104,16 +104,28 @@ static long _POP(long **SP)
 #define ABORT() __asm volatile("int3")
 #define TODO() __asm volatile("int3")
 #define PUSH_FRAME(POS, NEXT, AST, SYMTBL) do {\
+    PUSH((long)FP); \
     PUSH(POS);\
     PUSH(NEXT);\
     PUSH(AST);\
     PUSH(SYMTBL);\
+    FP = SP - 5;\
 } while (0)
+
 #define POP_FRAME(POS, NEXT, AST, SYMTBL) do {\
-    SYMTBL = POP();\
-    AST    = POP();\
-    NEXT   = (moz_inst_t *)POP();\
-    POS    = (char *)POP();\
+    SP     = FP; \
+    SYMTBL = FP[4];\
+    AST    = FP[3];\
+    NEXT   = (moz_inst_t *)FP[2];\
+    POS    = (char *)FP[1];\
+    FP     = (long *)FP[0]; \
+} while (0)
+
+#define PEEK_FRAME(POS, NEXT, AST, SYMTBL) do {\
+    SYMTBL = (FP+4);\
+    AST    = (FP+3);\
+    NEXT   = (moz_inst_t **)(FP+2);\
+    POS    = (char **)(FP+1);\
 } while (0)
 
 int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
@@ -122,6 +134,7 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
     int call_stack = 0;
 #endif
     long *SP = runtime->stack;
+    long *FP = SP;
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
     memo_t *memo = runtime->memo;

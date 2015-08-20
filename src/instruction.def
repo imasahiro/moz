@@ -71,14 +71,15 @@ DEF(Skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
     symtable_t *tbl = SYMTABLE_GET();
-    long *saved = PEEK_N(0);
-    long *ast_tx = PEEK_N(1);
-    long *jump = PEEK_N(2);
-    char **cur = (char **) PEEK_N(3);
-    if (*cur == CURRENT) {
+
+    long *saved, *ast_tx;
+    moz_inst_t **jump;
+    char **pos;
+    PEEK_FRAME(pos, jump, ast_tx, saved);
+    if (*pos == CURRENT) {
         FAIL();
     }
-    *cur = CURRENT;
+    *pos = CURRENT;
     *ast_tx = ast_save_tx(ast);
     *saved  = symtable_savepoint(tbl);
     (void)jump;

@@ -9,8 +9,8 @@ NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-O0 -g3 -Wall -I$(SRC)
 
 all: moz test
-moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c
-	$(CC) $(OPTION) $? -o $(BUILD)/moz
+moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
+	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
 
 test: test_ast test_sym test_memo test_loader gen
 	$(BUILD)/test_ast
