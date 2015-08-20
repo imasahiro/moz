@@ -18,7 +18,7 @@ enum AstLogType {
     TypeLink     = 7
 };
 #define TypeMask (0xfUL)
-#define DEBUG2 1
+// #define DEBUG2 1
 
 typedef struct AstLog {
 #ifdef DEBUG2

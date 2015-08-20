@@ -36,6 +36,7 @@ static inline Node node_alloc()
 static inline void node_free(Node o)
 {
     assert(o->refc == 0);
+    memset(o, 0xa, sizeof(*o));
     o->refc = -1;
     o->tag = (char *)free_list;
     free_list = o;
@@ -69,6 +70,10 @@ Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_init(Node, &o->entry.array, elm_size);
+    }
+    else {
+        o->entry.raw.ary[0] = NULL;
+        o->entry.raw.ary[1] = NULL;
     }
     return o;
 }

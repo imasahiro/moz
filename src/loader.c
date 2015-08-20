@@ -468,8 +468,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     }
     CASE_(Exit) {
         uint8_t status = read8(is);
-        mozvm_loader_write8(L, status);
+        // mozvm_loader_write8(L, status);
         break;
+        (void)status;
     }
     CASE_(Label) {
         /*uint16_t label =*/ read16(is);
@@ -715,7 +716,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             asm volatile("int3");
         }
         CASE_(Exit) {
-            OP_PRINT("%d", *(p + 1));
+            // OP_PRINT("%d", *(p + 1));
             break;
         }
         CASE_(Label) {

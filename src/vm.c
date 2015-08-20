@@ -66,10 +66,11 @@ void moz_runtime_dispose(moz_runtime_t *r)
 #define CONSUME() ++CURRENT;
 #define CONSUME_N(N) CURRENT += N;
 
+#if 0
 #define FAIL() do {\
     long saved_, ast_tx_; \
-    char *pos_; \
     moz_inst_t *jump_; \
+    char *pos_; \
     POP_FRAME(pos_, jump_, ast_tx_, saved_); \
     if (pos_ < CURRENT) { \
         HEAD = (HEAD < CURRENT) ? CURRENT : HEAD; \
@@ -79,6 +80,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
     symtable_rollback(SYMTABLE_GET(), saved_); \
     PC = jump_; \
 } while (0)
+#else
+#define FAIL() goto L_fail;
+#endif
 
 #if 0
 static long _POP(long **SP)
@@ -128,6 +132,7 @@ static long _POP(long **SP)
     POS    = (char **)(FP+1);\
 } while (0)
 
+#define DEBUG_CALL 1
 int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
 {
 #if DEBUG_CALL

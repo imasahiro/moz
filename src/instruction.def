@@ -4,6 +4,7 @@ DEF(Nop)
 }
 DEF(Fail)
 {
+L_fail:;
     // asm volatile("int3");
     // FAIL();
     long saved_, ast_tx_;
@@ -86,7 +87,7 @@ DEF(Skip)
 }
 DEF(Byte, uint8_t ch)
 {
-    if (unlikely(*CURRENT != ch)) {
+    if (*CURRENT != ch) {
         FAIL();
     }
     CONSUME();
@@ -117,7 +118,7 @@ DEF(Set, BITSET_t setId)
 }
 DEF(NByte, uint8_t ch)
 {
-    if (unlikely(*CURRENT == ch)) {
+    if (*CURRENT == ch) {
         FAIL();
     }
 }
@@ -145,7 +146,7 @@ DEF(NSet, BITSET_t setId)
 }
 DEF(OByte, uint8_t ch)
 {
-    if (likely(*CURRENT == ch)) {
+    if (*CURRENT == ch) {
         CONSUME();
     }
 }
@@ -235,11 +236,13 @@ DEF(MemoFail, uint8_t state, uint32_t memoId)
 DEF(TPush)
 {
     AstMachine *ast = AST_MACHINE_GET();
+    asm volatile("int3");
     ast_log_push(ast);
 }
 DEF(TPop, int8_t index)
 {
     AstMachine *ast = AST_MACHINE_GET();
+    asm volatile("int3");
     ast_log_pop(ast, index);
 }
 DEF(TLeftFold, uint8_t shift)
