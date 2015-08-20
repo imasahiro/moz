@@ -12,7 +12,9 @@ all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
 
-test: test_ast test_sym test_memo test_loader gen
+test: test2 test_math
+
+test2: gen test_ast test_sym test_memo test_loader
 	$(BUILD)/test_ast
 	$(BUILD)/test_sym
 	$(BUILD)/test_memo
@@ -48,8 +50,16 @@ test_sym: $(BUILD)/symtable.o test/test_sym.c
 test_memo: $(BUILD)/node.o $(BUILD)/memo.o test/test_memo.c
 	$(CC) $(OPTION) $? -o $(BUILD)/test_memo
 
-test_loader: $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c
-	$(CC) $(OPTION) $? -o $(BUILD)/test_loader
+test_loader:
+	$(CC) $(OPTION) $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c$? -o $(BUILD)/test_loader
+
+test_math: moz gen
+	$(BUILD)/moz -p sample/math.nzc -i sample/sample.math
+	$(BUILD)/moz -p sample/math.nzc -i sample/sample2.math
+
+test_json: moz gen
+	$(BUILD)/moz -p sample/json.nzc -i sample/sample.math
+	$(BUILD)/moz -p sample/json.nzc -i sample/sample2.math
 
 gen: sample/math.nzc sample/json.nzc
 
