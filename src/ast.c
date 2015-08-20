@@ -18,6 +18,7 @@ enum AstLogType {
     TypeLink     = 7
 };
 #define TypeMask (0xfUL)
+#define DEBUG2 1
 
 typedef struct AstLog {
 #ifdef DEBUG2
@@ -308,14 +309,14 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
 void ast_commit_tx(AstMachine *ast, int index, long tx)
 {
     AstLog *cur;
-    assert(ARRAY_size(ast->logs) > tx + 1);
-    cur = ARRAY_get(AstLog, &ast->logs, tx + 1);
+    assert(ARRAY_size(ast->logs) > tx);
+    cur = ARRAY_get(AstLog, &ast->logs, tx);
 #ifdef DEBUG2
     fprintf(stderr, "0: %ld %d\n", tx, ARRAY_size(ast->logs));
     AstMachine_dumpLog(ast);
 #endif
     Node node = ast_create_node(ast, cur, NULL);
-    ast_rollback_tx(ast, tx + 1);
+    ast_rollback_tx(ast, tx);
 #ifdef DEBUG2
     fprintf(stderr, "R: %ld %d\n", tx, ARRAY_size(ast->logs));
 #endif

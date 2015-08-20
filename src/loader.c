@@ -27,7 +27,8 @@ extern "C" {
 #define VERBOSE_DEBUG 0
 #endif
 
-static int loader_debug = VERBOSE_DEBUG;
+// static int loader_debug = VERBOSE_DEBUG;
+static int loader_debug = 1;
 
 static char *load_file(const char *path, size_t *size)
 {
@@ -77,7 +78,7 @@ static uint16_t read16(input_stream_t *is)
     return d1 << 8 | d2;
 }
 
-static uint16_t read24(input_stream_t *is)
+static unsigned read24(input_stream_t *is)
 {
     uint16_t d1 = read8(is);
     uint16_t d2 = read8(is);
@@ -327,9 +328,20 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         uint16_t id = L->jmptbl_id++;
         int *impl = JMPTBL_GET_IMPL(L->R, id);
         for (i = 0; i < 257; i++) {
-            table[i] = read24(is);
+            table[i] = (int)read24(is);
         }
         memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
+#if 0
+        fprintf(stderr, "%p [", impl);
+        for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
+            fprintf(stderr, "%d ,", impl[i]);
+            if (i % 16 == 15) {
+                fprintf(stderr, "\n");
+            }
+        }
+        fprintf(stderr, "%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
+#endif
+
         mozvm_loader_write_id(L, MOZVM_SMALL_JMPTBL_INST, id, (void *)impl);
         break;
     }
@@ -481,6 +493,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int id = 0, j = 0;
+    mozvm_loader_write8(L, Exit);
     while (is->pos < is->end) {
         // unsigned cur = ARRAY_size(L->buf);
         L->table[id++] = ARRAY_size(L->buf);
@@ -506,9 +519,10 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         case First: {
             uint8_t *p = L->buf.list + j + shift - sizeof(JMPTBL_t);
             int i, *table = NULL;
-            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
+            JMPTBL_t tblId = *(JMPTBL_t *)p;
+            table = JMPTBL_GET_IMPL(L->R, tblId);
             for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
-                table[i] = L->table[table[i]] - j;
+                table[i] = L->table[table[i]] - (j + shift);
             }
             break;
         }
@@ -526,7 +540,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-        OP_PRINT("%d %s ", id, opcode2str(opcode));
+        OP_PRINT("%02d %ld %s ", id, (long)p, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
         CASE_(Nop);
@@ -582,7 +596,18 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         CASE_(First) {
             JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
             int *impl = JMPTBL_GET_IMPL(L->R, tblId);
+#if 1
             OP_PRINT("%p", impl);
+#else
+            {
+                int i;
+                OP_PRINT("%p [", impl);
+                for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
+                    OP_PRINT("%d ,", impl[i]);
+                }
+                OP_PRINT("%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
+            }
+#endif
             break;
         }
         CASE_(Lookup) {

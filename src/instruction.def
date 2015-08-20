@@ -4,18 +4,33 @@ DEF(Nop)
 }
 DEF(Fail)
 {
-    FAIL();
+    // asm volatile("int3");
+    // FAIL();
+    long saved_, ast_tx_;
+    moz_inst_t *jump_;
+    char *pos_;
+    POP_FRAME(pos_, jump_, ast_tx_, saved_);
+    if (pos_ < CURRENT) {
+        HEAD = (HEAD < CURRENT) ? CURRENT : HEAD;
+        CURRENT = pos_;
+    }
+    ast_rollback_tx(AST_MACHINE_GET(), ast_tx_);
+    symtable_rollback(SYMTABLE_GET(), saved_);
+    PC = jump_;
+
 }
 DEF(Alt, int failjump)
 {
     AstMachine *ast = AST_MACHINE_GET();
     symtable_t *tbl = SYMTABLE_GET();
+    // asm volatile("int3");
     PUSH_FRAME(CURRENT, PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
 }
 DEF(Succ)
 {
-    long saved, ast_tx, jump;
+    long saved, ast_tx;
     char *pos;
+    moz_inst_t *jump;
     POP_FRAME(pos, jump, ast_tx, saved);
     (void)saved; (void)ast_tx; (void)jump; (void)pos;
 }
@@ -26,12 +41,23 @@ DEF(Jump, int jump)
 DEF(Call, int jump)
 {
     PUSH(PC);
+#if DEBUG_CALL
+    call_stack++;
+#endif
+    // fprintf(stderr, "call next=%p, jump=%p\n", PC, PC + jump);
     JUMP(jump);
 }
 DEF(Ret)
 {
-    long addr = POP();
-    JUMP(addr);
+    moz_inst_t *next = (moz_inst_t *)POP();
+#if DEBUG_CALL
+    if (call_stack-- < 0) {
+        asm volatile("int3");
+    }
+#endif
+    // asm volatile("int3");
+    // fprintf(stderr, "ret next=%p\n", next);
+    PC = next;
 }
 DEF(Pos)
 {
@@ -175,7 +201,9 @@ DEF(Consume, int shift)
 DEF(First, JMPTBL_t tblId)
 {
     int *jmpTable = JMPTBL_GET_IMPL(runtime, tblId);
-    JUMP(jmpTable[(unsigned)*CURRENT]);
+    int jump = jmpTable[(unsigned)*CURRENT];
+    // asm volatile("int3");
+    JUMP(jump);
 }
 DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
 {
@@ -190,7 +218,8 @@ DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
 }
 DEF(Memo, uint8_t state, uint32_t memoId)
 {
-    long saved, ast_tx, jump;
+    long saved, ast_tx;
+    moz_inst_t *jump;
     char *pos;
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = CURRENT - pos;
@@ -274,8 +303,9 @@ DEF(TLookup, int8_t index, uint8_t state, uint32_t memoId, int skip)
 DEF(TMemo, uint8_t state, uint32_t memoId)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    long saved, ast_tx, jump;
     long length;
+    long saved, ast_tx;
+    moz_inst_t *jump;
     char *pos;
     Node node;
     POP_FRAME(pos, jump, ast_tx, saved);
@@ -372,10 +402,11 @@ DEF(SCount)
     /* not implemented */
     ABORT();
 }
-DEF(Exit, uint8_t status)
+DEF(Exit)
 {
-    TODO();
-    return status;
+    // asm volatile("int3");
+    // TODO();
+    return 0;
 }
 DEF(Label)
 {

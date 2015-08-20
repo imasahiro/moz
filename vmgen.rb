@@ -9,7 +9,7 @@ open(FILE) {|f|
     if l =~ /DEF\((.*)\)/
       a = $1.split(",")
       op = a.shift
-      puts "#line #{$line} \"#{FILE}\""
+      # puts "#line #{$line} \"#{FILE}\""
       puts "OP_CASE(#{op}) {"
       types << [op, *a.map{|e| e.split(" ")[0].strip }]
       a.each {|e|

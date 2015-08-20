@@ -8,9 +8,9 @@ NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
 NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-O0 -g3 -Wall -I$(SRC)
 
-all: vm test
-vm: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c
-	$(CC) $(OPTION) $? -o $(BUILD)/vm
+all: moz test
+moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c
+	$(CC) $(OPTION) $? -o $(BUILD)/moz
 
 test: test_ast test_sym test_memo test_loader gen
 	$(BUILD)/test_ast
