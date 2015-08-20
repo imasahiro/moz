@@ -200,11 +200,14 @@ Node ast_get_last_linked_node(AstMachine *ast)
 
 long ast_save_tx(AstMachine *ast)
 {
+    // fprintf(stderr, "checkpoint %d\n", ARRAY_size(ast->logs));
     return ARRAY_size(ast->logs);
 }
 
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
+    // fprintf(stderr, "rollback %d %d\n", ARRAY_size(ast->logs), tx);
+    // AstMachine_dumpLog(ast);
     ARRAY_size(ast->logs) = tx;
 }
 
@@ -303,7 +306,11 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             break;
         }
     }
-    return constructLeft(ast, head, tail, spos, epos, objectSize, tag, value);
+    tmp = constructLeft(ast, head, tail, spos, epos, objectSize, tag, value);
+#ifdef DEBUG2
+    Node_print(tmp);
+#endif
+    return tmp;
 }
 
 void ast_commit_tx(AstMachine *ast, int index, long tx)
@@ -312,21 +319,14 @@ void ast_commit_tx(AstMachine *ast, int index, long tx)
     assert(ARRAY_size(ast->logs) > tx);
     cur = ARRAY_get(AstLog, &ast->logs, tx);
 #ifdef DEBUG2
-    fprintf(stderr, "0: %ld %d\n", tx, ARRAY_size(ast->logs));
+    fprintf(stderr, "0: %ld %d\n", tx, ARRAY_size(ast->logs)-1);
     AstMachine_dumpLog(ast);
 #endif
     Node node = ast_create_node(ast, cur, NULL);
     ast_rollback_tx(ast, tx);
-#ifdef DEBUG2
-    fprintf(stderr, "R: %ld %d\n", tx, ARRAY_size(ast->logs));
-#endif
     if (node) {
         ast_log_link(ast, index, node);
     }
-#ifdef DEBUG2
-    fprintf(stderr, "1: %ld %d\n", tx, ARRAY_size(ast->logs));
-    AstMachine_dumpLog(ast);
-#endif
 }
 
 Node ast_get_parsed_node(AstMachine *ast)
@@ -336,6 +336,7 @@ Node ast_get_parsed_node(AstMachine *ast)
     if (ast->parsed) {
         return ast->parsed;
     }
+    // AstMachine_dumpLog(ast);
     cur = ARRAY_BEGIN(ast->logs);
     tail = ARRAY_last(ast->logs);
     for (; cur <= tail; ++cur) {
