@@ -16,7 +16,7 @@ extern "C" {
 #define VM_SMALL_ARRAY_LIMIT 2
 
 #ifndef LOG2
-#define LOG2(N) ((uint32_t)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
+#define LOG2(N) ((unsigned)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
 #endif
 
 // AstMachine
