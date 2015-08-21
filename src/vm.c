@@ -219,7 +219,11 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #endif
 #define DISPATCH_END() default: ABORT(); }
 #if 0
-#define OP_CASE(OP) case OP:fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#ifdef MOZVM_DEBUG_NTERM
+#define OP_CASE(OP) case OP:fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#else
+#define OP_CASE(OP) case OP:fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
+#endif
 #else
 #define OP_CASE(OP) case OP:
 #endif
