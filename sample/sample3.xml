@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<member>
+    <person id="1">
+        <name>Naruto Uzumaki</name>
+        <age>18</age>
+        <address>naruto@konoha-gakure.com</address>
+    </person>
+    <person id="2">
+        <name>Gaara</name>
+        <age>18</age>
+        <address>gaara@suna-gakure.com</address>
+    </person>
+</member>
