@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+// #define AST_LOG_UNBOX
 enum AstLogType {
     TypeCapture  = 0xf,
     TypeTag      = 1,
@@ -17,12 +18,16 @@ enum AstLogType {
     TypeNew      = 6,
     TypeLink     = 7
 };
-#define TypeMask (0xfUL)
 // #define DEBUG2 1
 
 typedef struct AstLog {
 #ifdef DEBUG2
     unsigned id;
+#endif
+#ifdef AST_LOG_UNBOX
+#define TypeMask (0xfUL)
+#else
+    enum AstLogType type;
 #endif
     union ast_log_entry {
         uintptr_t val;
@@ -37,15 +42,23 @@ DEF_ARRAY_OP(AstLog);
 
 static inline void SetTag(AstLog *log, enum AstLogType type)
 {
+#ifdef AST_LOG_UNBOX
     assert((log->e.val & TypeMask) == 0);
     log->e.val |= TypeMask & type;
+#else
+    log->type = type;
+#endif
 }
 
 static inline enum AstLogType GetTag(AstLog *log)
 {
+#ifdef AST_LOG_UNBOX
     uintptr_t tag = log->e.val & TypeMask;
     assert(tag && "this log do not have tagged");
     return (enum AstLogType) tag;
+#else
+    return log->type;
+#endif
 }
 
 static inline char *GetPos(AstLog *log)
@@ -58,8 +71,12 @@ static inline char *GetPos(AstLog *log)
 
 static inline Node GetNode(AstLog *log)
 {
+#ifdef AST_LOG_UNBOX
     uintptr_t val = log->e.val & ~TypeMask;
     return (Node) val;
+#else
+    return log->e.val;
+#endif
 }
 
 struct AstMachine {
