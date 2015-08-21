@@ -43,6 +43,7 @@ extern "C" {
 #define MOZVM_SMALL_JMPTBL_INST 1
 // #define MOZVM_DEBUG_NTERM       1
 // #define MOZVM_USE_SSE4_2        1
+// #define MOZVM_USE_INDIRECT_DISPATCH 1
 
 #ifdef __cplusplus
 }

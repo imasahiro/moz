@@ -207,17 +207,31 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define NEXT() DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
 
-#define DISPATCH() goto L_vm_head
+#ifdef MOZVM_USE_INDIRECT_DISPATCH
+#define DISPATCH()         goto *__table[*PC++]
+#define DISPATCH_START(PC) DISPATCH()
+#define DISPATCH_END()     ABORT();
+#define LABEL(OP)          MOZVM_##OP
+  static const void *__table[] = {
+#define DEFINE_TABLE(OP) &&LABEL(OP),
+    OP_EACH(DEFINE_TABLE)
+#undef DEFINE_TABLE
+  };
+#else
+#define DISPATCH()         goto L_vm_head
 #define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
-#define DISPATCH_END() default: ABORT(); }
+#define DISPATCH_END()     default: ABORT(); }
+#define LABEL(OP)          case OP
+#endif
+
 #if 0
 #ifdef MOZVM_DEBUG_NTERM
-#define OP_CASE(OP) case OP:fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
 #else
-#define OP_CASE(OP) case OP:fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
+#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
 #endif
 #else
-#define OP_CASE(OP) case OP:
+#define OP_CASE(OP) LABEL(OP):
 #endif
     DISPATCH_START(PC);
 #include "vm_core.c"
