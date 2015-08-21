@@ -101,7 +101,7 @@ int main(int argc, char *const argv[])
         parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
         node = ast_get_parsed_node(L.R->ast);
         if (node) {
-            if (quiet_mode) {
+            if (!quiet_mode) {
                 Node_print(node);
             }
             NODE_GC_RELEASE(node);
