@@ -192,9 +192,13 @@ DEF(OSet, BITSET_t setId)
 }
 DEF(RByte, uint8_t ch)
 {
+#ifdef MOZVM_USE_SSE4_2
+    CURRENT = (char *)pstring_find_not_char(CURRENT, runtime->tail, ch);
+#else
     while (*CURRENT == ch) {
         CONSUME();
     }
+#endif
 }
 DEF(RAny)
 {

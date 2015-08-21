@@ -138,4 +138,46 @@ static int pstring_starts_with__(pstring_t *str1, pstring_t *str2)
 }
 #endif
 
+static inline const char *pstring_find_not_char(const char *str, const char *end, uint8_t c)
+{
+#if __SSE4_2__
+    uint8_t ranges[4] __attribute__((aligned(16))) = {};
+    unsigned range_size = 4;
+    size_t len = end - str;
+    if (c == 0) {
+        ranges[0] = 1;
+        ranges[1] = 0xff;
+        range_size = 2;
+    }
+    else if (c == 0xff) {
+        ranges[0] = 0;
+        ranges[1] = 0xfe;
+        range_size = 2;
+    }
+    else {
+        ranges[0] = 0;
+        ranges[1] = c - 1;
+        ranges[2] = c + 1;
+        ranges[3] = 0xff;
+    }
+    if (len > 16) {
+        __m128i ranges2 = _mm_loadu_si128((const __m128i *)ranges);
+        size_t rest = len & ~15UL;
+        do {
+            __m128i s = _mm_loadu_si128((const __m128i *)str);
+#define MODE _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_RANGES | _SIDD_UBYTE_OPS
+            int offset = _mm_cmpestri(ranges2, range_size, s, 16, MODE);
+            if (offset != 16) {
+                return str + offset;
+            }
+#undef MODE
+            str += 16;
+        } while (rest != 0);
+    }
+#endif
+    while (*str == c) {
+        str++;
+    }
+    return str;
+}
 #endif /* end of include guard */
