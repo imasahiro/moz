@@ -16,7 +16,7 @@ all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
 
-test: test2 test_math test_json
+test: test2 test_math test_json test_xml
 
 test2: gen test_node test_ast test_sym test_memo test_loader test_inst
 	$(M) $(BUILD)/test_inst
@@ -74,12 +74,15 @@ test_json: moz gen
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
 
+test_xml: moz gen
+	$(M) $(BUILD)/moz -p sample/xml.nzc -i sample/sample.xml
+
 gen: sample/math.nzc sample/json.nzc sample/xml.nzc
 
 # nez.nzc:
 sample/%.nzc: sample/%.nez
-	# java -jar $(NEZ) compile -p $<
-	java -jar $(NEZ) compile --option:-ast -p $<
+	java -jar $(NEZ) compile -p $<
+	# java -jar $(NEZ) compile --option:-ast -p $<
 
 clean:
 	-rm -rf sample/*.nzc build/* src/vm_core.c src/vm_inst.h

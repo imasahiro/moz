@@ -389,13 +389,11 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TPush) {
-        asm volatile("int3");
         break;
     }
     CASE_(TPop) {
         int index = read8(is);
         mozvm_loader_write8(L, index);
-        asm volatile("int3");
         break;
     }
     CASE_(TLeftFold) {
@@ -666,12 +664,10 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             break;
         }
         CASE_(TPush) {
-            asm volatile("int3");
             break;
         }
         CASE_(TPop) {
             int index = *(int8_t *)(p + 1);
-            asm volatile("int3");
             OP_PRINT("%d", index);
             break;
         }

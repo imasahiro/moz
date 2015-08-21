@@ -264,13 +264,11 @@ DEF(MemoFail, uint8_t state, uint16_t memoId)
 DEF(TPush)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    asm volatile("int3");
     ast_log_push(ast);
 }
 DEF(TPop, int8_t index)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    asm volatile("int3");
     ast_log_pop(ast, index);
 }
 DEF(TLeftFold, uint8_t shift)

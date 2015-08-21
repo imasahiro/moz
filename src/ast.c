@@ -9,14 +9,15 @@ extern "C" {
 
 // #define AST_LOG_UNBOX
 enum AstLogType {
-    TypeCapture  = 0xf,
+    // TypeNode     = 0,
     TypeTag      = 1,
     TypePop      = 2,
     TypeReplace  = 3,
     TypePush     = 4,
     TypeLeftFold = 5,
     TypeNew      = 6,
-    TypeLink     = 7
+    TypeLink     = 7,
+    TypeCapture  = 8,
 };
 // #define DEBUG2 1
 
@@ -29,11 +30,15 @@ typedef struct AstLog {
 #else
     enum AstLogType type;
 #endif
+    int shift;
     union ast_log_entry {
         uintptr_t val;
         Node ref;
     } e;
-    char *pos;
+    union ast_log_index {
+        long idx;
+        char *pos;
+    } i;
 } AstLog;
 
 DEF_ARRAY_STRUCT0(AstLog, unsigned);
@@ -63,9 +68,13 @@ static inline enum AstLogType GetTag(AstLog *log)
 
 static inline char *GetPos(AstLog *log)
 {
+#if 0
     enum AstLogType tag = GetTag(log);
     assert(tag != TypePop);
-    return ((tag & 1) == 0) ? log->pos : NULL;
+    return ((tag & 1) == 0) ? log->i.pos : NULL;
+#else
+    return log->i.pos;
+#endif
 
 }
 
@@ -122,25 +131,25 @@ static void AstMachine_dumpLog(AstMachine *ast)
             fprintf(stderr, "[%d] %02d new(%ld)\n", i, id, GetPos(cur) - ast->source);
             break;
         case TypeCapture:
-            fprintf(stderr, "[%d] %02d cap(%ld)\n", i, id, (long)GetPos(cur));
+            fprintf(stderr, "[%d] %02d cap(%ld)\n", i, id, GetPos(cur) - ast->source);
             break;
         case TypeTag:
-            fprintf(stderr, "[%d] %02d tag(%s)\n", i, id, cur->pos);
+            fprintf(stderr, "[%d] %02d tag(%s)\n", i, id, cur->i.pos);
             break;
         case TypeReplace:
-            fprintf(stderr, "[%d] %02d replace(%s)\n", i, id, cur->pos);
+            fprintf(stderr, "[%d] %02d replace(%s)\n", i, id, cur->i.pos);
             break;
         case TypeLeftFold:
             fprintf(stderr, "[%d] %02d swap()\n", i, id);
             break;
         case TypePop:
-            fprintf(stderr, "[%d] %02d pop(%ld)\n", i, id, (long)cur->pos);
+            fprintf(stderr, "[%d] %02d pop(%ld)\n", i, id, (long)cur->i.pos);
             break;
         case TypePush:
             fprintf(stderr, "[%d] %02d push()\n", i, id);
             break;
         case TypeLink:
-            fprintf(stderr, "[%d] %02d link(%ld)\n", i, id, (long)cur->pos);
+            fprintf(stderr, "[%d] %02d link(%d,%d)\n", i, id, cur->i.idx, cur->shift[1]);
             break;
         }
         ++i;
@@ -155,8 +164,9 @@ static unsigned last_id = 1;
 static void ast_log(AstMachine *ast, enum AstLogType type, char *cur, uintptr_t val)
 {
     AstLog log = {};
+    log.shift = 0;
     log.e.val = val;
-    log.pos = cur;
+    log.i.pos = cur;
 #ifdef DEBUG2
     log.id = last_id;
     last_id++;
@@ -207,12 +217,13 @@ void ast_log_pop(AstMachine *ast, int index)
 
 void ast_log_link(AstMachine *ast, int index, Node node)
 {
-    uintptr_t val = (uintptr_t) index;
+    union ast_log_index i;
+    i.idx = index;
     if (node) {
         NODE_GC_RETAIN(node); // log
         // NODE_GC_RETAIN(node); // last_linked
     }
-    ast_log(ast, TypeLink, (char *)val, (uintptr_t)node);
+    ast_log(ast, TypeLink, i.pos, (uintptr_t)node);
     if (ast->last_linked) {
         // NODE_GC_RELEASE(ast->last_linked);
     }
@@ -260,18 +271,16 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, char *spos, char 
     }
     for (; cur <= tail; ++cur) {
         if(GetTag(cur) == TypeLink) {
-            long pos = (long)cur->pos;
+            int index = cur->i.idx;
+            int shift = cur->shift;
             Node child = GetNode(cur);
             if(child) {
-                if (pos < 0) {
-                    Node_append(newnode, child);
-                }
-                else {
-                    Node_set(newnode, pos, child);
-                }
+                assert(index >= 0);
+                Node_set(newnode, index, child);
             } else {
-                fprintf(stderr, "@@ linking null child at %ld\n", pos);
+                fprintf(stderr, "@@ linking null child at %d\n", index);
             }
+            cur += shift;
         }
     }
     return newnode;
@@ -286,6 +295,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     char *value = NULL;
     long objectSize = 0;
     long index = 0;
+    long shift = 0;
 
     head = cur;
     tail = ARRAY_last(ast->logs);
@@ -296,7 +306,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     for (; cur <= tail; ++cur) {
         switch(GetTag(cur)) {
         case TypeNew:
-            spos = cur->pos;
+            spos = cur->i.pos;
             epos = spos;
             objectSize = 0;
             tag = NULL;
@@ -304,19 +314,19 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             head = cur;
             break;
         case TypeCapture:
-            epos = cur->pos;
+            epos = cur->i.pos;
             break;
         case TypeTag:
-            tag = cur->pos;
+            tag = cur->i.pos;
             break;
         case TypeReplace:
-            value = cur->pos;
+            value = cur->i.pos;
             break;
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
             NODE_GC_RETAIN(tmp);
             cur->e.ref = tmp;
-            cur->pos = 0;
+            cur->i.pos = 0;
             SetTag(cur, TypeLink);
             tag = NULL;
             value = NULL;
@@ -328,23 +338,25 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
             NODE_GC_RETAIN(tmp);
             pushed->e.ref = tmp;
-            pushed->pos = cur->pos;
+            pushed->i.idx = (int16_t)(long)cur->i.pos;
+            pushed->shift = cur - pushed;
             SetTag(pushed, TypeLink);
             return tmp;
         case TypePush:
             tmp = ast_create_node(ast, cur + 1, cur);
-            asm volatile("int3"); // need debug
             assert(GetTag(cur) == TypeLink);
             /* fallthrough */
         case TypeLink:
-            index = (long)cur->pos;
+            index = cur->i.idx;
+            shift = cur->shift;
             if(index == -1) {
-                cur->pos = (char *)objectSize;
+                cur->i.idx = objectSize;
                 objectSize++;
             }
             else if(!(index < objectSize)) {
                 objectSize = index + 1;
             }
+            cur += shift;
             break;
         }
     }
