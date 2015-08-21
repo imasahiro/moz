@@ -75,7 +75,7 @@ static inline Node GetNode(AstLog *log)
     uintptr_t val = log->e.val & ~TypeMask;
     return (Node) val;
 #else
-    return log->e.val;
+    return log->e.ref;
 #endif
 }
 

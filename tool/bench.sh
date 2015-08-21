@@ -4,7 +4,7 @@
 make moz
 
 BENCH=test_vm/bench/input
-CMD="./build/moz -n 3 -s "
+CMD="./build/moz -n 3 -q -s "
 echo "citys.json"
 ${CMD} -p sample/json.nzc -i ${BENCH}/citys.json
 echo "earthquake.geojson"
