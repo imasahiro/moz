@@ -539,8 +539,19 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + (IDX)))
         switch (opcode) {
-        case Alt:
         case Jump:
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(int));
+            // L0: Jump L3  |  L0: Ret
+            // ...          |
+            // L3: Ret      |
+            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
+                if (ARRAY_get(uint8_t, &L->buf, L->table[*ref]) == Ret) {
+                    ARRAY_set(uint8_t, &L->buf, j, Ret);
+                }
+            }
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case Alt:
         case Call:
         case Lookup:
         case TLookup:
