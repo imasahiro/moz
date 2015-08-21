@@ -7,23 +7,26 @@
 #ifndef MOZ_VM_H
 #define MOZ_VM_H
 
-typedef struct moz_bytecode_t {
-    /* header */
+typedef struct mozvm_constant_t {
+    bitset_t *sets;
+    char **tags;
+    char **strs;
+    int *jumps;
+    const char **nterms;
+
+    uint16_t set_size;
+    uint16_t str_size;
+    uint16_t tag_size;
+    uint16_t table_size;
+    uint16_t nterm_size;
+
     unsigned inst_size;
     unsigned memo_size;
     unsigned jumptable_size;
-    /* const data */
-    uint16_t nterm_size;
-    const char **nterms;
-    uint16_t set_size;
-    bitset_t *sets;
-    uint16_t str_size;
-    const char **strs;
-    uint16_t tag_size;
-    const char **tags;
-    uint16_t table_size;
-    void *table;
-} moz_bytecode_t;
+
+    // config
+
+} mozvm_constant_t;
 
 typedef struct moz_runtime_t {
     AstMachine *ast;
@@ -34,23 +37,13 @@ typedef struct moz_runtime_t {
     char *input;
     long *stack;
 
-    uint16_t set_size;
-    uint16_t str_size;
-    uint16_t tag_size;
-    uint16_t table_size;
-    uint16_t nterm_size;
-
-    bitset_t *sets;
-    char **tags;
-    char **strs;
-    int *jumps;
-    const char **nterms;
+    mozvm_constant_t C;
     long stack_[1];
 } moz_runtime_t;
 
 #ifdef MOZVM_SMALL_STRING_INST
 typedef uint16_t STRING_t;
-#define STRING_GET_IMPL(runtime, ID) runtime->strs[(ID)]
+#define STRING_GET_IMPL(runtime, ID) runtime->C.strs[(ID)]
 #else
 typedef char *STRING_t;
 #define STRING_GET_IMPL(runtime, ID) (ID)
@@ -59,7 +52,7 @@ typedef char *STRING_t;
 typedef char tag_t;
 #ifdef MOZVM_SMALL_TAG_INST
 typedef uint16_t TAG_t;
-#define TAG_GET_IMPL(runtime, ID) runtime->tags[(ID)]
+#define TAG_GET_IMPL(runtime, ID) runtime->C.tags[(ID)]
 #else
 typedef tag_t *TAG_t;
 #define TAG_GET_IMPL(runtime, ID) (ID)
@@ -67,7 +60,7 @@ typedef tag_t *TAG_t;
 
 #ifdef MOZVM_SMALL_BITSET_INST
 typedef uint16_t BITSET_t;
-#define BITSET_GET_IMPL(runtime, ID) &(runtime->sets[(ID)])
+#define BITSET_GET_IMPL(runtime, ID) &(runtime->C.sets[(ID)])
 #else
 typedef bitset_t *BITSET_t;
 #define BITSET_GET_IMPL(runtime, ID) (ID)
@@ -75,7 +68,7 @@ typedef bitset_t *BITSET_t;
 
 #ifdef MOZVM_SMALL_JMPTBL_INST
 typedef uint16_t JMPTBL_t;
-#define JMPTBL_GET_IMPL(runtime, ID) ((runtime)->jumps+(MOZ_JMPTABLE_SIZE * (ID)))
+#define JMPTBL_GET_IMPL(runtime, ID) ((runtime)->C.jumps+(MOZ_JMPTABLE_SIZE * (ID)))
 #else
 typedef int *JMPTBL_t;
 #define JMPTBL_GET_IMPL(runtime, ID) (ID)

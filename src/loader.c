@@ -44,7 +44,7 @@ static char *load_file(const char *path, size_t *size)
     fseek(fp, 0, SEEK_END);
     len = (size_t) ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char *) calloc(1, len + 1);
+    data = (char *) VM_CALLOC(1, len + 1);
     readed = fread(data, 1, len, fp);
     assert(len == readed);
     fclose(fp);
@@ -183,7 +183,7 @@ mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
-    free(L->table);
+    VM_FREE(L->table);
     L->table = NULL;
     return ARRAY_n(L->buf, 0);
 }
@@ -192,7 +192,7 @@ void mozvm_loader_dispose(mozvm_loader_t *L)
 {
     ARRAY_dispose(uint8_t, &L->buf);
     if (L->input) {
-        free(L->input);
+        VM_FREE(L->input);
     }
 }
 
@@ -767,8 +767,8 @@ int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
 
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 {
-    unsigned i;
-    moz_bytecode_t bc = {};
+    unsigned i, inst_size, memo_size, jmptbl_size;
+    mozvm_constant_t *bc = NULL;
     input_stream_t is;
     moz_inst_t *inst = NULL;
 
@@ -776,35 +776,45 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     is.data = load_file(file, &is.end);
     assert(checkFileType(&is));
     assert(checkVersion(&is));
-    bc.inst_size = (unsigned) read16(&is);
-    bc.memo_size = (unsigned) read16(&is);
-    bc.jumptable_size = (unsigned) read16(&is);
 
-    bc.nterm_size = read16(&is);
-    if (bc.nterm_size > 0) {
-        bc.nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc.nterm_size);
-        for (i = 0; i < bc.nterm_size; i++) {
+    inst_size = (unsigned) read16(&is);
+    memo_size = (unsigned) read16(&is);
+    jmptbl_size = (unsigned) read16(&is);
+
+    mozvm_loader_init(L, inst_size);
+    L->R = moz_runtime_init(jmptbl_size, memo_size);
+
+    bc = &L->R->C;
+    bc->inst_size = inst_size;
+    bc->memo_size = memo_size;
+    bc->jumptable_size = jmptbl_size;
+
+
+    bc->nterm_size = read16(&is);
+    if (bc->nterm_size > 0) {
+        bc->nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc->nterm_size);
+        for (i = 0; i < bc->nterm_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc.nterms[i] = pstring_alloc(str, (unsigned)len);
+            bc->nterms[i] = pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
-            fprintf(stderr, "nterm%d %s\n", i, bc.nterms[i]);
+            fprintf(stderr, "nterm%d %s\n", i, bc->nterms[i]);
 #endif
         }
     }
 
-    bc.set_size = read16(&is);
-    if (bc.set_size > 0) {
-        bc.sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc.set_size);
+    bc->set_size = read16(&is);
+    if (bc->set_size > 0) {
+        bc->sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc->set_size);
 #define INT_BIT (sizeof(int) * CHAR_BIT)
 #define N (256 / INT_BIT)
-        for (i = 0; i < bc.set_size; i++) {
+        for (i = 0; i < bc->set_size; i++) {
             unsigned j, k;
 #if VERBOSE_DEBUG
             char buf[512] = {};
 #endif
-            bitset_t *set = &bc.sets[i];
+            bitset_t *set = &bc->sets[i];
             bitset_init(set);
             for (j = 0; j < 256/INT_BIT; j++) {
                 unsigned v = read32(&is);
@@ -821,51 +831,38 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
         }
 #undef N
     }
-    bc.str_size = read16(&is);
-    if (bc.str_size > 0) {
-        bc.strs = (const char **)VM_MALLOC(sizeof(const char *) * bc.str_size);
+    bc->str_size = read16(&is);
+    if (bc->str_size > 0) {
+        bc->strs = (char **)VM_MALLOC(sizeof(char *) * bc->str_size);
         // assert(0 && "we do not have any specification about set field");
     }
-    bc.tag_size = read16(&is);
-    if (bc.tag_size > 0) {
-        bc.tags = (const char **)VM_MALLOC(sizeof(const char *) * bc.tag_size);
-        for (i = 0; i < bc.tag_size; i++) {
+    bc->tag_size = read16(&is);
+    if (bc->tag_size > 0) {
+        bc->tags = (char **)VM_MALLOC(sizeof(char *) * bc->tag_size);
+        for (i = 0; i < bc->tag_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc.tags[i] = pstring_alloc(str, (unsigned)len);
+            bc->tags[i] = (char *)pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
-            fprintf(stderr, "tag%d %s\n", i, bc.tags[i]);
+            fprintf(stderr, "tag%d %s\n", i, bc->tags[i]);
 #endif
         }
     }
-    bc.table_size = read16(&is);
-    if (bc.table_size > 0) {
-        bc.table = peek(&is);
+    bc->table_size = read16(&is);
+    if (bc->table_size > 0) {
+        // bc->table = peek(&is);
         assert(0 && "we do not have any specification about table");
     }
-    // bc.sym_size = read16(&is);
-    // if (bc.sym_size > 0) {
-    //     bc.syms = peek(&is);
+    // bc->sym_size = read16(&is);
+    // if (bc->sym_size > 0) {
+    //     bc->syms = peek(&is);
     //     // assert(0 && "we do not have any specification about set field");
     // }
 
-    mozvm_loader_init(L, bc.inst_size);
-    L->R = moz_runtime_init(bc.jumptable_size, bc.memo_size);
-    L->R->sets = bc.sets;
-    L->R->tags = (char **)bc.tags;
-    L->R->strs = (char **)bc.strs;
-    L->R->nterms = bc.nterms;
-
-    L->R->set_size   = bc.set_size;
-    L->R->str_size   = bc.str_size;
-    L->R->tag_size   = bc.tag_size;
-    L->R->table_size = bc.table_size;
-    L->R->nterm_size = bc.nterm_size;
-
 #if 0
 #define PRINT_FIELD(O, FIELD) \
-    fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
+    fprintf(stderr, "O->" #FIELD " = %d\n", (O)->FIELD)
     PRINT_FIELD(bc, inst_size);
     PRINT_FIELD(bc, memo_size);
     PRINT_FIELD(bc, jumptable_size);
@@ -888,7 +885,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     }
     mozvm_loader_load(L, &is);
     inst = mozvm_loader_freeze(L);
-    free(is.data);
+    VM_FREE(is.data);
     return inst;
 }
 

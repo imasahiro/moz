@@ -26,6 +26,7 @@
 #ifndef PSTRING_H_
 #define PSTRING_H_
 
+#include "memory.h"
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
@@ -49,7 +50,7 @@ typedef struct pstring_t {
 
 static inline const char *pstring_alloc(const char *t, unsigned len)
 {
-    pstring_t *str = (pstring_t *) malloc(sizeof(pstring_t) + len + 1);
+    pstring_t *str = (pstring_t *) VM_MALLOC(sizeof(pstring_t) + len + 1);
     str->len = len;
     memcpy(PSTRING_PTR(str), t, len);
     str->str[len] = 0;
@@ -58,7 +59,7 @@ static inline const char *pstring_alloc(const char *t, unsigned len)
 
 static inline const char *pstring_alloc2(unsigned len)
 {
-    pstring_t *str = (pstring_t *) malloc(sizeof(pstring_t) + len + 1);
+    pstring_t *str = (pstring_t *) VM_MALLOC(sizeof(pstring_t) + len + 1);
     str->len = len;
     return PSTRING_PTR(str);
 }
@@ -66,7 +67,7 @@ static inline const char *pstring_alloc2(unsigned len)
 static inline void pstring_delete(const char *s)
 {
     pstring_t *str = CONTAINER_OF(s, pstring_t, str);
-    free(str);
+    VM_FREE(str);
 }
 
 static inline unsigned pstring_length(const char *s)

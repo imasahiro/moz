@@ -19,13 +19,13 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
-    r = (moz_runtime_t *)malloc(size);
+    r = (moz_runtime_t *)VM_MALLOC(size);
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
     r->head = r->input = r->tail = NULL;
     if (jmptbl) {
-        r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
+        r->C.jumps = (int *)VM_MALLOC(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
     }
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
     memset(&r->stack_[MOZ_DEFAULT_STACK_SIZE - 0xf], 0xbb, sizeof(long) * 0xf);
@@ -43,24 +43,24 @@ void moz_runtime_dispose(moz_runtime_t *r)
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
-    if (r->jumps) {
-        free(r->jumps);
+    if (r->C.jumps) {
+        VM_FREE(r->C.jumps);
     }
 
-    free(r->sets);
-    for (i = 0; i < r->tag_size; i++) {
-        pstring_delete((const char *)r->tags[i]);
+    VM_FREE(r->C.sets);
+    for (i = 0; i < r->C.tag_size; i++) {
+        pstring_delete((const char *)r->C.tags[i]);
     }
-    free(r->tags);
-    for (i = 0; i < r->str_size; i++) {
-        pstring_delete((const char *)r->strs[i]);
+    VM_FREE(r->C.tags);
+    for (i = 0; i < r->C.str_size; i++) {
+        pstring_delete((const char *)r->C.strs[i]);
     }
-    free(r->strs);
-    for (i = 0; i < r->nterm_size; i++) {
-        pstring_delete((const char *)r->nterms[i]);
+    VM_FREE(r->C.strs);
+    for (i = 0; i < r->C.nterm_size; i++) {
+        pstring_delete((const char *)r->C.nterms[i]);
     }
-    free(r->nterms);
-    free(r);
+    VM_FREE(r->C.nterms);
+    VM_FREE(r);
 }
 
 #define CONSUME() ++CURRENT;

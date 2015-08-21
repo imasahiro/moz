@@ -21,6 +21,7 @@ int main(int argc, char *const argv[])
     const char *input_file = NULL;
     unsigned tmp, loop = 1;
     unsigned print_stats = 0;
+    unsigned quiet_mode = 0;
     int opt;
 
     while ((opt = getopt(argc, argv, "sn:p:i:h")) != -1) {
@@ -29,6 +30,9 @@ int main(int argc, char *const argv[])
             tmp = atoi(optarg);
             loop = tmp > loop ? tmp : loop;
             syntax_file = optarg;
+            break;
+        case 'q':
+            quiet_mode = 1;
             break;
         case 's':
             print_stats = 1;
@@ -69,7 +73,9 @@ int main(int argc, char *const argv[])
         parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
         node = ast_get_parsed_node(L.R->ast);
         if (node) {
-            Node_print(node);
+            if (quiet_mode) {
+                Node_print(node);
+            }
             NODE_GC_RELEASE(node);
         }
     }

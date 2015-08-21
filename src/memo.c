@@ -168,7 +168,7 @@ memo_t *memo_init(unsigned w, unsigned n, enum memo_type type)
 void memo_dispose(memo_t *memo)
 {
     memo->api->_dispose(memo);
-    free(memo);
+    VM_FREE(memo);
 }
 
 MemoEntry_t *memo_get(memo_t *m, char *pos, uint32_t memoId, uint8_t state)

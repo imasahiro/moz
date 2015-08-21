@@ -30,6 +30,7 @@
 
 #ifndef KJSON_MALLOC
 #define KJSON_MALLOC(N) VM_MALLOC(N)
+#define KJSON_REALLOC(PTR, N) VM_REALLOC(PTR, N)
 #define KJSON_FREE(PTR) VM_FREE(PTR)
 #endif
 
@@ -73,7 +74,7 @@ static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
     while(a->size + size > a->capacity) {\
         a->capacity = 1 << LOG2(a->capacity * 2 + 1);\
     }\
-    a->list = (T *)realloc(a->list, sizeof(T) * a->capacity);\
+    a->list = (T *)KJSON_REALLOC(a->list, sizeof(T) * a->capacity);\
     memset(a->list + capacity, 0, sizeof(T) * (a->capacity - capacity));\
 }\
 static inline void ARRAY_##T##_dispose(ARRAY(T) *a) {\

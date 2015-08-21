@@ -13,14 +13,6 @@ extern "C" {
 #define likely(x)     __builtin_expect(!!(x), 1)
 #endif
 
-#ifndef VM_MALLOC
-#define VM_MALLOC(N) malloc(N)
-#endif
-
-#ifndef VM_FREE
-#define VM_FREE(PTR) free(PTR)
-#endif
-
 #define VM_SMALL_ARRAY_LIMIT 2
 
 #ifndef LOG2

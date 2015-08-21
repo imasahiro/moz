@@ -84,7 +84,7 @@ void AstMachine_dispose(AstMachine *ast)
 {
     ast_rollback_tx(ast, 0);
     ARRAY_dispose(AstLog, &ast->logs);
-    free(ast);
+    VM_FREE(ast);
 }
 
 void AstMachine_setSource(AstMachine *ast, char *source)

@@ -26,7 +26,7 @@ struct symtable_t {
 
 symtable_t *symtable_init()
 {
-    symtable_t *tbl = (symtable_t *)malloc(sizeof(*tbl));
+    symtable_t *tbl = (symtable_t *)VM_MALLOC(sizeof(*tbl));
     ARRAY_init(entry_t, &tbl->table, 4);
     tbl->state = 0;
     return tbl;
@@ -35,7 +35,7 @@ symtable_t *symtable_init()
 void symtable_dispose(symtable_t *tbl)
 {
     ARRAY_dispose(entry_t, &tbl->table);
-    free(tbl);
+    VM_FREE(tbl);
 }
 
 static void symtable_push(symtable_t *tbl, char *tag, unsigned hash, token_t *t)

@@ -30,12 +30,22 @@
 #if defined(HAVE_GC_GC_H) && MOZVM_MEMORY_USE_BOEHM_GC
 #include <gc/gc.h>
 #define VM_MALLOC(N)        GC_MALLOC(N)
+#define VM_CALLOC(N, S)     GC_MALLOC(N)
+#define VM_MALLOC(N)        GC_MALLOC(N)
 #define VM_REALLOC(PTR, N)  GC_REALLOC(PTR, N)
 #define VM_FREE(PTR)        ((void)PTR)
 #endif
 
 #ifndef VM_MALLOC
 #define VM_MALLOC(N) malloc(N)
+#endif
+
+#ifndef VM_CALLOC
+#define VM_CALLOC(N, S) calloc(N, S)
+#endif
+
+#ifndef VM_REALLOC
+#define VM_REALLOC(PTR, S) realloc(PTR, S)
 #endif
 
 #ifndef VM_FREE
