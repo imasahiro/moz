@@ -798,8 +798,14 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 
     is.pos = 0;
     is.data = load_file(file, &is.end);
-    assert(checkFileType(&is));
-    assert(checkVersion(&is));
+    if (!checkFileType(&is)) {
+        fprintf(stderr, "verify error: not bytecode file\n");
+        exit(EXIT_FAILURE);
+    }
+    if (!checkVersion(&is)) {
+        fprintf(stderr, "verify error: version miss match\n");
+        exit(EXIT_FAILURE);
+    }
 
     inst_size = (unsigned) read16(&is);
     memo_size = (unsigned) read16(&is);
