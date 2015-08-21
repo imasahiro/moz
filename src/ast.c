@@ -337,6 +337,9 @@ Node ast_get_parsed_node(AstMachine *ast)
         return ast->parsed;
     }
     // AstMachine_dumpLog(ast);
+    if (ARRAY_size(ast->logs) == 0) {
+        return NULL;
+    }
     cur = ARRAY_BEGIN(ast->logs);
     tail = ARRAY_last(ast->logs);
     for (; cur <= tail; ++cur) {
