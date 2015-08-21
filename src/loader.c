@@ -200,6 +200,12 @@ void mozvm_loader_dispose(mozvm_loader_t *L)
     }
 }
 
+void moz_loader_print_stats(mozvm_loader_t *L)
+{
+    fprintf(stderr, "instruction size : %u\n", L->inst_size);
+    fprintf(stderr, "bytecode    size : %u\n", ARRAY_size(L->buf));
+}
+
 static moz_inst_t *mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
 {
     uint8_t *buf = L->buf.list + ARRAY_size(L->buf);
@@ -482,7 +488,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     }
     CASE_(Exit) {
         uint8_t status = read8(is);
-        // mozvm_loader_write8(L, status);
+        mozvm_loader_write8(L, status);
         break;
         (void)status;
     }
@@ -513,8 +519,12 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int i = 0, j = 0;
-    mozvm_loader_write8(L, Exit);
+    mozvm_loader_write8(L, Exit); // exit sccuess
+    mozvm_loader_write8(L, 0);
+    mozvm_loader_write8(L, Exit); // exit fail
+    mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
+        L->inst_size++;
         // unsigned cur = ARRAY_size(L->buf);
         L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);

@@ -99,6 +99,10 @@ int main(int argc, char *const argv[])
         Node node = NULL;
         reset_timer();
         parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
+        if (parsed != 0) {
+            fprintf(stderr, "parse error\n");
+            break;
+        }
         node = ast_get_parsed_node(L.R->ast);
         if (node) {
             if (!quiet_mode) {
@@ -113,6 +117,10 @@ int main(int argc, char *const argv[])
         NodeManager_reset();
     }
     moz_runtime_dispose(L.R);
+    if (print_stats) {
+        moz_loader_print_stats(&L);
+        // moz_runtime_print_stats(L.R);
+    }
     mozvm_loader_dispose(&L);
     NodeManager_dispose();
     return 0;

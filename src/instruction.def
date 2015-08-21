@@ -433,11 +433,9 @@ DEF(SCount)
     /* not implemented */
     ABORT();
 }
-DEF(Exit)
+DEF(Exit, int8_t status)
 {
-    // asm volatile("int3");
-    // TODO();
-    return 0;
+    return status;
 }
 DEF(Label)
 {

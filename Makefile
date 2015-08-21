@@ -7,6 +7,7 @@ SRC=src
 NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
 NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-march=native -O3 -g3 -Wall -I$(SRC)
+# OPTION=-march=native -O0 -g3 -Wall -I$(SRC)
 M=
 # M=valgrind --leak-check=full --show-leak-kinds=all
 

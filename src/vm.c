@@ -183,15 +183,12 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
     AstMachine_setSource(AST, CURRENT);
 
     assert(*PC == Exit);
-    PUSH_FRAME(CURRENT, PC, ast_save_tx(AST), symtable_savepoint(TBL));
-    // fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
-    // PUSH(0xaaaaaaaaL);
-    // PUSH(0xaaaaaaaaL);
+    PUSH_FRAME(CURRENT, PC + 2/* Exit 0 */, ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
 #endif
-    PUSH(PC++);
-    // fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
+    PUSH(PC);
+    PC += 4/* Exit 0; Exit 1 */;
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)

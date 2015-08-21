@@ -9,6 +9,7 @@ DEF_ARRAY_T(uint8_t);
 struct mozvm_loader_t {
     char *input;
     size_t input_size;
+    unsigned inst_size;
     unsigned jmptbl_id;
     moz_runtime_t *R;
     unsigned *table;
@@ -22,4 +23,5 @@ void mozvm_loader_dispose(mozvm_loader_t *L);
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file);
 int mozvm_loader_load_input(mozvm_loader_t *L, const char *file);
 
+void moz_loader_print_stats(mozvm_loader_t *L);
 #endif /* end of include guard */
