@@ -11,7 +11,7 @@ DEF_ARRAY_OP_NOPOINTER(Node);
 // #define DEBUG2 1
 #ifdef MOZVM_MEMORY_USE_RCGC
 static Node free_list = NULL;
-static intptr_t malloc_size = 0;
+static long malloc_size = 0;
 
 void NodeManager_init()
 {
