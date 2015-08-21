@@ -30,6 +30,7 @@ static inline void _show_timer(const char *s, size_t bufsz)
     printf("\n");
 }
 
+#if 0
 static void show_timer(const char *s)
 {
     struct timeval endtime;
@@ -38,6 +39,7 @@ static void show_timer(const char *s)
         + (double)(endtime.tv_usec - g_timer.tv_usec) / 1000 / 1000;
     printf("%20s: %f sec\n", s, sec);
 }
+#endif
 
 int main(int argc, char *const argv[])
 {
