@@ -81,8 +81,8 @@ gen: sample/math.nzc sample/json.nzc sample/xml.nzc
 
 # nez.nzc:
 sample/%.nzc: sample/%.nez
-	java -jar $(NEZ) compile -p $<
-	# java -jar $(NEZ) compile --option:-ast -p $<
+	# java -jar $(NEZ) compile -p $<
+	java -jar $(NEZ) compile --option:-ast -p $<
 
 clean:
 	-rm -rf sample/*.nzc build/* src/vm_core.c src/vm_inst.h
