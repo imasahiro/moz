@@ -207,16 +207,11 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define MEMO_GET() (memo)
 #define HEAD (runtime)->head
 #define EOS() (CURRENT == runtime->tail)
-#define DISPATCH() goto L_vm_head
 #define NEXT() DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
 
-#if 0
-    uint8_t opcode = *PC;
-#define DISPATCH_START(PC) L_vm_head:;switch ((opcode = *PC++)) {
-#else
+#define DISPATCH() goto L_vm_head
 #define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
-#endif
 #define DISPATCH_END() default: ABORT(); }
 #if 0
 #ifdef MOZVM_DEBUG_NTERM

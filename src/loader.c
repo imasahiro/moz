@@ -364,7 +364,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         uint32_t memoId = read32(is);
         int skip = read24(is);
         mozvm_loader_write8(L, (int8_t)state);
-        mozvm_loader_write32(L, memoId);
+        mozvm_loader_write16(L, memoId);
         mozvm_loader_write32(L, skip);
         break;
     }
@@ -372,14 +372,14 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int state = read8(is);
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, state);
-        mozvm_loader_write32(L, memoId);
+        mozvm_loader_write16(L, memoId);
         break;
     }
     CASE_(MemoFail) {
         int state = read8(is);
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, (int8_t)state);
-        mozvm_loader_write32(L, memoId);
+        mozvm_loader_write16(L, memoId);
         break;
     }
     CASE_(TPush) {
@@ -436,7 +436,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int index = read8(is);
         mozvm_loader_write8(L, index);
         mozvm_loader_write8(L, state);
-        mozvm_loader_write32(L, memoId);
+        mozvm_loader_write16(L, memoId);
         mozvm_loader_write32(L, skip);
         break;
     }
@@ -444,7 +444,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int state = read8(is);
         uint32_t memoId = read32(is);
         mozvm_loader_write8(L, state);
-        mozvm_loader_write32(L, memoId);
+        mozvm_loader_write16(L, memoId);
         break;
     }
     CASE_(SOpen) {

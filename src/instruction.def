@@ -227,7 +227,7 @@ DEF(First, JMPTBL_t tblId)
     // asm volatile("int3");
     JUMP(jump);
 }
-DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
+DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
 {
     MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
     if (entry) {
@@ -238,7 +238,7 @@ DEF(Lookup, uint8_t state, uint32_t memoId, int skip)
         JUMP(skip);
     }
 }
-DEF(Memo, uint8_t state, uint32_t memoId)
+DEF(Memo, uint8_t state, uint16_t memoId)
 {
     long saved, ast_tx;
     moz_inst_t *jump;
@@ -251,7 +251,7 @@ DEF(Memo, uint8_t state, uint32_t memoId)
 #endif
     (void)saved; (void)ast_tx; (void)jump;
 }
-DEF(MemoFail, uint8_t state, uint32_t memoId)
+DEF(MemoFail, uint8_t state, uint16_t memoId)
 {
     memo_fail(MEMO_GET(), CURRENT, memoId);
     FAIL();
@@ -312,7 +312,7 @@ DEF(TAbort)
     /* not implemented */
     ABORT();
 }
-DEF(TLookup, int8_t index, uint8_t state, uint32_t memoId, int skip)
+DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
     MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
@@ -328,7 +328,7 @@ DEF(TLookup, int8_t index, uint8_t state, uint32_t memoId, int skip)
     }
     memo_miss();
 }
-DEF(TMemo, uint8_t state, uint32_t memoId)
+DEF(TMemo, uint8_t state, uint16_t memoId)
 {
     AstMachine *ast = AST_MACHINE_GET();
     long length;
