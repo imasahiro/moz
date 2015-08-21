@@ -66,7 +66,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     PC = jump_; \
 } while (0)
 #else
-#define FAIL() fprintf(stderr, "goto fail\n");goto L_fail;
+#define FAIL() /*fprintf(stderr, "goto fail\n");*/goto L_fail;
 #endif
 
 #if 0
@@ -126,15 +126,13 @@ static void _PUSH(long **SP, long v)
     POS    = (char **)(FP+FP_POS);\
 } while (0)
 
-#define DEBUG_CALL 1
 int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
 {
-#if DEBUG_CALL
-    int call_stack = 0;
-#endif
     long *SP = runtime->stack;
     long *FP = SP;
+#ifdef MOZVM_DEBUG_NTERM
     long nterm_id = 0;
+#endif
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
     memo_t *memo = runtime->memo;
@@ -143,12 +141,15 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
     AstMachine_setSource(AST, CURRENT);
 
     assert(*PC == Exit);
-    fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
-    PUSH(0xaaaaaaaaL);
-    PUSH(0xaaaaaaaaL);
+    PUSH_FRAME(CURRENT, PC, ast_save_tx(AST), symtable_savepoint(TBL));
+    // fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
+    // PUSH(0xaaaaaaaaL);
+    // PUSH(0xaaaaaaaaL);
+#ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
+#endif
     PUSH(PC++);
-    fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
+    // fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)

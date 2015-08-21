@@ -63,11 +63,13 @@ int main(int argc, char *const argv[])
     inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);
     while (loop-- > 0) {
-        Node node;
+        Node node = NULL;
         moz_runtime_reset(L.R);
         parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
         node = ast_get_parsed_node(L.R->ast);
-        Node_print(node);
+        if (node) {
+            Node_print(node);
+        }
     }
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);

@@ -17,7 +17,9 @@ L_fail:;
     }
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_);
     symtable_rollback(SYMTABLE_GET(), saved_);
+#ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s fail  SP=%p FP=%p jump=%p\n", runtime->nterms[nterm_id], SP, FP, jump_);
+#endif
     PC = jump_;
 
 }
@@ -27,7 +29,9 @@ DEF(Alt, int failjump)
     symtable_t *tbl = SYMTABLE_GET();
     // asm volatile("int3");
     PUSH_FRAME(CURRENT, PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
-    fprintf(stderr, "%-8s alt   SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
+#ifdef MOZVM_DEBUG_NTERM
+    // fprintf(stderr, "%-8s alt   SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
+#endif
 }
 DEF(Succ)
 {
@@ -43,24 +47,22 @@ DEF(Jump, int jump)
 }
 DEF(Call, int nterm, int jump)
 {
+#ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
-    PUSH(PC);
-#if DEBUG_CALL
-    call_stack++;
-#endif
     nterm_id = nterm;
+#endif
+    PUSH(PC);
+#ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s call  SP=%p FP=%p next=%p, jump=%p\n", runtime->nterms[nterm_id], SP, FP, PC, PC + jump);
+#endif
     JUMP(jump);
 }
 DEF(Ret)
 {
     moz_inst_t *next = (moz_inst_t *)POP();
+#ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s ret   SP=%p FP=%p next=%p\n", runtime->nterms[nterm_id], SP, FP, next);
     nterm_id = POP();
-#if DEBUG_CALL
-    if (call_stack-- < 0) {
-        asm volatile("int3");
-    }
 #endif
     // asm volatile("int3");
     PC = next;
@@ -83,7 +85,9 @@ DEF(Skip)
     char **pos;
     PEEK_FRAME(pos, jump, ast_tx, saved);
 #if 0
+#ifdef MOZVM_DEBUG_NTERM
     fprintf(stderr, "%-8s skip  SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
+#endif
     fprintf(stderr, "peek %ld\n", *(FP+0));
     fprintf(stderr, "peek %ld\n", *(FP+1));
     fprintf(stderr, "peek %ld\n", *(FP+2));
@@ -239,7 +243,9 @@ DEF(Memo, uint8_t state, uint32_t memoId)
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = CURRENT - pos;
     memo_set(MEMO_GET(), pos, memoId, NULL, length, state);
-    fprintf(stderr, "%-8s memo  SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
+#ifdef MOZVM_DEBUG_NTERM
+    // fprintf(stderr, "%-8s memo  SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
+#endif
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(MemoFail, uint8_t state, uint32_t memoId)
@@ -331,8 +337,9 @@ DEF(TMemo, uint8_t state, uint32_t memoId)
     length = CURRENT - pos;
     node = ast_get_last_linked_node(ast);
     memo_set(MEMO_GET(), pos, memoId, node, length, state);
+#ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s tmemo SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
-    // Node_print(node);
+#endif
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(SOpen)
@@ -429,9 +436,11 @@ DEF(Exit)
     // TODO();
     return 0;
 }
-DEF(Label, uint16_t label)
+DEF(Label)
 {
     /* do nothing */
+#ifdef MOZVM_DEBUG_NTERM
     nterm_id = label;
+#endif
     // fprintf(stderr, "label %d\n", label);
 }

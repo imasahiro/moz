@@ -28,11 +28,10 @@ extern "C" {
 #define VERBOSE_DEBUG 0
 #endif
 
-#define MOZVM_EMIT_OP_LABEL 1
+// #define MOZVM_EMIT_OP_LABEL 1
 #define MOZVM_EMIT_OP_CALL_NTERM 1
 
-// static int loader_debug = VERBOSE_DEBUG;
-static int loader_debug = 1;
+static int loader_debug = VERBOSE_DEBUG;
 
 static char *load_file(const char *path, size_t *size)
 {
@@ -788,7 +787,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
             char *str = peek(&is);
             skip(&is, len + 1);
             bc.nterms[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
             fprintf(stderr, "nterm%d %s\n", i, bc.nterms[i]);
+#endif
         }
     }
 
@@ -799,7 +800,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 #define N (256 / INT_BIT)
         for (i = 0; i < bc.set_size; i++) {
             unsigned j, k;
+#if VERBOSE_DEBUG
             char buf[512] = {};
+#endif
             bitset_t *set = &bc.sets[i];
             bitset_init(set);
             for (j = 0; j < 256/INT_BIT; j++) {
@@ -810,8 +813,10 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
                         bitset_set(set, k + INT_BIT * j);
                 }
             }
+#if VERBOSE_DEBUG
             dump_set(set, buf);
             fprintf(stderr, "set: %s\n", buf);
+#endif
         }
 #undef N
     }
@@ -828,7 +833,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
             char *str = peek(&is);
             skip(&is, len + 1);
             bc.tags[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
             fprintf(stderr, "tag%d %s\n", i, bc.tags[i]);
+#endif
         }
     }
     bc.table_size = read16(&is);
@@ -848,6 +855,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     L->R->tags = (char **)bc.tags;
     L->R->strs = (char **)bc.strs;
     L->R->nterms = bc.nterms;
+#if 0
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
     PRINT_FIELD(bc, inst_size);
@@ -858,6 +866,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     PRINT_FIELD(bc, str_size);
     PRINT_FIELD(bc, tag_size);
     PRINT_FIELD(bc, table_size);
+#endif
     if (0) {
         i = 0;
         while (is.pos + i < is.end) {
