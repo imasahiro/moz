@@ -38,6 +38,7 @@ typedef struct moz_runtime_t {
     char **tags;
     char **strs;
     int *jumps;
+    const char **nterms;
     long stack_[1];
 } moz_runtime_t;
 

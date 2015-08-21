@@ -21,11 +21,15 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
+#define DEBUG 1
 #ifdef DEBUG
 #define VERBOSE_DEBUG 1
 #else
 #define VERBOSE_DEBUG 0
 #endif
+
+#define MOZVM_EMIT_OP_LABEL 1
+#define MOZVM_EMIT_OP_CALL_NTERM 1
 
 // static int loader_debug = VERBOSE_DEBUG;
 static int loader_debug = 1;
@@ -217,6 +221,7 @@ static void mozvm_loader_write32(mozvm_loader_t *L, uint32_t v)
     ARRAY_ensureSize(uint8_t, &L->buf, n);
     buf = L->buf.list + ARRAY_size(L->buf);
     *(uint32_t *)buf = v;
+    // fprintf(stderr, "\t\twrite32 0x%x, %d\n", v, ARRAY_size(L->buf));
     ARRAY_size(L->buf) += n;
 }
 
@@ -254,7 +259,11 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     int has_jump = opcode & 0x80;
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
-    if (opcode == Nop || opcode == Label) {/* skip */}
+    if (opcode == Nop
+#ifndef MOZVM_EMIT_OP_LABEL
+            || opcode == Label
+#endif
+            ) {/* skip */}
     else {
         mozvm_loader_write8(L, opcode);
     }
@@ -278,6 +287,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int next  = read24(is);
         int nterm = read16(is);
         int jump  = get_next(is, &has_jump);
+#ifdef MOZVM_EMIT_OP_CALL_NTERM
+        mozvm_loader_write32(L, nterm);
+#endif
         mozvm_loader_write32(L, jump);
         break;
         (void)next;(void)nterm;
@@ -473,14 +485,19 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         (void)status;
     }
     CASE_(Label) {
-        /*uint16_t label =*/ read16(is);
+        uint16_t label = read16(is);
+#ifdef MOZVM_EMIT_OP_LABEL
+        mozvm_loader_write16(L, label);
+#endif
         break;
+        (void)label;
     }
     }
 #undef CASE_
     if (has_jump) {
         int jump = get_next(is, &has_jump);
         mozvm_loader_write8(L, Jump);
+        // fprintf(stderr, "\t\t%d jump=%d\n", L->buf.size, jump);
         mozvm_loader_write32(L, jump);
     }
 }
@@ -493,21 +510,22 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
-    int id = 0, j = 0;
+    int i = 0, j = 0;
     mozvm_loader_write8(L, Exit);
     while (is->pos < is->end) {
         // unsigned cur = ARRAY_size(L->buf);
-        L->table[id++] = ARRAY_size(L->buf);
+        L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);
-        // fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, L->buf, cur)), ARRAY_size(L->buf) - cur);
+        // fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, &L->buf, cur)), ARRAY_size(L->buf) - cur);
     }
 
-    // fprintf(stderr, "\n");
+    fprintf(stderr, "\n");
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = ARRAY_get(uint8_t, &L->buf, j);
         unsigned shift = opcode_size(opcode);
         int *ref;
-#define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + IDX))
+        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
+#define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + (IDX)))
         switch (opcode) {
         case Alt:
         case Jump:
@@ -531,17 +549,16 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             break;
         }
 #undef GET_JUMP_ADDR
-        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
         j += shift;
     }
 
-    id = 0;
+    i = 0;
     j = 0;
     while (j < ARRAY_size(L->buf)) {
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-        OP_PRINT("%02d %ld %s ", id, (long)p, opcode2str(opcode));
+        OP_PRINT("%02d %ld %s ", i, (long)p, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
         CASE_(Nop);
@@ -728,7 +745,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             fprintf(stderr, "\n");
         }
         j += shift;
-        id++;
+        i++;
     }
 }
 
@@ -830,6 +847,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     L->R->sets = bc.sets;
     L->R->tags = (char **)bc.tags;
     L->R->strs = (char **)bc.strs;
+    L->R->nterms = bc.nterms;
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
     PRINT_FIELD(bc, inst_size);

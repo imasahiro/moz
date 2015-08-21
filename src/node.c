@@ -66,7 +66,7 @@ Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value
     o->len = len;
     o->value = value;
 
-    assert(o->len < 100);
+    // assert(o->len < 100);
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_init(Node, &o->entry.array, elm_size);

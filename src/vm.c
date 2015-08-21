@@ -66,10 +66,10 @@ void moz_runtime_dispose(moz_runtime_t *r)
     PC = jump_; \
 } while (0)
 #else
-#define FAIL() goto L_fail;
+#define FAIL() fprintf(stderr, "goto fail\n");goto L_fail;
 #endif
 
-#if 0
+#if 1
 static long _POP(long **SP)
 {
     long v;
@@ -78,11 +78,13 @@ static long _POP(long **SP)
     fprintf(stderr, "pop %ld\n", v);
     return v;
 }
-#define PUSH(X) do {\
-    long v = (long)(X); \
-    *SP++ = v; \
-    fprintf(stderr, "push %ld\n", v); \
-} while (0)
+static void _PUSH(long **SP, long v)
+{
+    **SP = v;
+    *SP += 1;
+    fprintf(stderr, "push %ld\n", v);
+}
+#define PUSH(X)  _PUSH(&SP, (long)X)
 #define POP()  _POP(&SP)
 #else
 #define PUSH(X) *SP++ = (long)(X)
@@ -92,29 +94,36 @@ static long _POP(long **SP)
 #define PEEK_N(N) ((SP)+N)
 #define ABORT() __asm volatile("int3")
 #define TODO() __asm volatile("int3")
+#define FP_FP     0
+#define FP_POS    1
+#define FP_NEXT   2
+#define FP_AST    3
+#define FP_SYMTBL 4
+#define FP_MAX    (5)
+
 #define PUSH_FRAME(POS, NEXT, AST, SYMTBL) do {\
     PUSH((long)FP); \
     PUSH(POS);\
     PUSH(NEXT);\
     PUSH(AST);\
     PUSH(SYMTBL);\
-    FP = SP - 5;\
+    FP = SP - FP_MAX;\
 } while (0)
 
 #define POP_FRAME(POS, NEXT, AST, SYMTBL) do {\
     SP     = FP; \
-    SYMTBL = FP[4];\
-    AST    = FP[3];\
-    NEXT   = (moz_inst_t *)FP[2];\
-    POS    = (char *)FP[1];\
-    FP     = (long *)FP[0]; \
+    SYMTBL = FP[FP_SYMTBL];\
+    AST    = FP[FP_AST];\
+    NEXT   = (moz_inst_t *)FP[FP_NEXT];\
+    POS    = (char *)FP[FP_POS];\
+    FP     = (long *)FP[FP_FP]; \
 } while (0)
 
 #define PEEK_FRAME(POS, NEXT, AST, SYMTBL) do {\
-    SYMTBL = (FP+4);\
-    AST    = (FP+3);\
-    NEXT   = (moz_inst_t **)(FP+2);\
-    POS    = (char **)(FP+1);\
+    SYMTBL = (FP+FP_SYMTBL);\
+    AST    = (FP+FP_AST);\
+    NEXT   = (moz_inst_t **)(FP+FP_NEXT);\
+    POS    = (char **)(FP+FP_POS);\
 } while (0)
 
 #define DEBUG_CALL 1
@@ -125,6 +134,7 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #endif
     long *SP = runtime->stack;
     long *FP = SP;
+    long nterm_id = 0;
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
     memo_t *memo = runtime->memo;
@@ -133,10 +143,16 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
     AstMachine_setSource(AST, CURRENT);
 
     assert(*PC == Exit);
+    fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
+    PUSH(0xaaaaaaaaL);
+    PUSH(0xaaaaaaaaL);
+    PUSH(nterm_id);
     PUSH(PC++);
+    fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)PC, "init");
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)
+#define read_uint16_t(PC) *((uint16_t *)PC); PC += sizeof(uint16_t)
 #define read_uint32_t(PC) *((uint32_t *)PC); PC += sizeof(uint32_t)
 #define read_STRING_t(PC) *((STRING_t *)PC); PC += sizeof(STRING_t)
 #define read_BITSET_t(PC) *((BITSET_t *)PC); PC += sizeof(BITSET_t)
@@ -159,7 +175,11 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
 #endif
 #define DISPATCH_END() default: ABORT(); }
-#define OP_CASE(OP) case OP: fprintf(stderr, "%ld %p %s\n", (long)(PC-1), PC-1, #OP);
+#if 1
+#define OP_CASE(OP) case OP:fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#else
+#define OP_CASE(OP) case OP:
+#endif
     DISPATCH_START(PC);
 #include "vm_core.c"
     DISPATCH_END();
