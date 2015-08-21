@@ -23,8 +23,8 @@ test2: gen test_node test_ast test_sym test_memo test_loader
 	$(M) $(BUILD)/test_memo
 	$(M) $(BUILD)/test_loader sample/math.nzc
 
-src/vm_core.c: vmgen.rb src/instruction.def src/instruction.h
-	$(RUBY) vmgen.rb src/instruction.def > $@
+src/vm_core.c: tool/vmgen.rb src/instruction.def src/instruction.h
+	$(RUBY) tool/vmgen.rb src/instruction.def > $@
 
 $(BUILD)/ast.o: src/ast.c src/ast.h $(NEZ_LIB)
 	$(CC) $(OPTION) src/ast.c -c -o $@
