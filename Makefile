@@ -8,7 +8,7 @@ NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
 NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-march=native -O3 -g3 -Wall -I$(SRC)
 M=
-M=valgrind --leak-check=full --show-leak-kinds=all
+# M=valgrind --leak-check=full --show-leak-kinds=all
 
 all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
@@ -72,7 +72,8 @@ gen: sample/math.nzc sample/json.nzc sample/xml.nzc
 
 # nez.nzc:
 sample/%.nzc: sample/%.nez
-	java -jar $(NEZ) compile -p $<
+	# java -jar $(NEZ) compile -p $<
+	java -jar $(NEZ) compile --option:-ast -p $<
 
 clean:
 	-rm -rf sample/*.nzc build/* src/vm_core.c src/vm_inst.h
