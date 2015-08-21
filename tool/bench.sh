@@ -3,7 +3,7 @@
 # make clean
 make moz
 
-BENCH=~/src/peg/benchNezVM/input
+BENCH=test_vm/bench/input
 CMD="./build/moz -n 3 -s "
 echo "citys.json"
 ${CMD} -p sample/json.nzc -i ${BENCH}/citys.json
