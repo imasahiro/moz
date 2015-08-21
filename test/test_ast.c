@@ -123,6 +123,7 @@ int main(int argc, char const* argv[])
     //    ]
     // ]
     Node_print(node);
+    NODE_GC_RELEASE(node);
     AstMachine_dispose(ast);
     for (int i = 0; i < 5; i++) {
         struct tag *t = &tags[i];

@@ -190,6 +190,10 @@ void ast_log_link(AstMachine *ast, int index, Node node)
 {
     uintptr_t val = (uintptr_t) index;
     ast_log(ast, TypeLink, (char *)val, (uintptr_t)node);
+    // NODE_GC_RETAIN(node);
+    // if (ast->last_linked) {
+    //     NODE_GC_RELEASE(ast->last_linked);
+    // }
     ast->last_linked = node;
 }
 
@@ -200,12 +204,24 @@ Node ast_get_last_linked_node(AstMachine *ast)
 
 long ast_save_tx(AstMachine *ast)
 {
-    // fprintf(stderr, "checkpoint %d\n", ARRAY_size(ast->logs));
     return ARRAY_size(ast->logs);
 }
 
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
+    // unsigned len = ARRAY_size(ast->logs);
+    // if (tx < len) {
+    //     AstLog *cur = ARRAY_n(ast->logs, tx);
+    //     AstLog *tail = ARRAY_last(ast->logs);
+    //     for (; cur <= tail; ++cur) {
+    //         if(GetTag(cur) == TypeLink) {
+    //             Node o = GetNode(cur);
+    //             // NODE_GC_RELEASE(o);
+    //             cur->e.ref = NULL;
+    //         }
+    //     }
+    // }
+
     // fprintf(stderr, "rollback %d %d\n", ARRAY_size(ast->logs), tx);
     // AstMachine_dumpLog(ast);
     ARRAY_size(ast->logs) = tx;
@@ -273,7 +289,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             break;
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
-            NODE_GC_RETAIN(tmp);
+            // NODE_GC_RETAIN(tmp);
             cur->e.ref = tmp;
             cur->pos = 0;
             SetTag(cur, TypeLink);
@@ -285,13 +301,14 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         case TypePop:
             assert(pushed != NULL);
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
-            NODE_GC_RETAIN(tmp);
+            // NODE_GC_RETAIN(tmp);
             pushed->e.ref = tmp;
             pushed->pos = cur->pos;
             SetTag(pushed, TypeLink);
             return tmp;
         case TypePush:
-            ast_create_node(ast, cur + 1, cur);
+            tmp = ast_create_node(ast, cur + 1, cur);
+            asm volatile("int3"); // need debug
             assert(GetTag(cur) == TypeLink);
             /* fallthrough */
         case TypeLink:
@@ -349,6 +366,7 @@ Node ast_get_parsed_node(AstMachine *ast)
         }
     }
     ast_rollback_tx(ast, 0);
+    NODE_GC_RETAIN(parsed);
     ast->parsed = parsed;
     return parsed;
 }

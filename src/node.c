@@ -1,5 +1,6 @@
 #include "node.h"
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -7,8 +8,10 @@ extern "C" {
 
 DEF_ARRAY_OP_NOPOINTER(Node);
 
+// #define DEBUG2 1
 #ifdef MOZVM_MEMORY_USE_RCGC
 static Node free_list = NULL;
+static intptr_t malloc_size = 0;
 
 void NodeManager_init()
 {
@@ -19,8 +22,10 @@ void NodeManager_dispose()
     while (free_list) {
         Node next = (Node)free_list->tag;
         VM_FREE(free_list);
+        malloc_size -= sizeof(struct pegvm_node);
         free_list = next;
     }
+    assert(malloc_size == 0);
 }
 
 static inline Node node_alloc()
@@ -30,6 +35,7 @@ static inline Node node_alloc()
         free_list = (Node)o->tag;
         return o;
     }
+    malloc_size += sizeof(struct pegvm_node);
     return (Node) VM_MALLOC(sizeof(struct pegvm_node));
 }
 
@@ -39,6 +45,9 @@ static inline void node_free(Node o)
     memset(o, 0xa, sizeof(*o));
     o->refc = -1;
     o->tag = (char *)free_list;
+#ifdef DEBUG2
+    fprintf(stderr, "F %p\n", o);
+#endif
     free_list = o;
 }
 
@@ -58,6 +67,9 @@ void Node_sweep(Node o)
 Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
 {
     Node o = node_alloc();
+#ifdef DEBUG2
+    fprintf(stderr, "A %p\n", o);
+#endif
     NODE_GC_INIT(o);
     o->tag = tag;
     o->pos = str;
@@ -92,6 +104,7 @@ Node Node_get(Node o, unsigned index)
 void Node_set(Node o, unsigned index, Node n)
 {
     unsigned len;
+    assert(o != n);
 
     if (MOZVM_MEMORY_USE_RCGC) {
         Node v = Node_get(o, index);
