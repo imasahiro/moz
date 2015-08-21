@@ -15,11 +15,11 @@
 extern "C" {
 #endif
 
-unsigned last_jmptbl_size = 0;
-unsigned last_memo_size   = 0;
-
-static void moz_runtime_init2(moz_runtime_t *r, unsigned jmptbl, unsigned memo)
+moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
 {
+    moz_runtime_t *r;
+    unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
+    r = (moz_runtime_t *)malloc(size);
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
@@ -27,21 +27,16 @@ static void moz_runtime_init2(moz_runtime_t *r, unsigned jmptbl, unsigned memo)
     if (jmptbl) {
         r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
     }
-    r->stack = r->stack_;
-    last_jmptbl_size = jmptbl;
-    last_memo_size   = memo;
-}
-
-moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size)
-{
-    moz_runtime_t *r;
-    unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
-    r = (moz_runtime_t *)malloc(size);
-    moz_runtime_init2(r, jmptbl_size, memo_size);
+    memset(r->stack_, 0xa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
+    r->stack = r->stack_ + 0xf;
     return r;
 }
 
-static void moz_runtime_dispose2(moz_runtime_t *r)
+void moz_runtime_reset(moz_runtime_t *r)
+{
+}
+
+void moz_runtime_dispose(moz_runtime_t *r)
 {
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
@@ -49,17 +44,7 @@ static void moz_runtime_dispose2(moz_runtime_t *r)
     if (r->jumps) {
         free(r->jumps);
     }
-}
 
-void moz_runtime_reset(moz_runtime_t *r)
-{
-    // moz_runtime_dispose2(r);
-    // moz_runtime_init2(r, last_jmptbl_size, last_memo_size);
-}
-
-void moz_runtime_dispose(moz_runtime_t *r)
-{
-    moz_runtime_dispose2(r);
     free(r);
 }
 
