@@ -3,8 +3,9 @@
 # make clean
 make moz
 
+LOOP=5
 BENCH=test_vm/bench/input
-CMD="./build/moz -n 3 -q -s "
+CMD="./build/moz -n ${LOOP} -q -s "
 echo "citys.json"
 ${CMD} -p sample/json.nzc -i ${BENCH}/citys.json
 echo "earthquake.geojson"
