@@ -48,10 +48,7 @@ void Node_sweep(Node o)
     unsigned i, len = Node_length(o);
     for (i = 0; i < len; i++) {
         Node node = Node_get(o, i);
-        --node->refc;
-        if (node->refc == 0) {
-            Node_sweep(node);
-        }
+        NODE_GC_RELEASE(node);
     }
     node_free(o);
 }

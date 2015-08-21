@@ -1,5 +1,6 @@
 #include "karray.h"
 #include "mozvm_config.h"
+#include <assert.h>
 
 #ifndef NODE_H
 #define NODE_H
@@ -18,24 +19,27 @@ DEF_ARRAY_T(Node);
 #define NODE_GC_INIT(O)          ((void)O)
 #define NODE_GC_RETAIN(O)        ((void)O)
 #define NODE_GC_RELEASE(O)       ((void)O)
-#define NODE_GC_WRITE(DST, SRC) *(DST) = (SRC)
+// #define NODE_GC_WRITE(DST, SRC) *(DST) = (SRC)
 
 #elif defined(MOZVM_MEMORY_USE_RCGC)
 #define NODE_GC_HEADER  long refc
 #define NODE_GC_INIT(O) (O)->refc = 0
 #define NODE_GC_RETAIN(O)  (O)->refc++
 #define NODE_GC_RELEASE(O) do {\
+    assert((O)->refc > 0);\
     (O)->refc--; \
     if ((O)->refc == 0) { \
         Node_sweep((O)); \
     } \
 } while (0)
 
+#if 0
 #define NODE_GC_WRITE(DST, SRC) do {\
     NODE_GC_RETAIN(SRC); \
     NODE_GC_RELEASE(DST); \
     (DST) = (SRC); \
 } while (0)
+#endif
 #else
 #error node gc
 #endif
