@@ -103,6 +103,7 @@ static int get_next(input_stream_t *is, int *has_jump)
     return read24(is);
 }
 
+#if VERBOSE_DEBUG
 static char *write_char(char *p, unsigned char ch)
 {
     switch (ch) {
@@ -170,6 +171,7 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = ']';
     *buf++ = '\0';
 }
+#endif
 
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 

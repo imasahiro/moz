@@ -19,7 +19,7 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
-    r = (moz_runtime_t *)VM_MALLOC(size);
+    r = (moz_runtime_t *)VM_CALLOC(1, size);
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
@@ -47,19 +47,27 @@ void moz_runtime_dispose(moz_runtime_t *r)
         VM_FREE(r->C.jumps);
     }
 
-    VM_FREE(r->C.sets);
-    for (i = 0; i < r->C.tag_size; i++) {
-        pstring_delete((const char *)r->C.tags[i]);
+    if (r->C.set_size) {
+        VM_FREE(r->C.sets);
     }
-    VM_FREE(r->C.tags);
-    for (i = 0; i < r->C.str_size; i++) {
-        pstring_delete((const char *)r->C.strs[i]);
+    if (r->C.tag_size) {
+        for (i = 0; i < r->C.tag_size; i++) {
+            pstring_delete((const char *)r->C.tags[i]);
+        }
+        VM_FREE(r->C.tags);
     }
-    VM_FREE(r->C.strs);
-    for (i = 0; i < r->C.nterm_size; i++) {
-        pstring_delete((const char *)r->C.nterms[i]);
+    if (r->C.str_size) {
+        for (i = 0; i < r->C.str_size; i++) {
+            pstring_delete((const char *)r->C.strs[i]);
+        }
+        VM_FREE(r->C.strs);
     }
-    VM_FREE(r->C.nterms);
+    if (r->C.nterm_size) {
+        for (i = 0; i < r->C.nterm_size; i++) {
+            pstring_delete((const char *)r->C.nterms[i]);
+        }
+        VM_FREE(r->C.nterms);
+    }
     VM_FREE(r);
 }
 
