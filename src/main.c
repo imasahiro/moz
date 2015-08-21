@@ -54,7 +54,7 @@ int main(int argc, char *const argv[])
     unsigned quiet_mode = 0;
     int opt;
 
-    while ((opt = getopt(argc, argv, "sn:p:i:h")) != -1) {
+    while ((opt = getopt(argc, argv, "qsn:p:i:h")) != -1) {
         switch (opt) {
         case 'n':
             tmp = atoi(optarg);
