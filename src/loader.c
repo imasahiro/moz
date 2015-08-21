@@ -176,7 +176,7 @@ DEF_ARRAY_OP_NOPOINTER(uint8_t);
 mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 {
     L->jmptbl_id = 0;
-    L->table = (unsigned *) malloc(sizeof(unsigned) * inst_size);
+    L->table = (unsigned *) VM_MALLOC(sizeof(unsigned) * inst_size);
     ARRAY_init(uint8_t, &L->buf, 4);
     return L;
 }
@@ -782,7 +782,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 
     bc.nterm_size = read16(&is);
     if (bc.nterm_size > 0) {
-        bc.nterms = (const char **)malloc(sizeof(const char *) * bc.nterm_size);
+        bc.nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc.nterm_size);
         for (i = 0; i < bc.nterm_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
@@ -796,7 +796,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 
     bc.set_size = read16(&is);
     if (bc.set_size > 0) {
-        bc.sets = (bitset_t *) malloc(sizeof(bitset_t) * bc.set_size);
+        bc.sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc.set_size);
 #define INT_BIT (sizeof(int) * CHAR_BIT)
 #define N (256 / INT_BIT)
         for (i = 0; i < bc.set_size; i++) {
@@ -823,12 +823,12 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     }
     bc.str_size = read16(&is);
     if (bc.str_size > 0) {
-        bc.strs = (const char **)malloc(sizeof(const char *) * bc.str_size);
+        bc.strs = (const char **)VM_MALLOC(sizeof(const char *) * bc.str_size);
         // assert(0 && "we do not have any specification about set field");
     }
     bc.tag_size = read16(&is);
     if (bc.tag_size > 0) {
-        bc.tags = (const char **)malloc(sizeof(const char *) * bc.tag_size);
+        bc.tags = (const char **)VM_MALLOC(sizeof(const char *) * bc.tag_size);
         for (i = 0; i < bc.tag_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);

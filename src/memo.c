@@ -147,7 +147,7 @@ static const memo_api_t MEMO_API_ELASTIC = {
 
 memo_t *memo_init(unsigned w, unsigned n, enum memo_type type)
 {
-    memo_t *memo = (memo_t *)malloc(sizeof(*memo));
+    memo_t *memo = (memo_t *)VM_MALLOC(sizeof(*memo));
     switch (type) {
     case MEMO_TYPE_HASH:
         assert(0);

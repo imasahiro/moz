@@ -71,7 +71,7 @@ struct AstMachine {
 
 AstMachine *AstMachine_init(unsigned log_size, char *source)
 {
-    AstMachine *ast = (AstMachine *)malloc(sizeof(*ast));
+    AstMachine *ast = (AstMachine *)VM_MALLOC(sizeof(*ast));
     ARRAY_init(AstLog, &ast->logs, log_size);
     ARRAY_ensureSize(AstLog, &ast->logs, log_size);
     ast->last_linked = NULL;
