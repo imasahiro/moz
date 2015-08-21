@@ -14,9 +14,10 @@ all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
 
-test: test2 test_math test_json test_inst
+test: test2 test_math test_json
 
-test2: gen test_node test_ast test_sym test_memo test_loader
+test2: gen test_node test_ast test_sym test_memo test_loader test_inst
+	$(M) $(BUILD)/test_inst
 	$(M) $(BUILD)/test_node
 	$(M) $(BUILD)/test_ast
 	$(M) $(BUILD)/test_sym
