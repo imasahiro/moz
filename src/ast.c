@@ -76,6 +76,7 @@ AstMachine *AstMachine_init(unsigned log_size, char *source)
     ARRAY_ensureSize(AstLog, &ast->logs, log_size);
     ast->last_linked = NULL;
     ast->source = source;
+    ast->parsed = NULL;
     return ast;
 }
 

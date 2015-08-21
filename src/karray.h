@@ -66,6 +66,7 @@ static inline ARRAY(T) *ARRAY_init_##T (ARRAY(T) *a, size_t initsize) {\
     return a;\
 }\
 static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
+    size_t capacity = a->capacity; \
     if(a->size + size <= a->capacity) {\
         return;\
     }\
@@ -73,6 +74,7 @@ static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
         a->capacity = 1 << LOG2(a->capacity * 2 + 1);\
     }\
     a->list = (T *)realloc(a->list, sizeof(T) * a->capacity);\
+    memset(a->list + capacity, 0, sizeof(T) * (a->capacity - capacity));\
 }\
 static inline void ARRAY_##T##_dispose(ARRAY(T) *a) {\
     KJSON_FREE(a->list);\

@@ -27,8 +27,9 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
     if (jmptbl) {
         r->jumps = (int *)malloc(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
     }
-    memset(r->stack_, 0xa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
-    r->stack = r->stack_ + 0xf;
+    memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
+    memset(&r->stack_[MOZ_DEFAULT_STACK_SIZE - 0xf], 0xbb, sizeof(long) * 0xf);
+    r->stack = &r->stack_[0] + 0xf;
     return r;
 }
 
@@ -38,6 +39,7 @@ void moz_runtime_reset(moz_runtime_t *r)
 
 void moz_runtime_dispose(moz_runtime_t *r)
 {
+    unsigned i;
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
@@ -45,6 +47,19 @@ void moz_runtime_dispose(moz_runtime_t *r)
         free(r->jumps);
     }
 
+    free(r->sets);
+    for (i = 0; i < r->tag_size; i++) {
+        pstring_delete((const char *)r->tags[i]);
+    }
+    free(r->tags);
+    for (i = 0; i < r->str_size; i++) {
+        pstring_delete((const char *)r->strs[i]);
+    }
+    free(r->strs);
+    for (i = 0; i < r->nterm_size; i++) {
+        pstring_delete((const char *)r->nterms[i]);
+    }
+    free(r->nterms);
     free(r);
 }
 
@@ -75,14 +90,22 @@ static long _POP(long **SP)
     long v;
     *SP -= 1;
     v = **SP;
-    fprintf(stderr, "pop %ld\n", v);
+    if (v == 0xaaaaaaaaaaaaaaaaL) {
+        fprintf(stderr, "stack protection(underflow) %ld\n", **SP);
+        asm volatile("int3");
+    }
+    // fprintf(stderr, "pop %ld\n", v);
     return v;
 }
 static void _PUSH(long **SP, long v)
 {
+    if (**SP == 0xbbbbbbbbbbbbbbbbL) {
+        fprintf(stderr, "stack protection(overflow) %ld\n", **SP);
+        asm volatile("int3");
+    }
     **SP = v;
     *SP += 1;
-    fprintf(stderr, "push %ld\n", v);
+    // fprintf(stderr, "push %ld\n", v);
 }
 #define PUSH(X)  _PUSH(&SP, (long)X)
 #define POP()  _POP(&SP)

@@ -62,6 +62,7 @@ int main(int argc, char *const argv[])
     }
     inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);
+    NodeManager_init();
     while (loop-- > 0) {
         Node node = NULL;
         moz_runtime_reset(L.R);
@@ -69,9 +70,11 @@ int main(int argc, char *const argv[])
         node = ast_get_parsed_node(L.R->ast);
         if (node) {
             Node_print(node);
+            NODE_GC_RELEASE(node);
         }
     }
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
+    NodeManager_dispose();
     return 0;
 }

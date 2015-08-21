@@ -770,6 +770,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     unsigned i;
     moz_bytecode_t bc = {};
     input_stream_t is;
+    moz_inst_t *inst = NULL;
 
     is.pos = 0;
     is.data = load_file(file, &is.end);
@@ -855,6 +856,13 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     L->R->tags = (char **)bc.tags;
     L->R->strs = (char **)bc.strs;
     L->R->nterms = bc.nterms;
+
+    L->R->set_size   = bc.set_size;
+    L->R->str_size   = bc.str_size;
+    L->R->tag_size   = bc.tag_size;
+    L->R->table_size = bc.table_size;
+    L->R->nterm_size = bc.nterm_size;
+
 #if 0
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O).FIELD)
@@ -879,7 +887,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
         fprintf(stderr, "\n");
     }
     mozvm_loader_load(L, &is);
-    return mozvm_loader_freeze(L);
+    inst = mozvm_loader_freeze(L);
+    free(is.data);
+    return inst;
 }
 
 #ifdef __cplusplus

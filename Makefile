@@ -7,6 +7,8 @@ SRC=src
 NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
 NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-O0 -g3 -Wall -I$(SRC)
+M=
+M=valgrind --leak-check=full --show-leak-kinds=all
 
 all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
@@ -15,11 +17,11 @@ moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 test: test2 test_math test_json
 
 test2: gen test_node test_ast test_sym test_memo test_loader
-	$(BUILD)/test_node
-	$(BUILD)/test_ast
-	$(BUILD)/test_sym
-	$(BUILD)/test_memo
-	$(BUILD)/test_loader sample/math.nzc
+	$(M) $(BUILD)/test_node
+	$(M) $(BUILD)/test_ast
+	$(M) $(BUILD)/test_sym
+	$(M) $(BUILD)/test_memo
+	$(M) $(BUILD)/test_loader sample/math.nzc
 
 src/vm_core.c: vmgen.rb src/instruction.def src/instruction.h
 	$(RUBY) vmgen.rb src/instruction.def > $@
@@ -54,17 +56,17 @@ test_sym: $(BUILD)/symtable.o test/test_sym.c
 test_memo: $(BUILD)/node.o $(BUILD)/memo.o test/test_memo.c
 	$(CC) $(OPTION) $? -o $(BUILD)/test_memo
 
-test_loader:
-	$(CC) $(OPTION) $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c$? -o $(BUILD)/test_loader
+test_loader: src/vm_core.c $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c
+	$(CC) $(OPTION)  $(NEZ_CORE) $(BUILD)/loader.o $(BUILD)/vm.o test/test_loader.c -o $(BUILD)/test_loader
 
 test_math: moz gen
-	$(BUILD)/moz -p sample/math.nzc -i sample/sample.math
-	$(BUILD)/moz -p sample/math.nzc -i sample/sample2.math
+	$(M) $(BUILD)/moz -p sample/math.nzc -i sample/sample.math
+	$(M) $(BUILD)/moz -p sample/math.nzc -i sample/sample2.math
 
 test_json: moz gen
-	$(BUILD)/moz -p sample/json.nzc -i sample/sample.json
-	$(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
-	$(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
+	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample.json
+	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
+	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
 
 gen: sample/math.nzc sample/json.nzc
 

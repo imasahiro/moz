@@ -34,6 +34,12 @@ typedef struct moz_runtime_t {
     char *input;
     long *stack;
 
+    uint16_t set_size;
+    uint16_t str_size;
+    uint16_t tag_size;
+    uint16_t table_size;
+    uint16_t nterm_size;
+
     bitset_t *sets;
     char **tags;
     char **strs;

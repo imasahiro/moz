@@ -34,7 +34,7 @@ extern "C" {
 #define MOZ_MEMO_DEFAULT_WINDOW_SIZE 32
 
 // Runtime
-#define MOZ_DEFAULT_STACK_SIZE  128
+#define MOZ_DEFAULT_STACK_SIZE  (128*1024)
 
 // jump table
 #define MOZ_JMPTABLE_SIZE 256
