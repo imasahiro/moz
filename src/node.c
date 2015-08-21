@@ -58,11 +58,11 @@ void Node_sweep(Node o)
 Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
 {
     Node o = node_alloc();
+    NODE_GC_INIT(o);
     o->tag = tag;
     o->pos = str;
     o->len = len;
     o->value = value;
-
     // assert(o->len < 100);
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
@@ -95,10 +95,10 @@ void Node_set(Node o, unsigned index, Node n)
 
     if (MOZVM_MEMORY_USE_RCGC) {
         Node v = Node_get(o, index);
+        NODE_GC_RETAIN(n);
         if (v) {
             NODE_GC_RELEASE(v);
         }
-        NODE_GC_RETAIN(n);
     }
     while (index >= Node_length(o)) {
         Node_append(o, NULL);

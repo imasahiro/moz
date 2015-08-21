@@ -12,9 +12,10 @@ all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
 
-test: test2 test_math
+test: test2 test_math test_json
 
-test2: gen test_ast test_sym test_memo test_loader
+test2: gen test_node test_ast test_sym test_memo test_loader
+	$(BUILD)/test_node
 	$(BUILD)/test_ast
 	$(BUILD)/test_sym
 	$(BUILD)/test_memo
@@ -40,6 +41,9 @@ $(BUILD)/vm.o: src/vm.c src/node.h src/ast.h src/symtable.h src/vm_core.c $(NEZ_
 
 $(BUILD)/loader.o: src/loader.c src/node.h src/ast.h src/symtable.h $(NEZ_LIB)
 	$(CC) $(OPTION) src/loader.c -c -o $@
+
+test_node: $(BUILD)/node.o test/test_node.c
+	$(CC) $(OPTION) $? -o $(BUILD)/test_node
 
 test_ast: $(BUILD)/ast.o $(BUILD)/node.o test/test_ast.c
 	$(CC) $(OPTION) $? -o $(BUILD)/test_ast
