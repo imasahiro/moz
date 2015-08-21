@@ -4,6 +4,9 @@
 make moz
 
 LOOP=5
+if [ $# == 1 ]; then
+    LOOP=$1
+fi
 BENCH=test_vm/bench/input
 CMD="./build/moz -n ${LOOP} -q -s "
 echo "citys.json"
