@@ -33,8 +33,9 @@ int main(int argc, char const* argv[])
     Node kv;
     const char input[] = "{ 'key' : [12, 345] }";
     char *str = (char *)pstring_alloc(input, strlen(input));
+    int i;
 
-    for (int i = 0; i < 5; i++) {
+    for (i = 0; i < 5; i++) {
         struct tag *t = &tags[i];
         t->tag = (char *)pstring_alloc(t->txt, t->len);
     }
@@ -123,9 +124,10 @@ int main(int argc, char const* argv[])
     //    ]
     // ]
     Node_print(node);
+    // asm volatile("int3");
     NODE_GC_RELEASE(node);
     AstMachine_dispose(ast);
-    for (int i = 0; i < 5; i++) {
+    for (i = 0; i < 5; i++) {
         struct tag *t = &tags[i];
         pstring_delete(t->tag);
     }

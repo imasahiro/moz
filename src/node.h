@@ -24,10 +24,11 @@ DEF_ARRAY_T(Node);
 #elif defined(MOZVM_MEMORY_USE_RCGC)
 #define NODE_GC_HEADER  long refc
 #define NODE_GC_INIT(O) (O)->refc = 0
-#define NODE_GC_RETAIN(O)  (O)->refc++
+#define NODE_GC_RETAIN(O)  (O)->refc++; /*fprintf(stderr, "%s:%d INC %p %ld\n", __func__, __LINE__, (O), (O)->refc)*/
 #define NODE_GC_RELEASE(O) do {\
     assert((O)->refc > 0);\
     (O)->refc--; \
+    /*fprintf(stderr, "%s:%d DEC %p %ld\n", __func__, __LINE__, (O), (O)->refc); */\
     if ((O)->refc == 0) { \
         Node_sweep((O)); \
     } \

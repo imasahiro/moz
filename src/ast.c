@@ -82,6 +82,7 @@ AstMachine *AstMachine_init(unsigned log_size, char *source)
 
 void AstMachine_dispose(AstMachine *ast)
 {
+    ast_rollback_tx(ast, 0);
     ARRAY_dispose(AstLog, &ast->logs);
     free(ast);
 }
@@ -190,11 +191,14 @@ void ast_log_pop(AstMachine *ast, int index)
 void ast_log_link(AstMachine *ast, int index, Node node)
 {
     uintptr_t val = (uintptr_t) index;
+    if (node) {
+        NODE_GC_RETAIN(node); // log
+        // NODE_GC_RETAIN(node); // last_linked
+    }
     ast_log(ast, TypeLink, (char *)val, (uintptr_t)node);
-    // NODE_GC_RETAIN(node);
-    // if (ast->last_linked) {
-    //     NODE_GC_RELEASE(ast->last_linked);
-    // }
+    if (ast->last_linked) {
+        // NODE_GC_RELEASE(ast->last_linked);
+    }
     ast->last_linked = node;
 }
 
@@ -210,18 +214,20 @@ long ast_save_tx(AstMachine *ast)
 
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
-    // unsigned len = ARRAY_size(ast->logs);
-    // if (tx < len) {
-    //     AstLog *cur = ARRAY_n(ast->logs, tx);
-    //     AstLog *tail = ARRAY_last(ast->logs);
-    //     for (; cur <= tail; ++cur) {
-    //         if(GetTag(cur) == TypeLink) {
-    //             Node o = GetNode(cur);
-    //             // NODE_GC_RELEASE(o);
-    //             cur->e.ref = NULL;
-    //         }
-    //     }
-    // }
+    unsigned len = ARRAY_size(ast->logs);
+    if (tx < len) {
+        AstLog *cur = ARRAY_n(ast->logs, tx);
+        AstLog *tail = ARRAY_last(ast->logs);
+        for (; cur <= tail; ++cur) {
+            if(GetTag(cur) == TypeLink) {
+                Node o = GetNode(cur);
+                if (o) {
+                    NODE_GC_RELEASE(o);
+                    cur->e.ref = NULL;
+                }
+            }
+        }
+    }
 
     // fprintf(stderr, "rollback %d %d\n", ARRAY_size(ast->logs), tx);
     // AstMachine_dumpLog(ast);
@@ -239,14 +245,15 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, char *spos, char 
         if(GetTag(cur) == TypeLink) {
             long pos = (long)cur->pos;
             Node child = GetNode(cur);
-            if(child == NULL) {
+            if(child) {
+                if (pos < 0) {
+                    Node_append(newnode, child);
+                }
+                else {
+                    Node_set(newnode, pos, child);
+                }
+            } else {
                 fprintf(stderr, "@@ linking null child at %ld\n", pos);
-            }
-            else if (pos < 0) {
-                Node_append(newnode, child);
-            }
-            else {
-                Node_set(newnode, pos, child);
             }
         }
     }
@@ -290,7 +297,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             break;
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
-            // NODE_GC_RETAIN(tmp);
+            NODE_GC_RETAIN(tmp);
             cur->e.ref = tmp;
             cur->pos = 0;
             SetTag(cur, TypeLink);
@@ -302,7 +309,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         case TypePop:
             assert(pushed != NULL);
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
-            // NODE_GC_RETAIN(tmp);
+            NODE_GC_RETAIN(tmp);
             pushed->e.ref = tmp;
             pushed->pos = cur->pos;
             SetTag(pushed, TypeLink);
@@ -354,7 +361,9 @@ Node ast_get_parsed_node(AstMachine *ast)
     if (ast->parsed) {
         return ast->parsed;
     }
-    // AstMachine_dumpLog(ast);
+#ifdef DEBUG2
+    AstMachine_dumpLog(ast);
+#endif
     if (ARRAY_size(ast->logs) == 0) {
         return NULL;
     }

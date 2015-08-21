@@ -93,9 +93,6 @@ static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
     uintptr_t hash = (((uintptr_t)pos << m->e.shift) | id);
     unsigned idx = hash % ARRAY_size(m->e.ary);
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->e.ary, idx);
-    if (e->result) {
-        NODE_GC_RETAIN(e->result);
-    }
     if (old->failed != UINTPTR_MAX && old->result) {
         NODE_GC_RELEASE(old->result);
     }
@@ -190,6 +187,9 @@ int memo_set(memo_t *m, char *pos, uint32_t memoId, Node result, unsigned consum
     e.consumed = consumed;
     e.state    = state;
     e.result   = result;
+    if (result) {
+        NODE_GC_RETAIN(result);
+    }
     return m->api->_set(m, pos, memoId, &e);
 }
 

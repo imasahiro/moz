@@ -25,6 +25,10 @@ void NodeManager_dispose()
         malloc_size -= sizeof(struct pegvm_node);
         free_list = next;
     }
+    if (malloc_size) {
+        fprintf(stderr, "memory leak %ld byte (%ld nodes)\n",
+                malloc_size, malloc_size / sizeof(struct pegvm_node));
+    }
     assert(malloc_size == 0);
 }
 
@@ -46,7 +50,7 @@ static inline void node_free(Node o)
     o->refc = -1;
     o->tag = (char *)free_list;
 #ifdef DEBUG2
-    fprintf(stderr, "F %p\n", o);
+    fprintf(stderr, "F %p -> %p\n", o, free_list);
 #endif
     free_list = o;
 }
@@ -55,9 +59,13 @@ void Node_sweep(Node o)
 {
     // FIXME stack over flow
     unsigned i, len = Node_length(o);
+    assert(o->refc == 0);
     for (i = 0; i < len; i++) {
         Node node = Node_get(o, i);
         NODE_GC_RELEASE(node);
+    }
+    if (len > NODE_SMALL_ARRAY_LIMIT) {
+        ARRAY_dispose(Node, &o->entry.array);
     }
     node_free(o);
 }
@@ -190,6 +198,7 @@ static void Node_print2(Node o, unsigned level)
 
         for (i = 0; i < len; i++) {
             Node node = Node_get(o, i);
+            assert(node != o);
             print_indent(level);
             Node_print2(node, level + 1);
             fprintf(stderr, ",\n");
