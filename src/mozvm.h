@@ -23,6 +23,7 @@ typedef struct mozvm_constant_t {
     unsigned inst_size;
     unsigned memo_size;
     unsigned jumptable_size;
+    unsigned input_size;
 
     // config
 

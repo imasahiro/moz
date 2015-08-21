@@ -30,11 +30,22 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
     memset(&r->stack_[MOZ_DEFAULT_STACK_SIZE - 0xf], 0xbb, sizeof(long) * 0xf);
     r->stack = &r->stack_[0] + 0xf;
+
+    r->C.memo_size = memo;
+    r->C.jumptable_size = jmptbl;
     return r;
 }
 
 void moz_runtime_reset(moz_runtime_t *r)
 {
+    unsigned memo = r->C.memo_size;
+    AstMachine_dispose(r->ast);
+    symtable_dispose(r->table);
+    memo_dispose(r->memo);
+
+    r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
+    r->table = symtable_init();
+    r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
 }
 
 void moz_runtime_dispose(moz_runtime_t *r)

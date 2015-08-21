@@ -68,7 +68,7 @@ test_json: moz gen
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
 
-gen: sample/math.nzc sample/json.nzc
+gen: sample/math.nzc sample/json.nzc sample/xml.nzc
 
 # nez.nzc:
 sample/%.nzc: sample/%.nez

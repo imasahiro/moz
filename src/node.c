@@ -32,6 +32,11 @@ void NodeManager_dispose()
     assert(malloc_size == 0);
 }
 
+void NodeManager_reset()
+{
+    NodeManager_dispose();
+}
+
 static inline Node node_alloc()
 {
     if (free_list) {

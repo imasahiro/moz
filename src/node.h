@@ -82,6 +82,7 @@ void Node_sweep(Node o);
 
 void NodeManager_init();
 void NodeManager_dispose();
+void NodeManager_reset();
 
 #ifdef __cplusplus
 }

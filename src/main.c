@@ -5,10 +5,38 @@
 #include <assert.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/time.h>
 
 static void usage(const char *arg)
 {
     fprintf(stderr, "Usage: %s -p <bytecode_file> -i <input_file>\n", arg);
+}
+
+static struct timeval g_timer;
+static void reset_timer()
+{
+    gettimeofday(&g_timer, NULL);
+}
+
+static inline void _show_timer(const char *s, size_t bufsz)
+{
+    struct timeval endtime;
+    gettimeofday(&endtime, NULL);
+    double sec = (endtime.tv_sec - g_timer.tv_sec)
+        + (double)(endtime.tv_usec - g_timer.tv_usec) / 1000 / 1000;
+    printf("%20s: %f ms\n", s, sec * 1000.0);
+    printf("%20s: %f MB\n", s, ((double)bufsz)/1024/1024);
+    printf("%20s: %f Mbps\n", s, ((double)bufsz)*8/sec/1000/1000);
+    printf("\n");
+}
+
+static void show_timer(const char *s)
+{
+    struct timeval endtime;
+    gettimeofday(&endtime, NULL);
+    double sec = (endtime.tv_sec - g_timer.tv_sec)
+        + (double)(endtime.tv_usec - g_timer.tv_usec) / 1000 / 1000;
+    printf("%20s: %f sec\n", s, sec);
 }
 
 int main(int argc, char *const argv[])
@@ -29,7 +57,6 @@ int main(int argc, char *const argv[])
         case 'n':
             tmp = atoi(optarg);
             loop = tmp > loop ? tmp : loop;
-            syntax_file = optarg;
             break;
         case 'q':
             quiet_mode = 1;
@@ -66,10 +93,9 @@ int main(int argc, char *const argv[])
     }
     inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);
-    NodeManager_init();
     while (loop-- > 0) {
         Node node = NULL;
-        moz_runtime_reset(L.R);
+        reset_timer();
         parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
         node = ast_get_parsed_node(L.R->ast);
         if (node) {
@@ -78,6 +104,11 @@ int main(int argc, char *const argv[])
             }
             NODE_GC_RELEASE(node);
         }
+        if (print_stats) {
+            _show_timer(syntax_file, L.input_size);
+        }
+        moz_runtime_reset(L.R);
+        NodeManager_reset();
     }
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
