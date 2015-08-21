@@ -29,7 +29,9 @@ extern "C" {
 #endif
 
 // #define MOZVM_EMIT_OP_LABEL 1
+#ifdef MOZVM_DEBUG_NTERM
 #define MOZVM_EMIT_OP_CALL_NTERM 1
+#endif
 
 static int loader_debug = VERBOSE_DEBUG;
 
@@ -222,7 +224,6 @@ static void mozvm_loader_write32(mozvm_loader_t *L, uint32_t v)
     ARRAY_ensureSize(uint8_t, &L->buf, n);
     buf = L->buf.list + ARRAY_size(L->buf);
     *(uint32_t *)buf = v;
-    // fprintf(stderr, "\t\twrite32 0x%x, %d\n", v, ARRAY_size(L->buf));
     ARRAY_size(L->buf) += n;
 }
 

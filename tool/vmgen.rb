@@ -6,7 +6,7 @@ FILE="src/instruction.def"
 types = []
 open(FILE) {|f|
   while l = f.gets
-    if l =~ /DEF\((.*)\)/
+    if l =~ /^DEF\((.*)\)/
       a = $1.split(",")
       op = a.shift
       # puts "#line #{$line} \"#{FILE}\""
