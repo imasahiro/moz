@@ -21,7 +21,7 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
-#define DEBUG 1
+// #define DEBUG 1
 #ifdef DEBUG
 #define VERBOSE_DEBUG 1
 #else
@@ -519,7 +519,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         // fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, &L->buf, cur)), ARRAY_size(L->buf) - cur);
     }
 
-    fprintf(stderr, "\n");
+    // fprintf(stderr, "\n");
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = ARRAY_get(uint8_t, &L->buf, j);
         unsigned shift = opcode_size(opcode);

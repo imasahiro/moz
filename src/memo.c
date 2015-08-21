@@ -93,11 +93,11 @@ static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
     uintptr_t hash = (((uintptr_t)pos << m->e.shift) | id);
     unsigned idx = hash % ARRAY_size(m->e.ary);
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->e.ary, idx);
-    if (old->failed != UINTPTR_MAX && old->result) {
-        NODE_GC_RELEASE(old->result);
-    }
     if (e->result) {
         NODE_GC_RETAIN(e->result);
+    }
+    if (old->failed != UINTPTR_MAX && old->result) {
+        NODE_GC_RELEASE(old->result);
     }
     ARRAY_set(MemoEntry_t, &m->e.ary, idx, e);
     return 1;

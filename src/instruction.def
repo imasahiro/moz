@@ -82,13 +82,14 @@ DEF(Skip)
     moz_inst_t **jump;
     char **pos;
     PEEK_FRAME(pos, jump, ast_tx, saved);
+#if 0
     fprintf(stderr, "%-8s skip  SP=%p FP=%p\n", runtime->nterms[nterm_id], SP, FP);
     fprintf(stderr, "peek %ld\n", *(FP+0));
     fprintf(stderr, "peek %ld\n", *(FP+1));
     fprintf(stderr, "peek %ld\n", *(FP+2));
     fprintf(stderr, "peek %ld\n", *(FP+3));
     fprintf(stderr, "peek %ld\n", *(FP+4));
-
+#endif
     if (*pos == CURRENT) {
         FAIL();
     }

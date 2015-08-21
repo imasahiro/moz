@@ -69,7 +69,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
 #define FAIL() fprintf(stderr, "goto fail\n");goto L_fail;
 #endif
 
-#if 1
+#if 0
 static long _POP(long **SP)
 {
     long v;
@@ -175,7 +175,7 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
 #endif
 #define DISPATCH_END() default: ABORT(); }
-#if 1
+#if 0
 #define OP_CASE(OP) case OP:fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
 #else
 #define OP_CASE(OP) case OP:
