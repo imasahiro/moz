@@ -1,0 +1,11 @@
+/* Grammar
+ * input: (((((((((((((((1)))))))))))))))
+ */
+File = Add [ \t\n]* !.
+Add = Value {@ '+' @Add #Add }
+  / Value {@ '-' @Add #Sub }
+  / Value
+Value = '(' Add ')' / { '1' #Number }
+
+// B = Q ('+' B / '-' B / ![+-] )
+// Q = '(' B ')' / '1'
