@@ -64,6 +64,7 @@ test_math: moz gen
 test_json: moz gen
 	$(BUILD)/moz -p sample/json.nzc -i sample/sample.json
 	$(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
+	$(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
 
 gen: sample/math.nzc sample/json.nzc
 
