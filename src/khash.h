@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #ifndef KHASH_H
 #define KHASH_H
 
