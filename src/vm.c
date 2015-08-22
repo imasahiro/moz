@@ -220,7 +220,7 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define NEXT() DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
 
-#ifdef MOZVM_USE_INDIRECT_DISPATCH
+#ifdef MOZVM_USE_INDIRECT_THREADING
 #define DISPATCH()         goto *__table[*PC++]
 #define DISPATCH_START(PC) DISPATCH()
 #define DISPATCH_END()     ABORT();
