@@ -48,6 +48,13 @@ extern "C" {
 // #define MOZVM_USE_SWITCH_CASE_DISPATCH 1
 #define MOZVM_USE_INDIRECT_THREADING   1
 // #define MOZVM_USE_DIRECT_THREADING     1
+
+#ifdef MOZVM_USE_DIRECT_THREADING
+#define MOZVM_INST_HEADER_SIZE sizeof(long)
+#else
+#define MOZVM_INST_HEADER_SIZE sizeof(unsigned char)
+#endif
+
 #ifdef __cplusplus
 }
 #endif

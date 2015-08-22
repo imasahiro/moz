@@ -22,12 +22,8 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
-// #define DEBUG 1
-#ifdef DEBUG
-#define VERBOSE_DEBUG 1
-#else
+// #define VERBOSE_DEBUG 1
 #define VERBOSE_DEBUG 0
-#endif
 
 // #define MOZVM_EMIT_OP_LABEL 1
 #ifdef MOZVM_DEBUG_NTERM
@@ -209,7 +205,6 @@ void moz_loader_print_stats(mozvm_loader_t *L)
 
 static void mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
 {
-    // uint8_t *buf = L->buf.list + ARRAY_size(L->buf);
     ARRAY_add(uint8_t, &L->buf, v);
 }
 
@@ -343,11 +338,11 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(NStr);
     CASE_(OStr);
     CASE_(RStr) {
-        asm volatile("int3");
-// #define STRING_GET_IMPL(runtime, ID) runtime->C.strs[(ID)]
+        uint16_t strId = read16(is);
+        char *impl = L->R->C.strs[strId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl);
         break;
     }
-
     CASE_(Set);
     CASE_(NSet);
     CASE_(OSet);
@@ -571,12 +566,9 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     // fprintf(stderr, "\n");
 
     while (j < ARRAY_size(L->buf)) {
-        uint8_t opcode = get_opcode(L, j);;
+        uint8_t opcode = get_opcode(L, j);
         unsigned shift = opcode_size(opcode);
         int *ref;
-#ifdef MOZVM_USE_DIRECT_THREADING
-        shift += sizeof(long) - sizeof(uint8_t);
-#endif
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + (IDX)))
         switch (opcode) {
@@ -622,9 +614,6 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-#ifdef MOZVM_USE_DIRECT_THREADING
-        shift += sizeof(long) - sizeof(uint8_t);
-#endif
         OP_PRINT("%02d %ld %s ", i, (long)p, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
@@ -817,12 +806,11 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     j = 0;
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);;
-        unsigned shift = opcode_size(opcode) + sizeof(long) - sizeof(uint8_t);
+        unsigned shift = opcode_size(opcode);
         set_opcode(L, j, addr[opcode]);
         j += shift;
     }
 #endif
-
 }
 
 static int checkFileType(input_stream_t *is)
@@ -917,7 +905,15 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     bc->str_size = read16(&is);
     if (bc->str_size > 0) {
         bc->strs = (char **)VM_MALLOC(sizeof(char *) * bc->str_size);
-        // assert(0 && "we do not have any specification about set field");
+        for (i = 0; i < bc->str_size; i++) {
+            uint16_t len = read16(&is);
+            char *str = peek(&is);
+            skip(&is, len + 1);
+            bc->strs[i] = (char *)pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
+            fprintf(stderr, "str%d %s\n", i, bc->strs[i]);
+#endif
+        }
     }
     bc->tag_size = read16(&is);
     if (bc->tag_size > 0) {
@@ -937,12 +933,6 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
         // bc->table = peek(&is);
         assert(0 && "we do not have any specification about table");
     }
-    // bc->sym_size = read16(&is);
-    // if (bc->sym_size > 0) {
-    //     bc->syms = peek(&is);
-    //     // assert(0 && "we do not have any specification about set field");
-    // }
-
 #if 0
 #define PRINT_FIELD(O, FIELD) \
     fprintf(stderr, "O->" #FIELD " = %d\n", (O)->FIELD)

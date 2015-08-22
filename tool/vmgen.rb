@@ -37,7 +37,7 @@ static unsigned opcode_size(int opcode)
 TXT
 types.each {|e|
   op = e[0]
-  size = [1, *(e[1..-1].map{|e| "sizeof(#{e})" })].join(" + ")
+  size = ["MOZVM_INST_HEADER_SIZE", *(e[1..-1].map{|e| "sizeof(#{e})" })].join(" + ")
   f.puts TAB + "case #{op}: return #{size};"
 }
 f.puts <<-TXT

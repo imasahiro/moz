@@ -275,7 +275,8 @@ long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
 #ifdef MOZVM_DEBUG_NTERM
 #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
 #else
-#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
+// #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
+#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "%ld %s\n", (long)(PC-1), #OP);
 #endif
 #else
 #define OP_CASE(OP) LABEL(OP):
