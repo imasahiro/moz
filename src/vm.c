@@ -171,8 +171,8 @@ static void _PUSH(long **SP, long v)
 
 int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
 {
-    register long *SP = runtime->stack;
-    register long *FP = SP;
+    long *SP = runtime->stack;
+    long *FP = SP;
 #ifdef MOZVM_DEBUG_NTERM
     long nterm_id = 0;
 #endif
