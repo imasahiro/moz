@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # make clean
-make moz
+# make moz
 
 LOOP=5
 if [ $# = 1 ]; then

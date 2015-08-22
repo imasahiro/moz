@@ -13,7 +13,8 @@ open(FILE) {|f|
       puts "OP_CASE(#{op})\n{"
       types << [op, *a.map{|e| e.split(" ")[0].strip }]
       a.each {|e|
-        type, name = e.strip.split(" ")
+        e = e.strip
+        type, name = e.split(" ")
         puts TAB + e + " = read_#{type}(PC);"
       }
     elsif l == "{\n"
