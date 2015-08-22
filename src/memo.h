@@ -24,9 +24,9 @@ enum memo_type {
 struct memo;
 typedef struct memo memo_t;
 
-void memo_hit();
-void memo_failhit();
-void memo_miss();
+// void memo_hit();
+// void memo_failhit();
+// void memo_miss();
 
 void memo_dispose(memo_t *memo);
 memo_t *memo_init(unsigned w, unsigned n, enum memo_type type);

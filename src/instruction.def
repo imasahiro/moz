@@ -318,15 +318,15 @@ DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
     MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
     if (entry) {
         if (entry->failed) {
-            memo_failhit();
+            // memo_failhit();
             FAIL();
         }
-        memo_hit();
+        // memo_hit();
         CONSUME_N(entry->consumed);
         ast_log_link(ast, index, entry->result);
         JUMP(skip);
     }
-    memo_miss();
+    // memo_miss();
 }
 DEF(TMemo, uint8_t state, uint16_t memoId)
 {
