@@ -5,8 +5,6 @@ DEF(Nop)
 DEF(Fail)
 {
 L_fail:;
-    // asm volatile("int3");
-    // FAIL();
     long saved_, ast_tx_;
     moz_inst_t *jump_;
     char *pos_;
@@ -21,7 +19,6 @@ L_fail:;
     // fprintf(stderr, "%-8s fail  SP=%p FP=%p jump=%p\n", runtime->nterms[nterm_id], SP, FP, jump_);
 #endif
     PC = jump_;
-
 }
 DEF(Alt, int failjump)
 {

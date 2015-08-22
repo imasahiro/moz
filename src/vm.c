@@ -171,25 +171,37 @@ static void _PUSH(long **SP, long v)
 
 int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
 {
-    long *SP = runtime->stack;
-    long *FP = SP;
+    register long *SP = runtime->stack;
+    register long *FP = SP;
 #ifdef MOZVM_DEBUG_NTERM
     long nterm_id = 0;
 #endif
+#if 1
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
-    memo_t *memo = runtime->memo;
+    memo_t *MEMO    = runtime->memo;
+#else
+#define AST  runtime->ast
+#define TBL  runtime->table
+#define MEMO runtime->memo
+#endif
     runtime->head = CURRENT;
     runtime->tail = end;
     AstMachine_setSource(AST, CURRENT);
 
+    // Instruction layout
+    //   PC[0]  Exit
+    //   PC[1]  0    /*parse success*/
+    //   PC[2]  Exit
+    //   PC[3]  0    /*parse fail   */
+    //   PC[4]  ...
     assert(*PC == Exit);
-    PUSH_FRAME(CURRENT, PC + 2/* Exit 0 */, ast_save_tx(AST), symtable_savepoint(TBL));
+    PUSH_FRAME(CURRENT, PC + 2, ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
 #endif
     PUSH(PC);
-    PC += 4/* Exit 0; Exit 1 */;
+    PC += 4;
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)
@@ -202,7 +214,7 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 
 #define SYMTABLE_GET() (TBL)
 #define AST_MACHINE_GET() (AST)
-#define MEMO_GET() (memo)
+#define MEMO_GET() (MEMO)
 #define HEAD (runtime)->head
 #define EOS() (CURRENT == runtime->tail)
 #define NEXT() DISPATCH()
