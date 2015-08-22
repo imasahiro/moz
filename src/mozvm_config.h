@@ -34,6 +34,7 @@ extern "C" {
 
 // node
 #define MOZVM_MEMORY_USE_RCGC 1
+#define MOZVM_NODE_USE_MEMPOOL 1
 // #define MOZVM_MEMORY_USE_BOEHM_GC 1
 
 // VM / bytecode

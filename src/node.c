@@ -9,43 +9,119 @@ extern "C" {
 DEF_ARRAY_OP_NOPOINTER(Node);
 
 // #define DEBUG2 1
+
 #ifdef MOZVM_MEMORY_USE_RCGC
-static Node free_list = NULL;
+
+#ifdef NODE_CHECK_MALLOC
 static long malloc_size = 0;
+#define MALLOC_SIZE_INC(N)  malloc_size -= (N)
+#define MALLOC_SIZE_DEC(N)  malloc_size += (N)
+#define MALLOC_SIZE_CHECK() assert(malloc_size == 0);
+#else
+#define MALLOC_SIZE_INC(N)
+#define MALLOC_SIZE_DEC(N)
+#define MALLOC_SIZE_CHECK()
+#endif
+
+static Node free_list = NULL;
+#ifdef MOZVM_USE_MEMPOOL
+static size_t free_object_count = 0;
+static struct page_header *current_page = NULL;
+
+struct page {
+#define ARENA_DEFAULT_SIZE 8
+#define PAGE_OBJECT_SIZE (ARENA_DEFAULT_SIZE * 4096 / sizeof(struct pegvm_node)-1)
+    struct pegvm_node nodes[PAGE_OBJECT_SIZE+1];
+};
+
+struct page_header {
+    struct page_header *next;
+};
+
+static struct page *alloc_page()
+{
+    struct page *p = (struct page *)calloc(1, sizeof(*p));
+    struct page_header *h = (struct page_header *)p;
+    Node head = p->nodes + 1;
+    Node cur  = head;
+    Node tail = p->nodes + PAGE_OBJECT_SIZE;
+
+    h->next = current_page;
+    current_page = h;
+    assert(free_object_count == 0);
+    while (cur < tail) {
+        cur->tag = (char *)(cur + 1);
+        ++cur;
+    }
+    free_object_count += PAGE_OBJECT_SIZE;
+    tail->tag = (char *)(free_list);
+    free_list = head;
+    return p;
+}
+#endif
 
 void NodeManager_init()
 {
+#ifdef MOZVM_USE_MEMPOOL
+    alloc_page();
+#endif
 }
 
 void NodeManager_dispose()
 {
+#ifdef MOZVM_USE_MEMPOOL
+    while (current_page) {
+        struct page_header *next = current_page->next;
+        free(current_page);
+        current_page = next;
+    }
+
+    free_list = NULL;
+    free_object_count = 0;
+    current_page = NULL;
+#else
     while (free_list) {
         Node next = (Node)free_list->tag;
         VM_FREE(free_list);
-        malloc_size -= sizeof(struct pegvm_node);
+        MALLOC_SIZE_DEC(sizeof(struct pegvm_node));
         free_list = next;
     }
+#ifdef NODE_CHECK_MALLOC
     if (malloc_size) {
         fprintf(stderr, "memory leak %ld byte (%ld nodes)\n",
                 malloc_size, malloc_size / sizeof(struct pegvm_node));
     }
-    assert(malloc_size == 0);
+#endif
+    MALLOC_SIZE_CHECK();
+#endif /*MOZVM_USE_MEMPOOL*/
 }
 
 void NodeManager_reset()
 {
     NodeManager_dispose();
+    NodeManager_init();
 }
 
 static inline Node node_alloc()
 {
+#ifdef MOZVM_USE_MEMPOOL
+    Node o;
+    if (free_list == NULL) {
+        alloc_page();
+    }
+    o = free_list;
+    free_list = (Node)o->tag;
+    free_object_count -= 1;
+    return o;
+#else
     if (free_list) {
         Node o = free_list;
         free_list = (Node)o->tag;
         return o;
     }
-    malloc_size += sizeof(struct pegvm_node);
+    MALLOC_SIZE_INC(sizeof(struct pegvm_node));
     return (Node) VM_MALLOC(sizeof(struct pegvm_node));
+#endif
 }
 
 static inline void node_free(Node o)
@@ -58,7 +134,11 @@ static inline void node_free(Node o)
     fprintf(stderr, "F %p -> %p\n", o, free_list);
 #endif
     free_list = o;
+#ifdef MOZVM_USE_MEMPOOL
+    free_object_count += 1;
+#endif
 }
+
 
 void Node_sweep(Node o)
 {
