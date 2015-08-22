@@ -73,6 +73,7 @@ test_json: moz gen
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample.json
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample2.json
 	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample3.json
+	$(M) $(BUILD)/moz -p sample/json.nzc -i sample/sample4.json
 
 test_xml: moz gen
 	$(M) $(BUILD)/moz -p sample/xml.nzc -i sample/sample.xml
