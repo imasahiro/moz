@@ -48,6 +48,12 @@ void moz_runtime_reset(moz_runtime_t *r)
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo, MEMO_TYPE_ELASTIC);
 }
 
+void moz_runtime_set_source(moz_runtime_t *r, char *str, char *end)
+{
+    r->head = str;
+    r->tail = end;
+}
+
 void moz_runtime_dispose(moz_runtime_t *r)
 {
     unsigned i;
@@ -169,7 +175,7 @@ static void _PUSH(long **SP, long v)
     POS    = (char **)(FP+FP_POS);\
 } while (0)
 
-int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst_t *PC)
+long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
 {
     long *SP = runtime->stack;
     long *FP = SP;
@@ -185,8 +191,37 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define TBL  runtime->table
 #define MEMO runtime->memo
 #endif
-    runtime->head = CURRENT;
-    runtime->tail = end;
+
+#ifdef MOZVM_USE_SWITCH_CASE_DISPATCH
+#define DISPATCH()         goto L_vm_head
+#define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
+#define DISPATCH_END()     default: ABORT(); }
+#define LABEL(OP)          case OP
+#else
+#define LABEL(OP)          MOZVM_##OP
+    static const void *__table[] = {
+#define DEFINE_TABLE(OP) &&LABEL(OP),
+        OP_EACH(DEFINE_TABLE)
+#undef DEFINE_TABLE
+    };
+#define DISPATCH_START(PC) DISPATCH()
+#define DISPATCH_END()     ABORT();
+
+#if defined(MOZVM_USE_INDIRECT_THREADING)
+#define DISPATCH()         goto *__table[*PC++]
+#elif defined(MOZVM_USE_DIRECT_THREADING)
+#define DISPATCH()         goto *((void const *)PC++)
+    if (PC == NULL) {
+        return (long) __table;
+    }
+#else
+#error please specify dispatch method
+#endif
+#endif
+
+#define NEXT() DISPATCH()
+#define JUMP(N) PC += N; DISPATCH()
+
     AstMachine_setSource(AST, CURRENT);
 
     // Instruction layout
@@ -217,25 +252,6 @@ int moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, char *end, moz_inst
 #define MEMO_GET() (MEMO)
 #define HEAD (runtime)->head
 #define EOS() (CURRENT == runtime->tail)
-#define NEXT() DISPATCH()
-#define JUMP(N) PC += N; DISPATCH()
-
-#ifdef MOZVM_USE_INDIRECT_THREADING
-#define DISPATCH()         goto *__table[*PC++]
-#define DISPATCH_START(PC) DISPATCH()
-#define DISPATCH_END()     ABORT();
-#define LABEL(OP)          MOZVM_##OP
-  static const void *__table[] = {
-#define DEFINE_TABLE(OP) &&LABEL(OP),
-    OP_EACH(DEFINE_TABLE)
-#undef DEFINE_TABLE
-  };
-#else
-#define DISPATCH()         goto L_vm_head
-#define DISPATCH_START(PC) L_vm_head:;switch (*PC++) {
-#define DISPATCH_END()     default: ABORT(); }
-#define LABEL(OP)          case OP
-#endif
 
 #if 0
 #ifdef MOZVM_DEBUG_NTERM

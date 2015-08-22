@@ -42,7 +42,7 @@ static void show_timer(const char *s)
 
 int main(int argc, char *const argv[])
 {
-    int parsed;
+    long parsed;
     mozvm_loader_t L = {};
     moz_inst_t *inst;
 
@@ -97,7 +97,8 @@ int main(int argc, char *const argv[])
     while (loop-- > 0) {
         Node node = NULL;
         reset_timer();
-        parsed = moz_runtime_parse(L.R, L.input, L.input + L.input_size, inst);
+        moz_runtime_set_source(L.R, L.input, L.input + L.input_size);
+        parsed = moz_runtime_parse(L.R, L.input, inst);
         if (parsed != 0) {
             fprintf(stderr, "parse error\n");
             break;

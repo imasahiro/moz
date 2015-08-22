@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include "mozvm_config.h"
 #include "pstring.h"
 #define MOZVM_DUMP_OPCODE 1
 #include "instruction.h"
@@ -206,11 +207,10 @@ void moz_loader_print_stats(mozvm_loader_t *L)
     fprintf(stderr, "bytecode    size : %u\n", ARRAY_size(L->buf));
 }
 
-static moz_inst_t *mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
+static void mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
 {
-    uint8_t *buf = L->buf.list + ARRAY_size(L->buf);
+    // uint8_t *buf = L->buf.list + ARRAY_size(L->buf);
     ARRAY_add(uint8_t, &L->buf, v);
-    return buf;
 }
 
 static void mozvm_loader_write16(mozvm_loader_t *L, uint16_t v)
@@ -243,6 +243,20 @@ static void mozvm_loader_write64(mozvm_loader_t *L, uint64_t v)
     ARRAY_size(L->buf) += n;
 }
 
+static void mozvm_loader_write_opcode(mozvm_loader_t *L, enum MozOpcode op)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    if (sizeof(int) == sizeof(void *)) {
+        mozvm_loader_write32(L, op);
+    }
+    else {
+        mozvm_loader_write64(L, op);
+    }
+#else
+    mozvm_loader_write8(L, (uint8_t)op);
+#endif
+}
+
 static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, void *ptr)
 {
     if (small) {
@@ -273,7 +287,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #endif
             ) {/* skip */}
     else {
-        mozvm_loader_write8(L, opcode);
+        mozvm_loader_write_opcode(L, opcode);
     }
     switch (opcode) {
     CASE_(Nop);
@@ -503,7 +517,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #undef CASE_
     if (has_jump) {
         int jump = get_next(is, &has_jump);
-        mozvm_loader_write8(L, Jump);
+        mozvm_loader_write_opcode(L, Jump);
         // fprintf(stderr, "\t\t%d jump=%d\n", L->buf.size, jump);
         mozvm_loader_write32(L, jump);
     }
@@ -518,9 +532,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int i = 0, j = 0;
-    mozvm_loader_write8(L, Exit); // exit sccuess
+    mozvm_loader_write_opcode(L, Exit); // exit sccuess
     mozvm_loader_write8(L, 0);
-    mozvm_loader_write8(L, Exit); // exit fail
+    mozvm_loader_write_opcode(L, Exit); // exit fail
     mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
         L->inst_size++;
