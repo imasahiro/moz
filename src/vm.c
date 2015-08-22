@@ -144,12 +144,13 @@ static void _PUSH(long **SP, long v)
 #define FP_MAX    (5)
 
 #define PUSH_FRAME(POS, NEXT, AST, SYMTBL) do {\
-    PUSH((long)FP); \
-    PUSH(POS);\
-    PUSH(NEXT);\
-    PUSH(AST);\
-    PUSH(SYMTBL);\
-    FP = SP - FP_MAX;\
+    SP[FP_FP]     = (long)FP; \
+    SP[FP_POS]    = (long)POS; \
+    SP[FP_NEXT]   = (long)NEXT; \
+    SP[FP_AST]    = AST; \
+    SP[FP_SYMTBL] = SYMTBL; \
+    FP = SP;\
+    SP = SP + FP_MAX; \
 } while (0)
 
 #define POP_FRAME(POS, NEXT, AST, SYMTBL) do {\
