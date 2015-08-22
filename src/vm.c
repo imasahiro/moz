@@ -52,6 +52,7 @@ void moz_runtime_set_source(moz_runtime_t *r, char *str, char *end)
 {
     r->head = str;
     r->tail = end;
+    AstMachine_setSource(r->ast, str);
 }
 
 void moz_runtime_dispose(moz_runtime_t *r)
@@ -226,8 +227,6 @@ long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
 
 #define NEXT() DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
-
-    AstMachine_setSource(AST, CURRENT);
 
     // Instruction layout
     //   PC[0]  Exit

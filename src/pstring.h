@@ -42,6 +42,7 @@
 #endif
 
 #define PSTRING_PTR(STR) ((STR)->str)
+// #define PSTRING_USE_STRCMP 1
 
 typedef struct pstring_t {
     unsigned len;
