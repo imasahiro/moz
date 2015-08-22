@@ -7,42 +7,6 @@
 extern "C" {
 #endif
 
-// #define AST_LOG_UNBOX
-enum AstLogType {
-    // TypeNode     = 0,
-    TypeTag      = 1,
-    TypePop      = 2,
-    TypeReplace  = 3,
-    TypePush     = 4,
-    TypeLeftFold = 5,
-    TypeNew      = 6,
-    TypeLink     = 7,
-    TypeCapture  = 8,
-};
-// #define DEBUG2 1
-
-typedef struct AstLog {
-#ifdef DEBUG2
-    unsigned id;
-#endif
-#ifdef AST_LOG_UNBOX
-#define TypeMask (0xfUL)
-#else
-    enum AstLogType type;
-#endif
-    int shift;
-    union ast_log_entry {
-        uintptr_t val;
-        Node ref;
-    } e;
-    union ast_log_index {
-        long idx;
-        char *pos;
-    } i;
-} AstLog;
-
-DEF_ARRAY_STRUCT0(AstLog, unsigned);
-DEF_ARRAY_T(AstLog);
 DEF_ARRAY_OP(AstLog);
 
 static inline void SetTag(AstLog *log, enum AstLogType type)
@@ -88,13 +52,6 @@ static inline Node GetNode(AstLog *log)
 #endif
 }
 
-struct AstMachine {
-    ARRAY(AstLog) logs;
-    Node last_linked;
-    Node parsed;
-    char *source;
-};
-
 AstMachine *AstMachine_init(unsigned log_size, char *source)
 {
     AstMachine *ast = (AstMachine *)VM_MALLOC(sizeof(*ast));
@@ -118,7 +75,7 @@ void AstMachine_setSource(AstMachine *ast, char *source)
     ast->source = source;
 }
 
-#ifdef DEBUG2
+#ifdef AST_DEBUG
 static void AstMachine_dumpLog(AstMachine *ast)
 {
     AstLog *cur  = ARRAY_BEGIN(ast->logs);
@@ -157,7 +114,7 @@ static void AstMachine_dumpLog(AstMachine *ast)
 }
 #endif
 
-#ifdef DEBUG2
+#ifdef AST_DEBUG
 static unsigned last_id = 1;
 #endif
 
@@ -167,7 +124,7 @@ static void ast_log(AstMachine *ast, enum AstLogType type, char *cur, uintptr_t 
     log.shift = 0;
     log.e.val = val;
     log.i.pos = cur;
-#ifdef DEBUG2
+#ifdef AST_DEBUG
     log.id = last_id;
     last_id++;
 #endif
@@ -235,11 +192,6 @@ Node ast_get_last_linked_node(AstMachine *ast)
     return ast->last_linked;
 }
 
-long ast_save_tx(AstMachine *ast)
-{
-    return ARRAY_size(ast->logs);
-}
-
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
     unsigned len = ARRAY_size(ast->logs);
@@ -300,7 +252,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     head = cur;
     tail = ARRAY_last(ast->logs);
     spos = (char *)GetPos(cur); epos = spos;
-#ifdef DEBUG2
+#ifdef AST_DEBUG
     fprintf(stderr, "createNode.start id=%d\n", cur->id);
 #endif
     for (; cur <= tail; ++cur) {
@@ -361,7 +313,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         }
     }
     tmp = constructLeft(ast, head, tail, spos, epos, objectSize, tag, value);
-#ifdef DEBUG2
+#ifdef AST_DEBUG
     Node_print(tmp);
 #endif
     return tmp;
@@ -372,7 +324,7 @@ void ast_commit_tx(AstMachine *ast, int index, long tx)
     AstLog *cur;
     assert(ARRAY_size(ast->logs) > tx);
     cur = ARRAY_get(AstLog, &ast->logs, tx);
-#ifdef DEBUG2
+#ifdef AST_DEBUG
     fprintf(stderr, "0: %ld %d\n", tx, ARRAY_size(ast->logs)-1);
     AstMachine_dumpLog(ast);
 #endif
@@ -390,7 +342,7 @@ Node ast_get_parsed_node(AstMachine *ast)
     if (ast->parsed) {
         return ast->parsed;
     }
-#ifdef DEBUG2
+#ifdef AST_DEBUG
     AstMachine_dumpLog(ast);
 #endif
     if (ARRAY_size(ast->logs) == 0) {

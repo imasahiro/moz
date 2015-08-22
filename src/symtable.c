@@ -8,21 +8,7 @@
 extern "C" {
 #endif
 
-typedef struct symtable_entry_t {
-    unsigned state;
-    unsigned hash;
-    char *tag;
-    token_t sym;
-} entry_t;
-
-DEF_ARRAY_STRUCT0(entry_t, unsigned);
-DEF_ARRAY_T(entry_t);
 DEF_ARRAY_OP(entry_t);
-
-struct symtable_t {
-    unsigned state;
-    ARRAY(entry_t) table;
-};
 
 symtable_t *symtable_init()
 {
@@ -121,11 +107,6 @@ int symtable_contains(symtable_t *tbl, char *tableName, token_t *t)
         }
     }
     return 0;
-}
-
-long symtable_savepoint(symtable_t *tbl)
-{
-    return ARRAY_size(tbl->table);
 }
 
 void symtable_rollback(symtable_t *tbl, long saved)
