@@ -29,22 +29,22 @@ test2: gen test_node test_ast test_sym test_memo test_loader test_inst
 src/vm_core.c: tool/vmgen.rb src/instruction.def src/instruction.h
 	$(RUBY) tool/vmgen.rb src/instruction.def > $@
 
-$(BUILD)/ast.o: src/ast.c src/ast.h $(NEZ_LIB)
+$(BUILD)/ast.o: src/ast.c src/ast.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/ast.c -c -o $@
 
-$(BUILD)/memo.o: src/memo.c src/memo.h $(NEZ_LIB)
+$(BUILD)/memo.o: src/memo.c src/memo.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/memo.c -c -o $@
 
-$(BUILD)/symtable.o: src/symtable.c src/symtable.h $(NEZ_LIB)
+$(BUILD)/symtable.o: src/symtable.c src/symtable.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/symtable.c -c -o $@
 
-$(BUILD)/node.o: src/node.c src/node.h $(NEZ_LIB)
+$(BUILD)/node.o: src/node.c src/node.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/node.c -c -o $@
 
-$(BUILD)/vm.o: src/vm.c src/node.h src/ast.h src/symtable.h src/vm_core.c $(NEZ_LIB)
+$(BUILD)/vm.o: src/vm.c src/node.h src/ast.h src/symtable.h src/vm_core.c $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/vm.c -c -o $@
 
-$(BUILD)/loader.o: src/loader.c src/node.h src/ast.h src/symtable.h $(NEZ_LIB)
+$(BUILD)/loader.o: src/loader.c src/node.h src/ast.h src/symtable.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/loader.c -c -o $@
 
 test_node: $(BUILD)/node.o test/test_node.c
