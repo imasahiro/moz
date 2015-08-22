@@ -569,6 +569,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     }
 
     // fprintf(stderr, "\n");
+
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);;
         unsigned shift = opcode_size(opcode);

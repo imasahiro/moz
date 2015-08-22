@@ -10,7 +10,7 @@ open(FILE) {|f|
       a = $1.split(",")
       op = a.shift
       # puts "#line #{$line} \"#{FILE}\""
-      puts "OP_CASE(#{op}) {"
+      puts "OP_CASE(#{op})\n{"
       types << [op, *a.map{|e| e.split(" ")[0].strip }]
       a.each {|e|
         type, name = e.strip.split(" ")
