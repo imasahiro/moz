@@ -6,6 +6,10 @@
 extern "C" {
 #endif
 
+#ifndef offsetof
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#endif
+
 DEF_ARRAY_OP_NOPOINTER(Node);
 
 // #define DEBUG2 1
@@ -65,6 +69,9 @@ static struct page *alloc_page()
 
 void NodeManager_init()
 {
+    unsigned offset1 = offsetof(struct pegvm_node, entry.raw.size);
+    unsigned offset2 = offsetof(struct pegvm_node, entry.array.size);
+    assert(offset1 == offset2);
 #ifdef MOZVM_USE_MEMPOOL
     alloc_page();
 #endif
@@ -108,8 +115,8 @@ void NodeManager_reset()
 
 static inline Node node_alloc()
 {
-#ifdef MOZVM_USE_MEMPOOL
     Node o;
+#ifdef MOZVM_USE_MEMPOOL
     if (free_list == NULL) {
         alloc_page();
     }
@@ -120,13 +127,14 @@ static inline Node node_alloc()
 #else
 #if MOZVM_USE_FREE_LIST
     if (free_list) {
-        Node o = free_list;
+        o = free_list;
         free_list = (Node)o->tag;
         return o;
     }
     MALLOC_SIZE_INC(sizeof(struct pegvm_node));
 #endif /*MOZVM_USE_FREE_LIST*/
-    return (Node) VM_MALLOC(sizeof(struct pegvm_node));
+    o = (Node) VM_MALLOC(sizeof(struct pegvm_node));
+    return o;
 #endif
 }
 
@@ -170,7 +178,7 @@ Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value
 {
     Node o = node_alloc();
 #ifdef DEBUG2
-    fprintf(stderr, "A %p\n", o);
+    fprintf(stderr, "A %p %d\n", o, elm_size);
 #endif
     NODE_GC_INIT(o);
     o->tag = tag;
@@ -180,7 +188,11 @@ Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value
     // assert(o->len < 100);
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
+        unsigned i;
         ARRAY_init(Node, &o->entry.array, elm_size);
+        for (i = 0; i < elm_size; i++) {
+            ARRAY_add(Node, &o->entry.array, NULL);
+        }
     }
     else {
         o->entry.raw.ary[0] = NULL;
