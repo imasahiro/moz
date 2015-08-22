@@ -208,9 +208,13 @@ long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
 #define DISPATCH_END()     ABORT();
 
 #if defined(MOZVM_USE_INDIRECT_THREADING)
-#define DISPATCH()         goto *__table[*PC++]
+#define DISPATCH() goto *__table[*PC++]
 #elif defined(MOZVM_USE_DIRECT_THREADING)
-#define DISPATCH()         goto *((void const *)PC++)
+#define DISPATCH() do { \
+    void **addr = *((void **)PC);\
+    PC += sizeof(void **);\
+    goto *addr;\
+} while (0)
     if (PC == NULL) {
         return (long) __table;
     }
@@ -230,13 +234,27 @@ long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
     //   PC[2]  Exit
     //   PC[3]  0    /*parse fail   */
     //   PC[4]  ...
+#ifdef MOZVM_USE_DIRECT_THREADING
+    assert(*(void const **)PC == &&LABEL(Exit));
+#else
     assert(*PC == Exit);
-    PUSH_FRAME(CURRENT, PC + 2, ast_save_tx(AST), symtable_savepoint(TBL));
+#endif
+    PUSH_FRAME(CURRENT,
+#ifdef MOZVM_USE_DIRECT_THREADING
+            PC + sizeof(void *) + 1,
+#else
+            PC + 2,
+#endif
+            ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
 #endif
     PUSH(PC);
+#ifdef MOZVM_USE_DIRECT_THREADING
+    PC += 2 * (sizeof(void *) + 1);
+#else
     PC += 4;
+#endif
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)

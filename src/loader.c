@@ -532,9 +532,30 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #define OP_PRINT(FMT, ...)
 #endif
 
+static long get_opcode(mozvm_loader_t *L, unsigned idx)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    return *(long *)(L->buf.list + idx);
+#else
+    return (long)ARRAY_get(uint8_t, &L->buf, idx);
+#endif
+}
+
+static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    *(long *)(L->buf.list + idx) = opcode;
+#else
+    ARRAY_set(uint8_t, &L->buf, idx, opcode);
+#endif
+}
+
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int i = 0, j = 0;
+#ifdef MOZVM_USE_DIRECT_THREADING
+    const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
+#endif
     mozvm_loader_write_opcode(L, Exit); // exit sccuess
     mozvm_loader_write8(L, 0);
     mozvm_loader_write_opcode(L, Exit); // exit fail
@@ -549,9 +570,12 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 
     // fprintf(stderr, "\n");
     while (j < ARRAY_size(L->buf)) {
-        uint8_t opcode = ARRAY_get(uint8_t, &L->buf, j);
+        uint8_t opcode = get_opcode(L, j);;
         unsigned shift = opcode_size(opcode);
         int *ref;
+#ifdef MOZVM_USE_DIRECT_THREADING
+        shift += sizeof(long) - sizeof(uint8_t);
+#endif
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + (IDX)))
         switch (opcode) {
@@ -561,8 +585,8 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             // ...          |
             // L3: Ret      |
             if (1 && opcode_size(Jump) == opcode_size(Ret)) {
-                if (ARRAY_get(uint8_t, &L->buf, L->table[*ref]) == Ret) {
-                    ARRAY_set(uint8_t, &L->buf, j, Ret);
+                if (get_opcode(L, L->table[*ref]) == Ret) {
+                    set_opcode(L, j, Ret);
                 }
             }
             *ref = L->table[*ref] - (j + shift);
@@ -597,6 +621,9 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
+#ifdef MOZVM_USE_DIRECT_THREADING
+        shift += sizeof(long) - sizeof(uint8_t);
+#endif
         OP_PRINT("%02d %ld %s ", i, (long)p, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
@@ -784,6 +811,17 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         j += shift;
         i++;
     }
+
+#ifdef MOZVM_USE_DIRECT_THREADING
+    j = 0;
+    while (j < ARRAY_size(L->buf)) {
+        uint8_t opcode = get_opcode(L, j);;
+        unsigned shift = opcode_size(opcode) + sizeof(long) - sizeof(uint8_t);
+        set_opcode(L, j, addr[opcode]);
+        j += shift;
+    }
+#endif
+
 }
 
 static int checkFileType(input_stream_t *is)

@@ -10,7 +10,7 @@ NEZ_CORE=$(BUILD)/ast.o $(BUILD)/memo.o $(BUILD)/symtable.o $(BUILD)/node.o
 OPTION=-march=native -O3 -g3 -Wall -I$(SRC)
 # OPTION=-march=native -O0 -g3 -Wall -I$(SRC)
 M=
-M=valgrind --leak-check=full --show-leak-kinds=all
+# M=valgrind --leak-check=full --show-leak-kinds=all
 
 all: moz test
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
