@@ -327,6 +327,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(OStr);
     CASE_(RStr) {
         asm volatile("int3");
+// #define STRING_GET_IMPL(runtime, ID) runtime->C.strs[(ID)]
         break;
     }
 
@@ -334,9 +335,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(NSet);
     CASE_(OSet);
     CASE_(RSet) {
-        uint16_t set = read16(is);
-        bitset_t *impl = BITSET_GET_IMPL(L->R, set);
-        mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, set, (void *)impl);
+        uint16_t setId = read16(is);
+        bitset_t *impl = &L->R->C.sets[setId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_BITSET_INST, setId, (void *)impl);
         break;
     }
     CASE_(Consume) {
@@ -345,8 +346,8 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     }
     CASE_(First) {
         int i, table[257] = {};
-        uint16_t id = L->jmptbl_id++;
-        int *impl = JMPTBL_GET_IMPL(L->R, id);
+        uint16_t tblId = L->jmptbl_id++;
+        int *impl = L->R->C.jumps + (MOZ_JMPTABLE_SIZE * tblId);
         for (i = 0; i < 257; i++) {
             table[i] = (int)read24(is);
         }
@@ -362,7 +363,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         fprintf(stderr, "%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
 #endif
 
-        mozvm_loader_write_id(L, MOZVM_SMALL_JMPTBL_INST, id, (void *)impl);
+        mozvm_loader_write_id(L, MOZVM_SMALL_JMPTBL_INST, tblId, (void *)impl);
         break;
     }
     CASE_(Lookup) {
@@ -413,7 +414,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     }
     CASE_(TTag) {
         uint16_t tagId = read16(is);
-        tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+        tag_t *impl = L->R->C.tags[tagId];
         mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, impl);
         break;
     }

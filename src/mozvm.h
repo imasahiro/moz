@@ -42,7 +42,7 @@ typedef struct moz_runtime_t {
     long stack_[1];
 } moz_runtime_t;
 
-#ifdef MOZVM_SMALL_STRING_INST
+#if MOZVM_SMALL_STRING_INST
 typedef uint16_t STRING_t;
 #define STRING_GET_IMPL(runtime, ID) runtime->C.strs[(ID)]
 #else
@@ -51,7 +51,7 @@ typedef char *STRING_t;
 #endif
 
 typedef char tag_t;
-#ifdef MOZVM_SMALL_TAG_INST
+#if MOZVM_SMALL_TAG_INST
 typedef uint16_t TAG_t;
 #define TAG_GET_IMPL(runtime, ID) runtime->C.tags[(ID)]
 #else
@@ -59,7 +59,7 @@ typedef tag_t *TAG_t;
 #define TAG_GET_IMPL(runtime, ID) (ID)
 #endif
 
-#ifdef MOZVM_SMALL_BITSET_INST
+#if MOZVM_SMALL_BITSET_INST
 typedef uint16_t BITSET_t;
 #define BITSET_GET_IMPL(runtime, ID) &(runtime->C.sets[(ID)])
 #else
@@ -67,7 +67,7 @@ typedef bitset_t *BITSET_t;
 #define BITSET_GET_IMPL(runtime, ID) (ID)
 #endif
 
-#ifdef MOZVM_SMALL_JMPTBL_INST
+#if MOZVM_SMALL_JMPTBL_INST
 typedef uint16_t JMPTBL_t;
 #define JMPTBL_GET_IMPL(runtime, ID) ((runtime)->C.jumps+(MOZ_JMPTABLE_SIZE * (ID)))
 #else
