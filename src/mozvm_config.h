@@ -24,6 +24,9 @@ extern "C" {
 
 // Memo
 #define MOZ_MEMO_DEFAULT_WINDOW_SIZE 32
+// #define MOZVM_MEMO_TYPE_NULL    1
+// #define MOZVM_MEMO_TYPE_HASH    1
+#define MOZVM_MEMO_TYPE_ELASTIC 1
 
 // Runtime
 #define MOZ_DEFAULT_STACK_SIZE  (128*1024)

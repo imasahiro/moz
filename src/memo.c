@@ -31,50 +31,7 @@ struct memo {
     } e;
 };
 
-typedef struct memo_stat {
-    unsigned memo_stored;
-    unsigned memo_used;
-    unsigned memo_invalidated;
-    unsigned memo_hit;
-    unsigned memo_failhit;
-    unsigned memo_miss;
-} memo_stat_t;
-
-static memo_stat_t stat = {};
-
-static void memo_null_init(memo_t *memo, unsigned w, unsigned n)
-{
-    /* do nothing */
-}
-
-static int memo_null_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
-{
-    return 0;
-}
-
-static int memo_null_fail(memo_t *m, char *pos, unsigned id)
-{
-    return 0;
-}
-
-static MemoEntry_t *memo_null_get(memo_t *m, char *pos, unsigned id, unsigned state)
-{
-    return NULL;
-}
-
-static void memo_null_dispose(memo_t *memo)
-{
-    /* do nothing */
-}
-
-static const memo_api_t MEMO_API_NULL = {
-    memo_null_init,
-    memo_null_set,
-    memo_null_fail,
-    memo_null_get,
-    memo_null_dispose
-};
-
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
 static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
 {
     unsigned i;
@@ -138,48 +95,75 @@ static void memo_elastic_dispose(memo_t *m)
     ARRAY_dispose(MemoEntry_t, &m->e.ary);
 }
 
-static const memo_api_t MEMO_API_ELASTIC = {
-    memo_elastic_init,
-    memo_elastic_set,
-    memo_elastic_fail,
-    memo_elastic_get,
-    memo_elastic_dispose
-};
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+static void memo_null_init(memo_t *memo, unsigned w, unsigned n)
+{
+    /* do nothing */
+}
 
-memo_t *memo_init(unsigned w, unsigned n, enum memo_type type)
+static int memo_null_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
+{
+    return 0;
+}
+
+static int memo_null_fail(memo_t *m, char *pos, unsigned id)
+{
+    return 0;
+}
+
+static MemoEntry_t *memo_null_get(memo_t *m, char *pos, unsigned id, unsigned state)
+{
+    return NULL;
+}
+
+static void memo_null_dispose(memo_t *memo)
+{
+    /* do nothing */
+}
+#endif
+
+memo_t *memo_init(unsigned w, unsigned n)
 {
     memo_t *memo = (memo_t *)VM_MALLOC(sizeof(*memo));
-    switch (type) {
-    case MEMO_TYPE_HASH:
-        assert(0);
-        // memo->api = &MEMO_API_HASH;
-        break;
-    case MEMO_TYPE_ELASTIC:
-        memo->api = &MEMO_API_ELASTIC;
-        break;
-    case MEMO_TYPE_NULL:
-    default:
-        memo->api = &MEMO_API_NULL;
-        break;
-    }
-    memo->api->_init(memo, w, n);
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    memo_elastic_init(memo, w, n);
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+    memo_null_init(memo, w, n);
+#endif
     return memo;
 }
 
 void memo_dispose(memo_t *memo)
 {
-    memo->api->_dispose(memo);
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    memo_elastic_dispose(memo);
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+    memo_null_dispose(memo);
+#endif
     VM_FREE(memo);
 }
 
 MemoEntry_t *memo_get(memo_t *m, char *pos, uint32_t memoId, uint8_t state)
 {
-    return m->api->_get(m, pos, memoId, state);
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    return memo_elastic_get(m, pos, memoId, state);
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+    return memo_null_get(m, pos, memoId, state);
+#endif
 }
 
 int memo_fail(memo_t *m, char *pos, uint32_t memoId)
 {
-    return m->api->_fail(m, pos, memoId);
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    return memo_elastic_fail(m, pos, memoId);
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+    return memo_null_fail(m, pos, memoId);
+#endif
 }
 
 int memo_set(memo_t *m, char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
@@ -191,23 +175,39 @@ int memo_set(memo_t *m, char *pos, uint32_t memoId, Node result, unsigned consum
     if (result) {
         NODE_GC_RETAIN(result);
     }
-    return m->api->_set(m, pos, memoId, &e);
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    return memo_elastic_set(m, pos, memoId, &e);
+#elif defined(MOZVM_MEMO_TYPE_HASH)
+#else  /* MOZVM_MEMO_TYPE_NULL */
+    return memo_null_set(m, pos, memoId, &e);
+#endif
 }
 
-void memo_hit()
-{
-    stat.memo_hit++;
-}
-
-void memo_failhit()
-{
-    stat.memo_failhit++;
-}
-
-void memo_miss()
-{
-    stat.memo_miss++;
-}
+// typedef struct memo_stat {
+//     unsigned memo_stored;
+//     unsigned memo_used;
+//     unsigned memo_invalidated;
+//     unsigned memo_hit;
+//     unsigned memo_failhit;
+//     unsigned memo_miss;
+// } memo_stat_t;
+//
+// static memo_stat_t stat = {};
+//
+// void memo_hit()
+// {
+//     stat.memo_hit++;
+// }
+//
+// void memo_failhit()
+// {
+//     stat.memo_failhit++;
+// }
+//
+// void memo_miss()
+// {
+//     stat.memo_miss++;
+// }
 
 #ifdef __cplusplus
 }
