@@ -104,6 +104,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
     symtable_rollback(SYMTABLE_GET(), saved_); \
     PC = jump_; \
+    NEXT(); \
 } while (0)
 #else
 #define FAIL() /*fprintf(stderr, "goto fail\n");*/goto L_fail;
