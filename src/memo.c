@@ -96,6 +96,7 @@ static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
     if (old->failed != UINTPTR_MAX && old->result) {
         NODE_GC_RELEASE(old->result);
     }
+    e->hash = hash;
     ARRAY_set(MemoEntry_t, &m->e.ary, idx, e);
     return 1;
 }

@@ -135,7 +135,7 @@ static inline void node_free(Node o)
     assert(o->refc == 0);
     memset(o, 0xa, sizeof(*o));
     o->refc = -1;
-#if MOZVM_USE_FREE_LIST
+#ifdef MOZVM_USE_FREE_LIST
     o->tag = (char *)free_list;
 #ifdef DEBUG2
     fprintf(stderr, "F %p -> %p\n", o, free_list);
@@ -144,6 +144,9 @@ static inline void node_free(Node o)
 #endif /*MOZVM_USE_FREE_LIST*/
 #ifdef MOZVM_USE_MEMPOOL
     free_object_count += 1;
+#endif
+#if !defined(MOZVM_USE_FREE_LIST) && !defined(MOZVM_USE_MEMPOOL)
+    VM_FREE(o);
 #endif
 }
 
