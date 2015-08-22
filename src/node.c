@@ -23,7 +23,10 @@ static long malloc_size = 0;
 #define MALLOC_SIZE_CHECK()
 #endif
 
+#if defined(MOZVM_USE_FREE_LIST) || defined(MOZVM_USE_MEMPOOL)
 static Node free_list = NULL;
+#endif
+
 #ifdef MOZVM_USE_MEMPOOL
 static size_t free_object_count = 0;
 static struct page_header *current_page = NULL;
@@ -79,7 +82,7 @@ void NodeManager_dispose()
     free_list = NULL;
     free_object_count = 0;
     current_page = NULL;
-#else
+#elif defined(MOZVM_USE_FREE_LIST)
     while (free_list) {
         Node next = (Node)free_list->tag;
         VM_FREE(free_list);
@@ -94,6 +97,7 @@ void NodeManager_dispose()
 #endif
     MALLOC_SIZE_CHECK();
 #endif /*MOZVM_USE_MEMPOOL*/
+#endif /*MOZVM_USE_FREE_LIST*/
 }
 
 void NodeManager_reset()
@@ -114,12 +118,14 @@ static inline Node node_alloc()
     free_object_count -= 1;
     return o;
 #else
+#if MOZVM_USE_FREE_LIST
     if (free_list) {
         Node o = free_list;
         free_list = (Node)o->tag;
         return o;
     }
     MALLOC_SIZE_INC(sizeof(struct pegvm_node));
+#endif /*MOZVM_USE_FREE_LIST*/
     return (Node) VM_MALLOC(sizeof(struct pegvm_node));
 #endif
 }
@@ -129,11 +135,13 @@ static inline void node_free(Node o)
     assert(o->refc == 0);
     memset(o, 0xa, sizeof(*o));
     o->refc = -1;
+#if MOZVM_USE_FREE_LIST
     o->tag = (char *)free_list;
 #ifdef DEBUG2
     fprintf(stderr, "F %p -> %p\n", o, free_list);
 #endif
     free_list = o;
+#endif /*MOZVM_USE_FREE_LIST*/
 #ifdef MOZVM_USE_MEMPOOL
     free_object_count += 1;
 #endif
@@ -154,8 +162,6 @@ void Node_sweep(Node o)
     }
     node_free(o);
 }
-
-#endif
 
 Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
 {
