@@ -316,7 +316,10 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
         (void)next;(void)nterm;
     }
-    CASE_(Ret);
+    CASE_(Ret) {
+        mozvm_loader_write32(L, 0);
+        break;
+    }
     CASE_(Pos);
     CASE_(Back);
     CASE_(Skip) {

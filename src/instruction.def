@@ -57,7 +57,7 @@ DEF(Call, int jump)
 #endif
     JUMP(jump);
 }
-DEF(Ret)
+DEF(Ret, int dummy)
 {
     moz_inst_t *next = (moz_inst_t *)POP();
 #ifdef MOZVM_DEBUG_NTERM
