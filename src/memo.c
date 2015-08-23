@@ -30,16 +30,19 @@ static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
     m->shift = LOG2(n) + 1;
 }
 
-static int memo_elastic_set(memo_t *m, const char *pos, unsigned id, MemoEntry_t *e)
+static int memo_elastic_set(memo_t *m, const char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
 {
-    uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
+    uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
     if (old->failed != UINTPTR_MAX && old->result) {
         NODE_GC_RELEASE(old->result);
     }
-    e->hash = hash;
-    ARRAY_set(MemoEntry_t, &m->ary, idx, e);
+    old->hash = hash;
+    old->consumed = consumed;
+    old->state    = state;
+    old->result   = result;
+    // ARRAY_set(MemoEntry_t, &m->ary, idx, e);
     return 1;
 }
 
@@ -153,16 +156,16 @@ int memo_fail(memo_t *m, const char *pos, uint32_t memoId)
 
 int memo_set(memo_t *m, const char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
 {
-    MemoEntry_t e;
-    e.consumed = consumed;
-    e.state    = state;
-    e.result   = result;
     if (result) {
         NODE_GC_RETAIN(result);
     }
 #if defined(MOZVM_MEMO_TYPE_ELASTIC)
-    return memo_elastic_set(m, pos, memoId, &e);
+    return memo_elastic_set(m, pos, memoId, result, consumed, state);
 #elif defined(MOZVM_MEMO_TYPE_HASH)
+    MemoEntry_t e;
+    e.consumed = consumed;
+    e.state    = state;
+    e.result   = result;
 #else  /* MOZVM_MEMO_TYPE_NULL */
     return memo_null_set(m, pos, memoId, &e);
 #endif

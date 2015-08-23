@@ -2,7 +2,7 @@
 CC=clang
 RUBY=ruby
 NEZ=../nez.jar
-NEZOPT=--option:+ast:-memo:-asis:-predict
+# NEZOPT=--option:+ast:-memo:-asis:-predict
 BUILD=build
 SRC=src
 NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
