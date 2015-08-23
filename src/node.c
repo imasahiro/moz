@@ -57,11 +57,11 @@ static struct page *alloc_page()
     current_page = h;
     assert(free_object_count == 0);
     while (cur < tail) {
-        cur->tag = (char *)(cur + 1);
+        cur->tag = (const char *)(cur + 1);
         ++cur;
     }
     free_object_count += PAGE_OBJECT_SIZE;
-    tail->tag = (char *)(free_list);
+    tail->tag = (const char *)(free_list);
     free_list = head;
     return p;
 }
@@ -144,7 +144,7 @@ static inline void node_free(Node o)
     memset(o, 0xa, sizeof(*o));
     o->refc = -1;
 #ifdef MOZVM_USE_FREE_LIST
-    o->tag = (char *)free_list;
+    o->tag = (const char *)free_list;
 #ifdef DEBUG2
     fprintf(stderr, "F %p -> %p\n", o, free_list);
 #endif
@@ -174,7 +174,7 @@ void Node_sweep(Node o)
     node_free(o);
 }
 
-Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value)
+Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value)
 {
     Node o = node_alloc();
 #ifdef DEBUG2

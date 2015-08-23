@@ -24,7 +24,7 @@ void symtable_dispose(symtable_t *tbl)
     VM_FREE(tbl);
 }
 
-static void symtable_push(symtable_t *tbl, char *tag, unsigned hash, token_t *t)
+static void symtable_push(symtable_t *tbl, const char *tag, unsigned hash, token_t *t)
 {
     entry_t entry = {};
     entry.state = tbl->state++;
@@ -36,18 +36,18 @@ static void symtable_push(symtable_t *tbl, char *tag, unsigned hash, token_t *t)
     ARRAY_add(entry_t, &tbl->table, &entry);
 }
 
-void symtable_add_symbol_mask(symtable_t *tbl, char *tableName)
+void symtable_add_symbol_mask(symtable_t *tbl, const char *tableName)
 {
     symtable_push(tbl, tableName, 0, NULL);
 }
 
-void symtable_add_symbol(symtable_t *tbl, char *tableName, token_t *captured)
+void symtable_add_symbol(symtable_t *tbl, const char *tableName, token_t *captured)
 {
     unsigned hash = fnv1a(captured->s, captured->len);
     symtable_push(tbl, tableName, hash, captured);
 }
 
-int symtable_has_symbol(symtable_t *tbl, char *tableName)
+int symtable_has_symbol(symtable_t *tbl, const char *tableName)
 {
     entry_t *cur, *head;
     if (ARRAY_size(tbl->table) == 0) {
@@ -65,7 +65,7 @@ int symtable_has_symbol(symtable_t *tbl, char *tableName)
     return 0;
 }
 
-int symtable_get_symbol(symtable_t *tbl, char *tableName, token_t *t)
+int symtable_get_symbol(symtable_t *tbl, const char *tableName, token_t *t)
 {
     entry_t *cur, *head;
     if (ARRAY_size(tbl->table) == 0) {
@@ -85,7 +85,7 @@ int symtable_get_symbol(symtable_t *tbl, char *tableName, token_t *t)
     return 0;
 }
 
-int symtable_contains(symtable_t *tbl, char *tableName, token_t *t)
+int symtable_contains(symtable_t *tbl, const char *tableName, token_t *t)
 {
     entry_t *cur, *head;
     unsigned hash;

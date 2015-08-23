@@ -30,7 +30,7 @@ static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
     m->shift = LOG2(n) + 1;
 }
 
-static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
+static int memo_elastic_set(memo_t *m, const char *pos, unsigned id, MemoEntry_t *e)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
     unsigned idx = hash % ARRAY_size(m->ary);
@@ -43,7 +43,7 @@ static int memo_elastic_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
     return 1;
 }
 
-static int memo_elastic_fail(memo_t *m, char *pos, unsigned id)
+static int memo_elastic_fail(memo_t *m, const char *pos, unsigned id)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
     unsigned idx = hash % ARRAY_size(m->ary);
@@ -55,7 +55,7 @@ static int memo_elastic_fail(memo_t *m, char *pos, unsigned id)
     return 0;
 }
 
-static MemoEntry_t *memo_elastic_get(memo_t *m, char *pos, unsigned id, unsigned state)
+static MemoEntry_t *memo_elastic_get(memo_t *m, const char *pos, unsigned id, unsigned state)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
     unsigned idx = hash % ARRAY_size(m->ary);
@@ -87,17 +87,17 @@ static void memo_null_init(memo_t *memo, unsigned w, unsigned n)
     /* do nothing */
 }
 
-static int memo_null_set(memo_t *m, char *pos, unsigned id, MemoEntry_t *e)
+static int memo_null_set(memo_t *m, const char *pos, unsigned id, MemoEntry_t *e)
 {
     return 0;
 }
 
-static int memo_null_fail(memo_t *m, char *pos, unsigned id)
+static int memo_null_fail(memo_t *m, const char *pos, unsigned id)
 {
     return 0;
 }
 
-static MemoEntry_t *memo_null_get(memo_t *m, char *pos, unsigned id, unsigned state)
+static MemoEntry_t *memo_null_get(memo_t *m, const char *pos, unsigned id, unsigned state)
 {
     return NULL;
 }
@@ -131,7 +131,7 @@ void memo_dispose(memo_t *memo)
     VM_FREE(memo);
 }
 
-MemoEntry_t *memo_get(memo_t *m, char *pos, uint32_t memoId, uint8_t state)
+MemoEntry_t *memo_get(memo_t *m, const char *pos, uint32_t memoId, uint8_t state)
 {
 #if defined(MOZVM_MEMO_TYPE_ELASTIC)
     return memo_elastic_get(m, pos, memoId, state);
@@ -141,7 +141,7 @@ MemoEntry_t *memo_get(memo_t *m, char *pos, uint32_t memoId, uint8_t state)
 #endif
 }
 
-int memo_fail(memo_t *m, char *pos, uint32_t memoId)
+int memo_fail(memo_t *m, const char *pos, uint32_t memoId)
 {
 #if defined(MOZVM_MEMO_TYPE_ELASTIC)
     return memo_elastic_fail(m, pos, memoId);
@@ -151,7 +151,7 @@ int memo_fail(memo_t *m, char *pos, uint32_t memoId)
 #endif
 }
 
-int memo_set(memo_t *m, char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
+int memo_set(memo_t *m, const char *pos, uint32_t memoId, Node result, unsigned consumed, int state)
 {
     MemoEntry_t e;
     e.consumed = consumed;

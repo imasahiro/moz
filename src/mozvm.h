@@ -9,8 +9,8 @@
 
 typedef struct mozvm_constant_t {
     bitset_t *sets;
-    char **tags;
-    char **strs;
+    const char **tags;
+    const char **strs;
     int *jumps;
     const char **nterms;
 
@@ -33,9 +33,9 @@ typedef struct moz_runtime_t {
     AstMachine *ast;
     symtable_t *table;
     memo_t *memo;
-    char *head;
-    char *tail;
-    char *input;
+    const char *head;
+    const char *tail;
+    const char *input;
     long *stack;
 
     mozvm_constant_t C;
@@ -46,11 +46,11 @@ typedef struct moz_runtime_t {
 typedef uint16_t STRING_t;
 #define STRING_GET_IMPL(runtime, ID) runtime->C.strs[(ID)]
 #else
-typedef char *STRING_t;
+typedef const char *STRING_t;
 #define STRING_GET_IMPL(runtime, ID) (ID)
 #endif
 
-typedef char tag_t;
+typedef const char tag_t;
 #if MOZVM_SMALL_TAG_INST
 typedef uint16_t TAG_t;
 #define TAG_GET_IMPL(runtime, ID) runtime->C.tags[(ID)]
@@ -79,8 +79,8 @@ typedef uint8_t moz_inst_t;
 moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 void moz_runtime_reset(moz_runtime_t *r);
-void moz_runtime_set_source(moz_runtime_t *r, char *str, char *end);
+void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end);
 
-long moz_runtime_parse(moz_runtime_t *r, char *str, moz_inst_t *inst);
+long moz_runtime_parse(moz_runtime_t *r, const char *str, const moz_inst_t *inst);
 
 #endif /* end of include guard */

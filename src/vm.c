@@ -48,7 +48,7 @@ void moz_runtime_reset(moz_runtime_t *r)
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
 }
 
-void moz_runtime_set_source(moz_runtime_t *r, char *str, char *end)
+void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end)
 {
     r->head = str;
     r->tail = end;
@@ -138,7 +138,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     SYMTBL = FP[FP_SYMTBL];\
     AST    = FP[FP_AST];\
     NEXT   = (moz_inst_t *)FP[FP_NEXT];\
-    POS    = (char *)FP[FP_POS];\
+    POS    = (const char *)FP[FP_POS];\
     FP     = (long *)FP[FP_FP]; \
 } while (0)
 
@@ -146,10 +146,10 @@ void moz_runtime_dispose(moz_runtime_t *r)
     SYMTBL = (FP+FP_SYMTBL);\
     AST    = (FP+FP_AST);\
     NEXT   = (moz_inst_t **)(FP+FP_NEXT);\
-    POS    = (char **)(FP+FP_POS);\
+    POS    = (const char **)(FP+FP_POS);\
 } while (0)
 
-long moz_runtime_parse(moz_runtime_t *runtime, char *CURRENT, moz_inst_t *PC)
+long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_inst_t *PC)
 {
     long *SP = runtime->stack;
     long *FP = SP;

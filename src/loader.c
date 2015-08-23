@@ -339,7 +339,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(OStr);
     CASE_(RStr) {
         uint16_t strId = read16(is);
-        char *impl = L->R->C.strs[strId];
+        const char *impl = L->R->C.strs[strId];
         mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl);
         break;
     }
@@ -427,7 +427,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(TTag) {
         uint16_t tagId = read16(is);
         tag_t *impl = L->R->C.tags[tagId];
-        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, impl);
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TReplace) {
@@ -904,12 +904,12 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     }
     bc->str_size = read16(&is);
     if (bc->str_size > 0) {
-        bc->strs = (char **)VM_MALLOC(sizeof(char *) * bc->str_size);
+        bc->strs = (const char **)VM_MALLOC(sizeof(const char *) * bc->str_size);
         for (i = 0; i < bc->str_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc->strs[i] = (char *)pstring_alloc(str, (unsigned)len);
+            bc->strs[i] = pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
             fprintf(stderr, "str%d %s\n", i, bc->strs[i]);
 #endif
@@ -917,12 +917,12 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     }
     bc->tag_size = read16(&is);
     if (bc->tag_size > 0) {
-        bc->tags = (char **)VM_MALLOC(sizeof(char *) * bc->tag_size);
+        bc->tags = (const char **)VM_MALLOC(sizeof(const char *) * bc->tag_size);
         for (i = 0; i < bc->tag_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc->tags[i] = (char *)pstring_alloc(str, (unsigned)len);
+            bc->tags[i] = pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
             fprintf(stderr, "tag%d %s\n", i, bc->tags[i]);
 #endif

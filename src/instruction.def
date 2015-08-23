@@ -8,7 +8,7 @@ L_fail:
     {
         long saved_, ast_tx_;
         moz_inst_t *jump_;
-        char *pos_;
+        const char *pos_;
         POP_FRAME(pos_, jump_, ast_tx_, saved_);
         if (pos_ < CURRENT) {
             HEAD = (HEAD < CURRENT) ? CURRENT : HEAD;
@@ -36,7 +36,7 @@ DEF(Alt, int failjump)
 DEF(Succ)
 {
     long saved, ast_tx;
-    char *pos;
+    const char *pos;
     moz_inst_t *jump;
     POP_FRAME(pos, jump, ast_tx, saved);
     (void)saved; (void)ast_tx; (void)jump; (void)pos;
@@ -79,7 +79,7 @@ DEF(Pos)
 }
 DEF(Back)
 {
-    CURRENT = (char *)POP();
+    CURRENT = (const char *)POP();
 }
 DEF(Skip)
 {
@@ -88,7 +88,7 @@ DEF(Skip)
 
     long *saved, *ast_tx;
     moz_inst_t **jump;
-    char **pos;
+    const char **pos;
     PEEK_FRAME(pos, jump, ast_tx, saved);
 #if 0
 #ifdef MOZVM_DEBUG_NTERM
@@ -125,7 +125,7 @@ DEF(Any)
 }
 DEF(Str, STRING_t strId)
 {
-    char *str = STRING_GET_IMPL(runtime, strId);
+    const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
     if (pstring_starts_with(CURRENT, str, len) == 0) {
         FAIL();
@@ -155,7 +155,7 @@ DEF(NAny)
 }
 DEF(NStr, STRING_t strId)
 {
-    char *str = STRING_GET_IMPL(runtime, strId);
+    const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
     if (pstring_starts_with(CURRENT, str, len) == 1) {
         FAIL();
@@ -181,7 +181,7 @@ DEF(OAny)
 }
 DEF(OStr, STRING_t strId)
 {
-    char *str = STRING_GET_IMPL(runtime, strId);
+    const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
     if (pstring_starts_with(CURRENT, str, len) == 1) {
         CONSUME_N(len);
@@ -197,7 +197,7 @@ DEF(OSet, BITSET_t setId)
 DEF(RByte, uint8_t ch)
 {
 #ifdef MOZVM_USE_SSE4_2
-    CURRENT = (char *)pstring_find_not_char(CURRENT, runtime->tail, ch);
+    CURRENT = pstring_find_not_char(CURRENT, runtime->tail, ch);
 #else
     while (*CURRENT == ch) {
         CONSUME();
@@ -211,7 +211,7 @@ DEF(RAny)
 }
 DEF(RStr, STRING_t strId)
 {
-    char *str = STRING_GET_IMPL(runtime, strId);
+    const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
     while (pstring_starts_with(CURRENT, str, len) == 1) {
         CONSUME_N(len);
@@ -250,7 +250,7 @@ DEF(Memo, uint8_t state, uint16_t memoId)
 {
     long saved, ast_tx;
     moz_inst_t *jump;
-    char *pos;
+    const char *pos;
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = CURRENT - pos;
     memo_set(MEMO_GET(), pos, memoId, NULL, length, state);
@@ -299,7 +299,7 @@ DEF(TTag, TAG_t tagId)
 }
 DEF(TReplace, STRING_t strId)
 {
-    char *str = STRING_GET_IMPL(runtime, strId);
+    const char *str = STRING_GET_IMPL(runtime, strId);
     AstMachine *ast = AST_MACHINE_GET();
     ast_log_replace(ast, str);
 }
@@ -341,7 +341,7 @@ DEF(TMemo, uint8_t state, uint16_t memoId)
     long length;
     long saved, ast_tx;
     moz_inst_t *jump;
-    char *pos;
+    const char *pos;
     Node node;
     POP_FRAME(pos, jump, ast_tx, saved);
     length = CURRENT - pos;
@@ -376,7 +376,7 @@ DEF(SDef, TAG_t tagId)
     symtable_t *tbl = SYMTABLE_GET();
     tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
     token_t captured;
-    token_init(&captured, (char *)POP(), CURRENT);
+    token_init(&captured, (const char *)POP(), CURRENT);
     symtable_add_symbol(tbl, tableName, &captured);
 }
 DEF(SIsDef)
@@ -412,7 +412,7 @@ DEF(SIs, TAG_t tagId)
     token_t t;
     if (symtable_get_symbol(tbl, tableName, &t)) {
         token_t captured;
-        token_init(&captured, (char *)POP(), CURRENT);
+        token_init(&captured, (const char *)POP(), CURRENT);
         if (token_equal(&t, &captured)) {
             CONSUME_N(token_length(&t));
             NEXT();
@@ -425,7 +425,7 @@ DEF(SIsa, TAG_t tagId)
     symtable_t *tbl = SYMTABLE_GET();
     token_t captured;
     tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
-    token_init(&captured, (char *)POP(), CURRENT);
+    token_init(&captured, (const char *)POP(), CURRENT);
     if (!symtable_contains(tbl, tableName, &captured)) {
         FAIL();
     }

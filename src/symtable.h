@@ -7,7 +7,7 @@
 typedef struct symtable_entry_t {
     unsigned state;
     unsigned hash;
-    char *tag;
+    const char *tag;
     token_t sym;
 } entry_t;
 
@@ -24,11 +24,11 @@ typedef struct symtable_t symtable_t;
 symtable_t *symtable_init();
 void symtable_dispose(symtable_t *tbl);
 
-void symtable_add_symbol_mask(symtable_t *tbl, char *tableName);
-void symtable_add_symbol(symtable_t *tbl, char *tableName, token_t *captured);
-int symtable_has_symbol(symtable_t *tbl, char *tableName);
-int symtable_get_symbol(symtable_t *tbl, char *tableName, token_t *t);
-int symtable_contains(symtable_t *tbl, char *tableName, token_t *t);
+void symtable_add_symbol_mask(symtable_t *tbl, const char *tableName);
+void symtable_add_symbol(symtable_t *tbl, const char *tableName, token_t *captured);
+int symtable_has_symbol(symtable_t *tbl, const char *tableName);
+int symtable_get_symbol(symtable_t *tbl, const char *tableName, token_t *t);
+int symtable_contains(symtable_t *tbl, const char *tableName, token_t *t);
 
 static inline long symtable_savepoint(symtable_t *tbl)
 {

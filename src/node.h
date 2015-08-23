@@ -48,9 +48,9 @@ DEF_ARRAY_T(Node);
 #define NODE_SMALL_ARRAY_LIMIT 2
 struct pegvm_node {
     NODE_GC_HEADER;
-    char *tag;
-    char *pos;
-    char *value;
+    const char *tag;
+    const char *pos;
+    const char *value;
     unsigned len;
 #if 1
     union entry {
@@ -70,7 +70,7 @@ static inline unsigned Node_length(Node o)
     return o->entry.raw.size;
 }
 
-Node Node_new(char *tag, char *str, unsigned len, unsigned elm_size, char *value);
+Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value);
 void Node_free(Node o);
 void Node_append(Node o, Node n);
 Node Node_get(Node o, unsigned index);
