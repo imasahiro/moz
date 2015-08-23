@@ -8,7 +8,7 @@ int main(int argc, char const* argv[])
     memo_t *memo;
     MemoEntry_t *e;
     NodeManager_init();
-    memo = memo_init(3, 4);
+    memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, 4);
     memo_set(memo, str, 0, NULL, 0, 0);
     e = memo_get(memo, str, 0, 0);
     assert(e->result == NULL);
