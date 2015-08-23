@@ -5,28 +5,13 @@ DEF(Nop)
 DEF(Fail)
 {
 L_fail:
-    {
-        long saved_, ast_tx_;
-        moz_inst_t *jump_;
-        const char *pos_;
-        POP_FRAME(pos_, jump_, ast_tx_, saved_);
-        if (pos_ < CURRENT) {
-            HEAD = (HEAD < CURRENT) ? CURRENT : HEAD;
-            CURRENT = pos_;
-        }
-        ast_rollback_tx(AST_MACHINE_GET(), ast_tx_);
-        symtable_rollback(SYMTABLE_GET(), saved_);
-#ifdef MOZVM_DEBUG_NTERM
-        // fprintf(stderr, "%-8s fail  SP=%p FP=%p jump=%p\n",
-        //         runtime->nterms[nterm_id], SP, FP, jump_);
-#endif
-        PC = jump_;
-    }
+    FAIL_IMPL();
 }
 DEF(Alt, int failjump)
 {
     AstMachine *ast = AST_MACHINE_GET();
     symtable_t *tbl = SYMTABLE_GET();
+    MOZVM_PROFILE_INC(ALT_COUNT);
     PUSH_FRAME(CURRENT, PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s alt   SP=%p FP=%p\n",

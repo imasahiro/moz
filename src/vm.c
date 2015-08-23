@@ -1,7 +1,7 @@
 #include <stdio.h>
-// #if 1
-// #define MOZVM_DUMP_OPCODE
-// #endif
+#ifdef PRINT_INST
+#define MOZVM_DUMP_OPCODE
+#endif
 #include "instruction.h"
 #include "mozvm_config.h"
 #include "mozvm.h"
@@ -14,6 +14,28 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// #define MOZVM_PROFILE 1
+
+#ifdef MOZVM_PROFILE
+#define MOZVM_PROFILE_DECL(X) uint64_t _PROFILE_##X = 0;
+#define MOZVM_PROFILE_INC(X)  (_PROFILE_##X)++
+#define MOZVM_PROFILE_SHOW(X) fprintf(stderr, "%-10s %llu\n", #X, _PROFILE_##X);
+#define MOZVM_PROFILE_ENABLE(X)
+#else
+#define MOZVM_PROFILE_DECL(X)
+#define MOZVM_PROFILE_INC(X)
+#define MOZVM_PROFILE_SHOW(X)
+#define MOZVM_PROFILE_ENABLE(X)
+#endif
+#define MOZVM_PROFILE_EACH(F) MOZVM_PROFILE_DEFINE(F)
+
+#define MOZVM_PROFILE_DEFINE(F) \
+    F(INST_COUNT) \
+    F(FAIL_COUNT) \
+    F(ALT_COUNT)
+
+MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
 {
@@ -55,6 +77,11 @@ void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end)
     AstMachine_setSource(r->ast, str);
 }
 
+void moz_runtime_print_stats(moz_runtime_t *r)
+{
+    MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+}
+
 void moz_runtime_dispose(moz_runtime_t *r)
 {
     unsigned i;
@@ -91,12 +118,11 @@ void moz_runtime_dispose(moz_runtime_t *r)
 
 #define CONSUME() ++CURRENT
 #define CONSUME_N(N) CURRENT += N
-
-#if 0
-#define FAIL() do {\
+#define FAIL_IMPL() do { \
     long saved_, ast_tx_; \
     moz_inst_t *jump_; \
-    char *pos_; \
+    const char *pos_; \
+    MOZVM_PROFILE_INC(FAIL_COUNT); \
     POP_FRAME(pos_, jump_, ast_tx_, saved_); \
     if (pos_ < CURRENT) { \
         HEAD = (HEAD < CURRENT) ? CURRENT : HEAD; \
@@ -104,7 +130,13 @@ void moz_runtime_dispose(moz_runtime_t *r)
     } \
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
     symtable_rollback(SYMTABLE_GET(), saved_); \
+    /* fprintf(stderr, "%-8s fail  SP=%p FP=%p jump=%p\n", */ \
+    /*         runtime->nterms[nterm_id], SP, FP, jump_);  */ \
     PC = jump_; \
+} while (0)
+#if 1
+#define FAIL() do {\
+    FAIL_IMPL(); \
     NEXT(); \
 } while (0)
 #else
@@ -243,15 +275,17 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_in
 #define HEAD (runtime)->head
 #define EOS() (CURRENT == runtime->tail)
 
-#if 0
+#define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
+#ifdef PRINT_INST
 #ifdef MOZVM_DEBUG_NTERM
-#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
 #else
+    uint8_t last = Exit;
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
-#define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "%ld %s\n", (long)(PC-1), #OP);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%-8s->%-8s,\n", opcode2str(last), #OP); last = *(PC-1);
 #endif
 #else
-#define OP_CASE(OP) LABEL(OP):
+#define OP_CASE(OP) OP_CASE_(OP)
 #endif
     DISPATCH_START(PC);
 #include "vm_core.c"
