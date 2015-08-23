@@ -66,6 +66,7 @@ enum MozOpcode {
     SCount   = 53,
     Exit     = 54,   // 7-bit only
 
+    // SkipJump = 55,
 
     Label    = 127,  // 7-bit
 };
@@ -126,6 +127,7 @@ enum MozOpcode {
     F(SDefNum)\
     F(SCount)\
     F(Exit)\
+    /*F(SkipJump)*/\
     F(Label)
 
 #ifdef MOZVM_DUMP_OPCODE

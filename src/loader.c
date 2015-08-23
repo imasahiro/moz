@@ -277,6 +277,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
     if (opcode == Nop
+#ifdef USE_SKIPJUMP
+            || opcode == Skip
+#endif
 #ifndef MOZVM_EMIT_OP_LABEL
             || opcode == Label
 #endif
@@ -316,8 +319,21 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(Pos);
-    CASE_(Back);
+    CASE_(Back) {
+        break;
+    }
     CASE_(Skip) {
+#ifdef USE_SKIPJUMP
+        int jump;
+        if (0 && has_jump) {
+            mozvm_loader_write_opcode(L, SkipJump);
+            jump = get_next(is, &has_jump);
+            mozvm_loader_write32(L, jump);
+        }
+        else {
+            mozvm_loader_write_opcode(L, Skip);
+        }
+#endif
         break;
     }
     CASE_(Byte);
@@ -588,6 +604,9 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         case Call:
         case Lookup:
         case TLookup:
+#ifdef USE_SKIPJUMP
+        case SkipJump:
+#endif
             ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(int));
             *ref = L->table[*ref] - (j + shift);
             break;
