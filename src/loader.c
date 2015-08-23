@@ -82,9 +82,9 @@ static uint16_t read16(input_stream_t *is)
 
 static unsigned read24(input_stream_t *is)
 {
-    uint16_t d1 = read8(is);
-    uint16_t d2 = read8(is);
-    uint16_t d3 = read8(is);
+    unsigned d1 = read8(is);
+    unsigned d2 = read8(is);
+    unsigned d3 = read8(is);
     return d1 << 16 | d2 << 8 | d3;
 }
 
@@ -686,15 +686,15 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         }
         CASE_(Lookup) {
             int state = *(int8_t *)(p + 1);
-            uint32_t memoId = *(uint32_t *)(p + 2);
-            int skip = *(int *)(p + 6);
+            uint16_t memoId = *(uint16_t *)(p + 2);
+            int skip = *(int *)(p + 4);
             OP_PRINT("%d %d %d", state, memoId, skip);
             break;
         }
         CASE_(Memo);
         CASE_(MemoFail) {
             int state = *(int8_t *)(p + 1);
-            uint32_t memoId = *(uint32_t *)(p + 2);
+            uint16_t memoId = *(uint16_t *)(p + 2);
             OP_PRINT("%d %d", state, memoId);
             break;
         }
@@ -742,14 +742,14 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         CASE_(TLookup) {
             int index = *(int8_t *)(p + 1);
             int8_t state = *(int8_t *)(p + 2);
-            uint32_t memoId = *(uint32_t *)(p + 3);
-            int skip = *(int *)(p + 7);
+            uint16_t memoId = *(uint16_t *)(p + 3);
+            int skip = *(int *)(p + 5);
             OP_PRINT("%d %d %d %d", state, memoId, skip, index);
             break;
         }
         CASE_(TMemo) {
             int state = *(int8_t *)(p + 1);
-            uint32_t memoId = *(uint32_t *)(p + 2);
+            uint16_t memoId = *(uint16_t *)(p + 2);
             OP_PRINT("%d %d", state, memoId);
             break;
         }
