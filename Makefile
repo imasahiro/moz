@@ -2,6 +2,7 @@
 CC=clang
 RUBY=ruby
 NEZ=../nez.jar
+NEZOPT=--option:+ast:-memo:-asis:-predict
 BUILD=build
 SRC=src
 NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
@@ -83,8 +84,7 @@ gen: sample/math.nzc sample/json.nzc sample/old_json.nzc sample/xml.nzc
 
 # nez.nzc:
 sample/%.nzc: sample/%.nez
-	java -jar $(NEZ) compile -p $<
-	# java -jar $(NEZ) compile --option:-ast -p $<
+	java -jar $(NEZ) compile $(NEZOPT) -p $<
 
 clean:
 	-rm -rf sample/*.nzc build/* src/vm_core.c src/vm_inst.h
