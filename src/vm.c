@@ -89,8 +89,8 @@ void moz_runtime_dispose(moz_runtime_t *r)
     VM_FREE(r);
 }
 
-#define CONSUME() ++CURRENT;
-#define CONSUME_N(N) CURRENT += N;
+#define CONSUME() ++CURRENT
+#define CONSUME_N(N) CURRENT += N
 
 #if 0
 #define FAIL() do {\
@@ -111,37 +111,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
 #define FAIL() /*fprintf(stderr, "goto fail\n");*/goto L_fail;
 #endif
 
-#if 0
-static long _POP(long **SP)
-{
-    long v;
-    *SP -= 1;
-    v = **SP;
-    if (v == 0xaaaaaaaaaaaaaaaaL) {
-        fprintf(stderr, "stack protection(underflow) %ld\n", **SP);
-        asm volatile("int3");
-    }
-    // fprintf(stderr, "pop %ld\n", v);
-    return v;
-}
-static void _PUSH(long **SP, long v)
-{
-    if (**SP == 0xbbbbbbbbbbbbbbbbL) {
-        fprintf(stderr, "stack protection(overflow) %ld\n", **SP);
-        asm volatile("int3");
-    }
-    **SP = v;
-    *SP += 1;
-    // fprintf(stderr, "push %ld\n", v);
-}
-#define PUSH(X)  _PUSH(&SP, (long)X)
-#define POP()  _POP(&SP)
-#else
 #define PUSH(X) *SP++ = (long)(X)
 #define POP()  *--SP
-#endif
-#define PEEK() PEEK_N(1)
-#define PEEK_N(N) ((SP)+N)
+
 #define ABORT() __asm volatile("int3")
 #define TODO() __asm volatile("int3")
 #define FP_FP     0
