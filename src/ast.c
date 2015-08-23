@@ -70,11 +70,6 @@ void AstMachine_dispose(AstMachine *ast)
     VM_FREE(ast);
 }
 
-void AstMachine_setSource(AstMachine *ast, const char *source)
-{
-    ast->source = source;
-}
-
 #ifdef AST_DEBUG
 static void AstMachine_dumpLog(AstMachine *ast)
 {
@@ -85,10 +80,12 @@ static void AstMachine_dumpLog(AstMachine *ast)
         unsigned id = cur->id;
         switch(GetTag(cur)) {
         case TypeNew:
-            fprintf(stderr, "[%d] %02d new(%ld)\n", i, id, GetPos(cur) - ast->source);
+            fprintf(stderr, "[%d] %02d new(%ld)\n",
+                    i, id, GetPos(cur) - ast->source);
             break;
         case TypeCapture:
-            fprintf(stderr, "[%d] %02d cap(%ld)\n", i, id, GetPos(cur) - ast->source);
+            fprintf(stderr, "[%d] %02d cap(%ld)\n",
+                    i, id, GetPos(cur) - ast->source);
             break;
         case TypeTag:
             fprintf(stderr, "[%d] %02d tag(%s)\n", i, id, cur->i.pos);
@@ -106,7 +103,8 @@ static void AstMachine_dumpLog(AstMachine *ast)
             fprintf(stderr, "[%d] %02d push()\n", i, id);
             break;
         case TypeLink:
-            fprintf(stderr, "[%d] %02d link(%d,%d)\n", i, id, cur->i.idx, cur->shift[1]);
+            fprintf(stderr, "[%d] %02d link(%d,%d)\n",
+                    i, id, cur->i.idx, cur->shift[1]);
             break;
         }
         ++i;

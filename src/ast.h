@@ -52,7 +52,10 @@ typedef struct AstMachine AstMachine;
 
 AstMachine *AstMachine_init(unsigned log_size, const char *source);
 void AstMachine_dispose(AstMachine *ast);
-void AstMachine_setSource(AstMachine *ast, const char *source);
+static inline void AstMachine_setSource(AstMachine *ast, const char *source)
+{
+    ast->source = source;
+}
 
 static inline long ast_save_tx(AstMachine *ast)
 {

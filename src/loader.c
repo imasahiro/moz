@@ -283,7 +283,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #ifndef MOZVM_EMIT_OP_LABEL
             || opcode == Label
 #endif
-            ) {/* skip */}
+       ) {/* skip */}
     else {
         mozvm_loader_write_opcode(L, opcode);
     }
@@ -585,6 +585,8 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t opcode = get_opcode(L, j);
         unsigned shift = opcode_size(opcode);
         int *ref;
+        int i, *table = NULL;
+        uint8_t *p;
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((int *)((BUF).list + (IDX)))
         switch (opcode) {
@@ -610,16 +612,13 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(int));
             *ref = L->table[*ref] - (j + shift);
             break;
-        case First: {
-            uint8_t *p = L->buf.list + j + shift - sizeof(JMPTBL_t);
-            int i, *table = NULL;
-            JMPTBL_t tblId = *(JMPTBL_t *)p;
-            table = JMPTBL_GET_IMPL(L->R, tblId);
+        case First:
+            p = L->buf.list + j + shift - sizeof(JMPTBL_t);
+            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
             for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
                 table[i] = L->table[table[i]] - (j + shift);
             }
             break;
-        }
         default:
             break;
         }
