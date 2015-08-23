@@ -187,11 +187,6 @@ void ast_log_link(AstMachine *ast, int index, Node node)
     ast->last_linked = node;
 }
 
-Node ast_get_last_linked_node(AstMachine *ast)
-{
-    return ast->last_linked;
-}
-
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
     unsigned len = ARRAY_size(ast->logs);
@@ -305,7 +300,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
                 cur->i.idx = objectSize;
                 objectSize++;
             }
-            else if(!(index < objectSize)) {
+            else if(index > objectSize) {
                 objectSize = index + 1;
             }
             cur += shift;
