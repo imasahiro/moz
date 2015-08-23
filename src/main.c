@@ -24,9 +24,9 @@ static inline void _show_timer(const char *s, size_t bufsz)
     gettimeofday(&endtime, NULL);
     double sec = (endtime.tv_sec - g_timer.tv_sec)
         + (double)(endtime.tv_usec - g_timer.tv_usec) / 1000 / 1000;
-    printf("%20s: %3.4f ms  ", s, sec * 1000.0);
+    fprintf(stderr, "%20s: %3.4f ms  ", s, sec * 1000.0);
     // printf("%20s: %f MB\n", s, ((double)bufsz)/1024/1024);
-    printf("%f Mbps\n", ((double)bufsz)*8/sec/1000/1000);
+    fprintf(stderr, "%f Mbps\n", ((double)bufsz)*8/sec/1000/1000);
 }
 
 #if 0
