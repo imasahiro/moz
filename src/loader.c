@@ -538,9 +538,11 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 }
 
 #if 1
-#define OP_PRINT(FMT, ...) if (loader_debug) { fprintf(stderr, FMT, __VA_ARGS__); }
+#define OP_PRINT(FMT, ...) if (loader_debug) { fprintf(stdout, FMT, __VA_ARGS__); }
+#define OP_PRINT_END()     if (loader_debug) { fprintf(stdout, "\n"); }
 #else
 #define OP_PRINT(FMT, ...)
+#define OP_PRINT_END()
 #endif
 
 static long get_opcode(mozvm_loader_t *L, unsigned idx)
@@ -632,7 +634,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-        OP_PRINT("%02d %ld %s ", i, (long)p, opcode2str(opcode));
+        OP_PRINT("%p %02d %s ", p, i, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
         CASE_(Nop);
@@ -656,7 +658,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         CASE_(NByte);
         CASE_(OByte);
         CASE_(RByte) {
-            OP_PRINT("'%c'", *(p + 1));
+            OP_PRINT("%d", *(p + 1));
             break;
         }
         CASE_(Any);
@@ -813,9 +815,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         }
 #undef CASE_
         }
-        if (loader_debug) {
-            fprintf(stderr, "\n");
-        }
+        OP_PRINT_END()
         j += shift;
         i++;
     }
