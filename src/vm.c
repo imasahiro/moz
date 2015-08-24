@@ -1,5 +1,7 @@
 #include <stdio.h>
-#ifdef PRINT_INST
+// #define PRINT_INST 1
+
+#if defined(PRINT_INST) &&  PRINT_INST >= 2
 #define MOZVM_DUMP_OPCODE
 #endif
 #include "instruction.h"
@@ -134,7 +136,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     /*         runtime->nterms[nterm_id], SP, FP, jump_);  */ \
     PC = jump_; \
 } while (0)
-#if 1
+#if 0
 #define FAIL() do {\
     FAIL_IMPL(); \
     NEXT(); \
@@ -280,9 +282,13 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_in
 #ifdef MOZVM_DEBUG_NTERM
 #define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
 #else
-    uint8_t last = Exit;
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
+#if PRINT_INST == 1
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%-8s,\n", #OP);
+#else
+    uint8_t last = Exit;
 #define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%-8s->%-8s,\n", opcode2str(last), #OP); last = *(PC-1);
+#endif
 #endif
 #else
 #define OP_CASE(OP) OP_CASE_(OP)
