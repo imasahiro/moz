@@ -26,14 +26,13 @@ static inline unsigned token_length(token_t *t)
 static inline int token_equal(token_t *t1, token_t *t2)
 {
     const char *s1, *s2;
-    const char *e1, *e2;
+    const char *e1;
     if (t1->len != t2->len) {
         return 0;
     }
     s1 = t1->s;
     s2 = t2->s;
     e1 = s1 + t1->len;
-    e2 = s2 + t2->len;
     while (s1 < e1) {
         if (*s1++ != *s2++) {
             return 0;
