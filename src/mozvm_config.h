@@ -69,7 +69,7 @@ typedef unsigned long mozpos_t;
 #define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
-#define MOZVM_PROFILE_DECL(X) uint64_t _PROFILE_##X = 0;
+#define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;
 #define MOZVM_PROFILE_INC(X)  (_PROFILE_##X)++
 #define MOZVM_PROFILE_SHOW(X) fprintf(stderr, "%-10s %llu\n", #X, _PROFILE_##X);
 #define MOZVM_PROFILE_ENABLE(X)
