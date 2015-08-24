@@ -9,6 +9,7 @@ if [ $# = 1 ]; then
 fi
 BENCH=test_vm/bench/input
 CMD="./build/moz -n ${LOOP} -q -s "
+CMD2="./build/moz_profile -n 1 -q -s "
 echo "citys.json"
 ${CMD} -p sample/old_json.nzc -i ${BENCH}/citys.json
 echo "earthquake.geojson"
@@ -17,3 +18,6 @@ echo "benchmark4.json"
 ${CMD} -p sample/old_json.nzc -i ${BENCH}/benchmark4.json
 echo "xmark5m.xml"
 ${CMD} -p sample/xml.nzc  -i ${BENCH}/xmark5m.xml
+
+${CMD2} -p sample/old_json.nzc -i ${BENCH}/earthquake.geojson
+${CMD2} -p sample/xml.nzc  -i ${BENCH}/xmark5m.xml

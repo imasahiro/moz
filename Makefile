@@ -1,8 +1,8 @@
 # MOZ Makefile
-CC=clang
+# CC=clang
 RUBY=ruby
 NEZ=../nez.jar
-# NEZOPT=--option:+ast:-memo:-asis:-predict
+# NEZOPT=--option:+ast:-memo:-predict
 BUILD=build
 SRC=src
 NEZ_LIB=src/bitset.h src/instruction.h src/pstring.h src/mozvm.h src/ast.h
@@ -13,10 +13,13 @@ OPTION=-O3 -g3 -Wall -I$(SRC)
 M=
 # M=valgrind --leak-check=full --show-leak-kinds=all
 
-all: moz test
+all: moz moz2 test
 
 moz: $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
 	$(CC) $(OPTION) $(BUILD)/vm.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz
+
+moz2: $(BUILD)/vm2.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c gen
+	$(CC) $(OPTION) $(BUILD)/vm2.o $(BUILD)/loader.o $(NEZ_CORE) src/main.c -o $(BUILD)/moz_profile
 
 test: test2 test_math test_json test_xml
 
@@ -45,6 +48,9 @@ $(BUILD)/node.o: src/node.c src/node.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 
 $(BUILD)/vm.o: src/vm.c src/node.h src/ast.h src/symtable.h src/vm_core.c $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/vm.c -c -o $@
+
+$(BUILD)/vm2.o: src/vm.c src/node.h src/ast.h src/symtable.h src/vm_core.c $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
+	$(CC) -DMOZVM_PROFILE=1 $(OPTION) src/vm.c -c -o $@
 
 $(BUILD)/loader.o: src/loader.c src/node.h src/ast.h src/symtable.h $(NEZ_LIB) src/mozvm_config.h src/mozvm.h
 	$(CC) $(OPTION) src/loader.c -c -o $@
