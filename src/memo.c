@@ -34,14 +34,14 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash % ARRAY_size(m->ary);
-    MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
-    if (old->failed != UINTPTR_MAX && old->result) {
-        NODE_GC_RELEASE(old->result);
+    MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
+    if (e->failed != UINTPTR_MAX && e->result) {
+        NODE_GC_RELEASE(e->result);
     }
-    old->hash = hash;
-    old->consumed = consumed;
-    old->state    = state;
-    old->result   = result;
+    e->hash = hash;
+    e->consumed = consumed;
+    e->state    = state;
+    e->result   = result;
     // ARRAY_set(MemoEntry_t, &m->ary, idx, e);
     return 1;
 }
