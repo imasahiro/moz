@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "mozvm_config.h"
 #include "node.h"
 #ifndef AST_H
 #define AST_H
@@ -34,7 +35,7 @@ typedef struct AstLog {
     } e;
     union ast_log_index {
         long idx;
-        const char *pos;
+        mozpos_t pos;
     } i;
 } AstLog;
 
@@ -65,11 +66,11 @@ static inline long ast_save_tx(AstMachine *ast)
 void ast_rollback_tx(AstMachine *ast, long tx);
 void ast_commit_tx(AstMachine *ast, int index, long tx);
 void ast_log_replace(AstMachine *ast, const char *str);
-void ast_log_capture(AstMachine *ast, const char *cur);
-void ast_log_new(AstMachine *ast, const char *cur);
+void ast_log_capture(AstMachine *ast, mozpos_t pos);
+void ast_log_new(AstMachine *ast, mozpos_t pos);
 void ast_log_pop(AstMachine *ast, int index);
 void ast_log_push(AstMachine *ast);
-void ast_log_swap(AstMachine *ast, const char *cur);
+void ast_log_swap(AstMachine *ast, mozpos_t pos);
 void ast_log_tag(AstMachine *ast, const char *tag);
 void ast_log_link(AstMachine *ast, int index, Node result);
 

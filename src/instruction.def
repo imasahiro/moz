@@ -12,7 +12,7 @@ DEF(Alt, int failjump)
     AstMachine *ast = AST_MACHINE_GET();
     symtable_t *tbl = SYMTABLE_GET();
     MOZVM_PROFILE_INC(ALT_COUNT);
-    PUSH_FRAME(CURRENT, PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
+    PUSH_FRAME(GET_POS(), PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s alt   SP=%p FP=%p\n",
     //         runtime->nterms[nterm_id], SP, FP);
@@ -21,7 +21,7 @@ DEF(Alt, int failjump)
 DEF(Succ)
 {
     long saved, ast_tx;
-    const char *pos;
+    mozpos_t pos;
     moz_inst_t *jump;
     POP_FRAME(pos, jump, ast_tx, saved);
     (void)saved; (void)ast_tx; (void)jump; (void)pos;
@@ -60,11 +60,11 @@ DEF(Ret, int dummy)
 }
 DEF(Pos)
 {
-    PUSH(CURRENT);
+    PUSH(GET_POS());
 }
 DEF(Back)
 {
-    CURRENT = (const char *)POP();
+    SET_POS((mozpos_t)POP());
 }
 DEF(Skip)
 {
@@ -73,7 +73,7 @@ DEF(Skip)
 
     long *saved, *ast_tx;
     moz_inst_t **jump;
-    const char **pos;
+    mozpos_t *pos;
     PEEK_FRAME(pos, jump, ast_tx, saved);
 #if 0
 #ifdef MOZVM_DEBUG_NTERM
@@ -86,17 +86,17 @@ DEF(Skip)
     fprintf(stderr, "peek %ld\n", *(FP+3));
     fprintf(stderr, "peek %ld\n", *(FP+4));
 #endif
-    if (*pos == CURRENT) {
+    if (*pos == GET_POS()) {
         FAIL();
     }
-    *pos = CURRENT;
+    *pos = GET_POS();
     *ast_tx = ast_save_tx(ast);
     *saved  = symtable_savepoint(tbl);
     (void)jump;
 }
 DEF(Byte, uint8_t ch)
 {
-    if (*CURRENT != ch) {
+    if (*GET_CURRENT() != ch) {
         FAIL();
     }
     CONSUME();
@@ -112,7 +112,7 @@ DEF(Str, STRING_t strId)
 {
     const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
-    if (pstring_starts_with(CURRENT, str, len) == 0) {
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 0) {
         FAIL();
     }
     CONSUME_N(len);
@@ -120,14 +120,14 @@ DEF(Str, STRING_t strId)
 DEF(Set, BITSET_t setId)
 {
     bitset_t *set = BITSET_GET_IMPL(runtime, setId);
-    if (!bitset_get(set, *CURRENT)) {
+    if (!bitset_get(set, *GET_CURRENT())) {
         FAIL();
     }
     CONSUME();
 }
 DEF(NByte, uint8_t ch)
 {
-    if (*CURRENT == ch) {
+    if (*GET_CURRENT() == ch) {
         FAIL();
     }
 }
@@ -142,20 +142,20 @@ DEF(NStr, STRING_t strId)
 {
     const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
-    if (pstring_starts_with(CURRENT, str, len) == 1) {
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
         FAIL();
     }
 }
 DEF(NSet, BITSET_t setId)
 {
     bitset_t *set = BITSET_GET_IMPL(runtime, setId);
-    if (bitset_get(set, *CURRENT)) {
+    if (bitset_get(set, *GET_CURRENT())) {
         FAIL();
     }
 }
 DEF(OByte, uint8_t ch)
 {
-    if (*CURRENT == ch) {
+    if (*GET_CURRENT() == ch) {
         CONSUME();
     }
 }
@@ -168,23 +168,27 @@ DEF(OStr, STRING_t strId)
 {
     const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
-    if (pstring_starts_with(CURRENT, str, len) == 1) {
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
         CONSUME_N(len);
     }
 }
 DEF(OSet, BITSET_t setId)
 {
     bitset_t *set = BITSET_GET_IMPL(runtime, setId);
-    if (bitset_get(set, *CURRENT)) {
+    if (bitset_get(set, *GET_CURRENT())) {
         CONSUME();
     }
 }
 DEF(RByte, uint8_t ch)
 {
 #ifdef MOZVM_USE_SSE4_2
-    CURRENT = pstring_find_not_char(CURRENT, runtime->tail, ch);
+    SET_POS(pstring_find_not_char(GET_CURRENT(), runtime->tail, ch)
+#ifndef MOZVM_USE_POINTER_AS_POS_REGISTER
+            - GET_CURRENT()
+#endif
+            );
 #else
-    while (*CURRENT == ch) {
+    while (*GET_CURRENT() == ch) {
         CONSUME();
     }
 #endif
@@ -198,14 +202,14 @@ DEF(RStr, STRING_t strId)
 {
     const char *str = STRING_GET_IMPL(runtime, strId);
     unsigned len = pstring_length(str);
-    while (pstring_starts_with(CURRENT, str, len) == 1) {
+    while (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
         CONSUME_N(len);
     }
 }
 DEF(RSet, BITSET_t setId)
 {
     bitset_t *set = BITSET_GET_IMPL(runtime, setId);
-    while (bitset_get(set, *CURRENT)) {
+    while (bitset_get(set, *GET_CURRENT())) {
         CONSUME();
     }
 }
@@ -216,13 +220,13 @@ DEF(Consume, int shift)
 DEF(First, JMPTBL_t tblId)
 {
     int *jmpTable = JMPTBL_GET_IMPL(runtime, tblId);
-    int jump = jmpTable[(unsigned)*CURRENT];
+    int jump = jmpTable[(unsigned)*GET_CURRENT()];
     // asm volatile("int3");
     JUMP(jump);
 }
 DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
 {
-    MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
+    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
         if (entry->failed) {
             FAIL();
@@ -235,9 +239,9 @@ DEF(Memo, uint8_t state, uint16_t memoId)
 {
     long saved, ast_tx;
     moz_inst_t *jump;
-    const char *pos;
+    mozpos_t pos;
     POP_FRAME(pos, jump, ast_tx, saved);
-    long length = CURRENT - pos;
+    long length = GET_POS() - pos;
     memo_set(MEMO_GET(), pos, memoId, NULL, length, state);
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s memo  SP=%p FP=%p\n",
@@ -247,7 +251,7 @@ DEF(Memo, uint8_t state, uint16_t memoId)
 }
 DEF(MemoFail, uint8_t state, uint16_t memoId)
 {
-    memo_fail(MEMO_GET(), CURRENT, memoId);
+    memo_fail(MEMO_GET(), GET_POS(), memoId);
     FAIL();
     (void)state; // FIXME MemoFail needs state???
 }
@@ -264,17 +268,17 @@ DEF(TPop, int8_t index)
 DEF(TLeftFold, uint8_t shift)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_swap(ast, CURRENT + shift);
+    ast_log_swap(ast, GET_POS() + shift);
 }
 DEF(TNew, uint8_t shift)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_new(ast, CURRENT + shift);
+    ast_log_new(ast, GET_POS() + shift);
 }
 DEF(TCapture, uint8_t shift)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_capture(ast, CURRENT + shift);
+    ast_log_capture(ast, GET_POS() + shift);
 }
 DEF(TTag, TAG_t tagId)
 {
@@ -307,7 +311,7 @@ DEF(TAbort)
 DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    MemoEntry_t *entry = memo_get(MEMO_GET(), CURRENT, memoId, state);
+    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
         if (entry->failed) {
             // memo_failhit();
@@ -326,10 +330,10 @@ DEF(TMemo, uint8_t state, uint16_t memoId)
     long length;
     long saved, ast_tx;
     moz_inst_t *jump;
-    const char *pos;
+    mozpos_t pos;
     Node node;
     POP_FRAME(pos, jump, ast_tx, saved);
-    length = CURRENT - pos;
+    length = GET_POS() - pos;
     node = ast_get_last_linked_node(ast);
     memo_set(MEMO_GET(), pos, memoId, node, length, state);
 #ifdef MOZVM_DEBUG_NTERM
@@ -361,7 +365,7 @@ DEF(SDef, TAG_t tagId)
     symtable_t *tbl = SYMTABLE_GET();
     tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
     token_t captured;
-    token_init(&captured, (const char *)POP(), CURRENT);
+    token_init(&captured, (const char *)POP(), GET_CURRENT());
     symtable_add_symbol(tbl, tableName, &captured);
 }
 DEF(SIsDef)
@@ -383,7 +387,7 @@ DEF(SMatch, TAG_t tagId)
     tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
     token_t t;
     if (symtable_get_symbol(tbl, tableName, &t)) {
-        if (token_equal_string(&t, CURRENT)) {
+        if (token_equal_string(&t, GET_CURRENT())) {
             CONSUME_N(token_length(&t));
             NEXT();
         }
@@ -397,7 +401,7 @@ DEF(SIs, TAG_t tagId)
     token_t t;
     if (symtable_get_symbol(tbl, tableName, &t)) {
         token_t captured;
-        token_init(&captured, (const char *)POP(), CURRENT);
+        token_init(&captured, (const char *)POP(), GET_CURRENT());
         if (token_equal(&t, &captured)) {
             CONSUME_N(token_length(&t));
             NEXT();
@@ -410,7 +414,7 @@ DEF(SIsa, TAG_t tagId)
     symtable_t *tbl = SYMTABLE_GET();
     token_t captured;
     tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
-    token_init(&captured, (const char *)POP(), CURRENT);
+    token_init(&captured, (const char *)POP(), GET_CURRENT());
     if (!symtable_contains(tbl, tableName, &captured)) {
         FAIL();
     }

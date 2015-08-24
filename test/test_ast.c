@@ -41,11 +41,17 @@ int main(int argc, char const* argv[])
     }
     NodeManager_init();
     ast = AstMachine_init(128, str);
-    /*00*/ast_log_new(ast, str + 0);
-    /*01*/ast_log_new(ast, str + 2);
-    /*02*/ast_log_new(ast, str + 3);
+    AstMachine_setSource(ast, str);
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+#define POS(N) (str + (N))
+#else
+#define POS(N) (N)
+#endif
+    /*00*/ast_log_new(ast, POS(0));
+    /*01*/ast_log_new(ast, POS(2));
+    /*02*/ast_log_new(ast, POS(3));
     /*03*/ast_log_tag(ast, TAG_String);
-    /*04*/ast_log_capture(ast, str + 6);
+    /*04*/ast_log_capture(ast, POS(6));
     /*05*/ast_commit_tx(ast, -1, 2);
     // #String[ 'key']
     key = node = ast_get_last_linked_node(ast);
@@ -53,10 +59,10 @@ int main(int argc, char const* argv[])
             node->tag == TAG_String &&
             node->len == 3 && strncmp(node->pos, "key", node->len) == 0);
 
-    /*06*/ast_log_new(ast, str + 10);
-    /*07*/ast_log_new(ast, str + 11);
+    /*06*/ast_log_new(ast, POS(10));
+    /*07*/ast_log_new(ast, POS(11));
     /*08*/ast_log_tag(ast, TAG_Integer);
-    /*09*/ast_log_capture(ast, str + 13);
+    /*09*/ast_log_capture(ast, POS(13));
     /*10*/ast_commit_tx(ast, -1, 4);
     // #Integer[ '12']
     elm0 = node = ast_get_last_linked_node(ast);
@@ -64,9 +70,9 @@ int main(int argc, char const* argv[])
             node->tag == TAG_Integer &&
             node->len == 2 && strncmp(node->pos, "12", node->len) == 0);
 
-    /*11*/ast_log_new(ast, str + 15);
+    /*11*/ast_log_new(ast, POS(15));
     /*12*/ast_log_tag(ast, TAG_Integer);
-    /*13*/ast_log_capture(ast, str + 18);
+    /*13*/ast_log_capture(ast, POS(18));
     /*14*/ast_commit_tx(ast, -1, 5);
     // #Integer[ '345']
     elm1 = node = ast_get_last_linked_node(ast);
@@ -75,7 +81,7 @@ int main(int argc, char const* argv[])
             node->len == 3 && strncmp(node->pos, "345", node->len) == 0);
 
     /*15*/ast_log_tag(ast, TAG_List);
-    /*16*/ast_log_capture(ast, str + 19);
+    /*16*/ast_log_capture(ast, POS(19));
     /*17*/ast_commit_tx(ast, -1, 3);
     // #List[
     //    #Integer[ '12']
@@ -88,7 +94,7 @@ int main(int argc, char const* argv[])
     assert(Node_get(node, 0) == elm0 && Node_get(node, 1) == elm1);
 
     /*18*/ast_log_tag(ast, TAG_KeyValue);
-    /*19*/ast_log_capture(ast, str + 19);
+    /*19*/ast_log_capture(ast, POS(19));
     /*20*/ast_commit_tx(ast, -1, 1);
     kv = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 2 &&
@@ -106,7 +112,7 @@ int main(int argc, char const* argv[])
     //    ]
     // ]
     /*21*/ast_log_tag(ast, TAG_JSON);
-    /*22*/ast_log_capture(ast, str + 21);
+    /*22*/ast_log_capture(ast, POS(21));
     node = ast_get_parsed_node(ast);
     assert(Node_length(node) == 1 &&
             node->tag == TAG_JSON &&

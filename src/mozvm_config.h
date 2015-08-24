@@ -58,6 +58,13 @@ extern "C" {
 #define MOZVM_INST_HEADER_SIZE sizeof(unsigned char)
 #endif
 
+#define MOZVM_USE_POINTER_AS_POS_REGISTER 1
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+typedef const char *mozpos_t;
+#else
+typedef unsigned long mozpos_t;
+#endif
+
 #ifdef __cplusplus
 }
 #endif

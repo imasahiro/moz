@@ -47,7 +47,8 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
-    r->head = r->input = r->tail = NULL;
+    r->head = 0;
+    r->input = r->tail = NULL;
     if (jmptbl) {
         r->C.jumps = (int *)VM_MALLOC(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
     }
@@ -74,7 +75,11 @@ void moz_runtime_reset(moz_runtime_t *r)
 
 void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end)
 {
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     r->head = str;
+#else
+    r->head = 0;
+#endif
     r->tail = end;
     AstMachine_setSource(r->ast, str);
 }
@@ -118,17 +123,15 @@ void moz_runtime_dispose(moz_runtime_t *r)
     VM_FREE(r);
 }
 
-#define CONSUME() ++CURRENT
-#define CONSUME_N(N) CURRENT += N
 #define FAIL_IMPL() do { \
     long saved_, ast_tx_; \
     moz_inst_t *jump_; \
-    const char *pos_; \
+    mozpos_t pos_; \
     MOZVM_PROFILE_INC(FAIL_COUNT); \
     POP_FRAME(pos_, jump_, ast_tx_, saved_); \
-    if (pos_ < CURRENT) { \
-        HEAD = (HEAD < CURRENT) ? CURRENT : HEAD; \
-        CURRENT = pos_; \
+    if (pos_ < GET_POS()) { \
+        HEAD = (HEAD < GET_POS()) ? GET_POS() : HEAD; \
+        SET_POS(pos_); \
     } \
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
     symtable_rollback(SYMTABLE_GET(), saved_); \
@@ -172,7 +175,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     SYMTBL = FP[FP_SYMTBL];\
     AST    = FP[FP_AST];\
     NEXT   = (moz_inst_t *)FP[FP_NEXT];\
-    POS    = (const char *)FP[FP_POS];\
+    POS    = (mozpos_t)FP[FP_POS];\
     FP     = (long *)FP[FP_FP]; \
 } while (0)
 
@@ -180,16 +183,33 @@ void moz_runtime_dispose(moz_runtime_t *r)
     SYMTBL = (FP+FP_SYMTBL);\
     AST    = (FP+FP_AST);\
     NEXT   = (moz_inst_t **)(FP+FP_NEXT);\
-    POS    = (const char **)(FP+FP_POS);\
+    POS    = (mozpos_t *)(FP+FP_POS);\
 } while (0)
 
-long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_inst_t *PC)
+long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t *PC)
 {
     long *SP = runtime->stack;
     long *FP = SP;
 #ifdef MOZVM_DEBUG_NTERM
     long nterm_id = 0;
 #endif
+
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    const char *CURRENT = str;
+#define GET_POS()     CURRENT
+#define SET_POS(P)    CURRENT = (P)
+#define GET_CURRENT() (CURRENT)
+#define CONSUME()     CURRENT++
+#define CONSUME_N(N)  CURRENT += N
+#else
+    size_t __pos = 0;
+#define GET_POS()     __pos
+#define SET_POS(P)    __pos = (P)
+#define GET_CURRENT() (str + __pos)
+#define CONSUME()    __pos++
+#define CONSUME_N(N) __pos += N
+#endif
+
 #if 1
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
@@ -245,7 +265,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_in
 #else
     assert(*PC == Exit);
 #endif
-    PUSH_FRAME(CURRENT,
+    PUSH_FRAME(GET_POS(),
 #ifdef MOZVM_USE_DIRECT_THREADING
             PC + sizeof(void *) + 1,
 #else
@@ -275,7 +295,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *CURRENT, const moz_in
 #define AST_MACHINE_GET() (AST)
 #define MEMO_GET() (MEMO)
 #define HEAD (runtime)->head
-#define EOS() (CURRENT == runtime->tail)
+#define EOS() (GET_CURRENT() == runtime->tail)
 
 #define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST

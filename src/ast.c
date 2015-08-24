@@ -30,7 +30,7 @@ static inline enum AstLogType GetTag(AstLog *log)
 #endif
 }
 
-static inline const char *GetPos(AstLog *log)
+static inline mozpos_t GetPos(AstLog *log)
 {
 #if 0
     enum AstLogType tag = GetTag(log);
@@ -81,11 +81,19 @@ static void AstMachine_dumpLog(AstMachine *ast)
         switch(GetTag(cur)) {
         case TypeNew:
             fprintf(stderr, "[%d] %02d new(%ld)\n",
-                    i, id, GetPos(cur) - ast->source);
+                    i, id, GetPos(cur)
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+                    - ast->source
+#endif
+                    );
             break;
         case TypeCapture:
             fprintf(stderr, "[%d] %02d cap(%ld)\n",
-                    i, id, GetPos(cur) - ast->source);
+                    i, id, GetPos(cur)
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+                    - ast->source
+#endif
+                    );
             break;
         case TypeTag:
             fprintf(stderr, "[%d] %02d tag(%s)\n", i, id, cur->i.pos);
@@ -116,12 +124,12 @@ static void AstMachine_dumpLog(AstMachine *ast)
 static unsigned last_id = 1;
 #endif
 
-static void ast_log(AstMachine *ast, enum AstLogType type, const char *cur, uintptr_t val)
+static void ast_log(AstMachine *ast, enum AstLogType type, mozpos_t pos, uintptr_t val)
 {
     AstLog log = {};
     log.shift = 0;
     log.e.val = val;
-    log.i.pos = cur;
+    log.i.pos = pos;
 #ifdef AST_DEBUG
     log.id = last_id;
     last_id++;
@@ -130,44 +138,44 @@ static void ast_log(AstMachine *ast, enum AstLogType type, const char *cur, uint
     ARRAY_add(AstLog, &ast->logs, &log);
 }
 
-void ast_log_new(AstMachine *ast, const char *cur)
+void ast_log_new(AstMachine *ast, mozpos_t pos)
 {
-    ast_log(ast, TypeNew, cur, 0);
+    ast_log(ast, TypeNew, pos, 0);
 }
 
-void ast_log_capture(AstMachine *ast, const char *cur)
+void ast_log_capture(AstMachine *ast, mozpos_t pos)
 {
-    ast_log(ast, TypeCapture, cur, 0);
+    ast_log(ast, TypeCapture, pos, 0);
 }
 
 void ast_log_tag(AstMachine *ast, const char *tag)
 {
-    ast_log(ast, TypeTag, tag, 0);
+    ast_log(ast, TypeTag, (mozpos_t)tag, 0);
     // assert(((uintptr_t)tag & TypeMask) == 0);
     // ast_log(ast, TypeTag, NULL, (uintptr_t)tag);
 }
 
 void ast_log_replace(AstMachine *ast, const char *str)
 {
-    ast_log(ast, TypeReplace, str, 0);
+    ast_log(ast, TypeReplace, (mozpos_t)str, 0);
     // assert(((uintptr_t)str & TypeMask) == 0);
     // ast_log(ast, TypeReplace, NULL, (uintptr_t)str);
 }
 
-void ast_log_swap(AstMachine *ast, const char *pos)
+void ast_log_swap(AstMachine *ast, mozpos_t pos)
 {
     ast_log(ast, TypeLeftFold, pos, 0);
 }
 
 void ast_log_push(AstMachine *ast)
 {
-    ast_log(ast, TypePush, NULL, 0);
+    ast_log(ast, TypePush, 0, 0);
 }
 
 void ast_log_pop(AstMachine *ast, int index)
 {
     intptr_t val = (intptr_t) index;
-    ast_log(ast, TypePop, (const char *)val, 0);
+    ast_log(ast, TypePop, (mozpos_t)val, 0);
 }
 
 void ast_log_link(AstMachine *ast, int index, Node node)
@@ -207,10 +215,15 @@ void ast_rollback_tx(AstMachine *ast, long tx)
     ARRAY_size(ast->logs) = tx;
 }
 
-Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, const char *spos, const char *epos, long objectSize, const char *tag, const char *value)
+Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mozpos_t epos, long objectSize, const char *tag, const char *value)
 {
     long len = epos - spos;
-    Node newnode = Node_new(tag, spos, len, objectSize, value);
+    Node newnode = Node_new(tag,
+#ifndef MOZVM_USE_POINTER_AS_POS_REGISTER
+            ast->source +
+#endif
+            spos,
+            len, objectSize, value);
     if(objectSize == 0) {
         return newnode;
     }
@@ -234,7 +247,7 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, const char *spos,
 static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
 {
     AstLog *head, *tail;
-    const char *spos, *epos;
+    mozpos_t spos, epos;
     Node tmp;
     const char *tag = NULL;
     const char *value = NULL;
@@ -244,7 +257,7 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
 
     head = cur;
     tail = ARRAY_last(ast->logs);
-    spos = (const char *)GetPos(cur); epos = spos;
+    spos = GetPos(cur); epos = spos;
 #ifdef AST_DEBUG
     fprintf(stderr, "createNode.start id=%d\n", cur->id);
 #endif
@@ -262,10 +275,10 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             epos = cur->i.pos;
             break;
         case TypeTag:
-            tag = cur->i.pos;
+            tag = (const char *)cur->i.pos;
             break;
         case TypeReplace:
-            value = cur->i.pos;
+            value = (const char *)cur->i.pos;
             break;
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);

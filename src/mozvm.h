@@ -1,3 +1,4 @@
+#include "mozvm_config.h"
 #include "bitset.h"
 #include "ast.h"
 #include "memo.h"
@@ -33,7 +34,7 @@ typedef struct moz_runtime_t {
     AstMachine *ast;
     symtable_t *table;
     memo_t *memo;
-    const char *head;
+    mozpos_t head;
     const char *tail;
     const char *input;
     long *stack;
