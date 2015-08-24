@@ -118,6 +118,7 @@ int main(int argc, char *const argv[])
     }
     moz_runtime_dispose(L.R);
     if (print_stats) {
+        NodeManager_print_stats();
         moz_loader_print_stats(&L);
         moz_runtime_print_stats(L.R);
     }

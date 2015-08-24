@@ -1,7 +1,7 @@
 #include <stdio.h>
 // #define PRINT_INST 1
 
-#if defined(PRINT_INST) &&  PRINT_INST >= 2
+#if defined(PRINT_INST) &&  PRINT_INST > 2
 #define MOZVM_DUMP_OPCODE
 #endif
 #include "instruction.h"
@@ -16,21 +16,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// #define MOZVM_PROFILE 1
-
-#ifdef MOZVM_PROFILE
-#define MOZVM_PROFILE_DECL(X) uint64_t _PROFILE_##X = 0;
-#define MOZVM_PROFILE_INC(X)  (_PROFILE_##X)++
-#define MOZVM_PROFILE_SHOW(X) fprintf(stderr, "%-10s %llu\n", #X, _PROFILE_##X);
-#define MOZVM_PROFILE_ENABLE(X)
-#else
-#define MOZVM_PROFILE_DECL(X)
-#define MOZVM_PROFILE_INC(X)
-#define MOZVM_PROFILE_SHOW(X)
-#define MOZVM_PROFILE_ENABLE(X)
-#endif
-#define MOZVM_PROFILE_EACH(F) MOZVM_PROFILE_DEFINE(F)
 
 #define MOZVM_PROFILE_DEFINE(F) \
     F(INST_COUNT) \
@@ -305,11 +290,14 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
 #if PRINT_INST == 1
 #define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%-8s,\n", #OP);
+#elif PRINT_INST == 2
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%p %-8s,\n", (PC-1), #OP);
 #else
     uint8_t last = Exit;
 #define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%-8s->%-8s,\n", opcode2str(last), #OP); last = *(PC-1);
-#endif
-#endif
+#endif /* PRINT_INST == 2 */
+#endif /* endif PRINT_INST */
+
 #else
 #define OP_CASE(OP) OP_CASE_(OP)
 #endif

@@ -65,6 +65,22 @@ typedef const char *mozpos_t;
 typedef unsigned long mozpos_t;
 #endif
 
+// profile
+#define MOZVM_PROFILE 1
+
+#ifdef MOZVM_PROFILE
+#define MOZVM_PROFILE_DECL(X) uint64_t _PROFILE_##X = 0;
+#define MOZVM_PROFILE_INC(X)  (_PROFILE_##X)++
+#define MOZVM_PROFILE_SHOW(X) fprintf(stderr, "%-10s %llu\n", #X, _PROFILE_##X);
+#define MOZVM_PROFILE_ENABLE(X)
+#else
+#define MOZVM_PROFILE_DECL(X)
+#define MOZVM_PROFILE_INC(X)
+#define MOZVM_PROFILE_SHOW(X)
+#define MOZVM_PROFILE_ENABLE(X)
+#endif
+#define MOZVM_PROFILE_EACH(F) MOZVM_PROFILE_DEFINE(F)
+
 #ifdef __cplusplus
 }
 #endif
