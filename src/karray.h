@@ -84,7 +84,7 @@ static inline void ARRAY_##T##_dispose(ARRAY(T) *a) {\
     a->list     = NULL;\
 }\
 static inline void ARRAY_##T##_add(ARRAY(T) *a, ValueType v) {\
-    ARRAY_##T##_ensureSize(a, a->size + 1);\
+    ARRAY_##T##_ensureSize(a, 1);\
     ARRAY_##T##_set(a, a->size++, v);\
 }
 
