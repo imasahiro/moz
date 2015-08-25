@@ -10,6 +10,16 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+set(VERSION_MAJOR "0")
+set(VERSION_MINOR "0")
+set(VERSION_PATCH "1")
+
+set(PACKAGE_NAME    ${PROJECT_NAME})
+set(PACKAGE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
+set(PACKAGE_STRING  ${CMAKE_PROJECT_NAME}-${PACKAGE_VERSION})
+set(SO_VERSION      ${VERSION_MAJOR}.${VERSION_MINOR})
+set(PACKAGE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
 SET(CFLAGS "-Wsign-compare -Wmissing-field-initializers -Wdisabled-optimization")
 SET(CFLAGS "${CFLAGS} -Wall -Wcomment -Wformat -Wunused-macros -march=native")
 SET(CMAKE_C_FLAGS         "-Wall -Wno-variadic-macros ${CFLAGS}")
