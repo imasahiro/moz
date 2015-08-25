@@ -42,8 +42,8 @@ static size_t free_object_count = 0;
 static struct page_header *current_page = NULL;
 
 struct page {
-#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct pegvm_node)-1)
-    struct pegvm_node nodes[PAGE_OBJECT_SIZE+1];
+#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct Node)-1)
+    struct Node nodes[PAGE_OBJECT_SIZE+1];
 };
 
 struct page_header {
@@ -77,8 +77,8 @@ void NodeManager_init()
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
-    unsigned offset1 = offsetof(struct pegvm_node, entry.raw.size);
-    unsigned offset2 = offsetof(struct pegvm_node, entry.array.size);
+    unsigned offset1 = offsetof(struct Node, entry.raw.size);
+    unsigned offset2 = offsetof(struct Node, entry.array.size);
     assert(offset1 == offset2);
 #ifdef MOZVM_NODE_USE_MEMPOOL
     alloc_page();
@@ -101,13 +101,13 @@ void NodeManager_dispose()
     while (free_list) {
         Node next = (Node)free_list->tag;
         VM_FREE(free_list);
-        MALLOC_SIZE_DEC(sizeof(struct pegvm_node));
+        MALLOC_SIZE_DEC(sizeof(struct Node));
         free_list = next;
     }
 #ifdef NODE_CHECK_MALLOC
     if (malloc_size) {
         fprintf(stderr, "memory leak %ld byte (%ld nodes)\n",
-                malloc_size, malloc_size / sizeof(struct pegvm_node));
+                malloc_size, malloc_size / sizeof(struct Node));
     }
 #endif
     MALLOC_SIZE_CHECK();
@@ -144,9 +144,9 @@ static inline Node node_alloc()
         free_list = (Node)o->tag;
         return o;
     }
-    MALLOC_SIZE_INC(sizeof(struct pegvm_node));
+    MALLOC_SIZE_INC(sizeof(struct Node));
 #endif /*MOZVM_USE_FREE_LIST*/
-    o = (Node) VM_MALLOC(sizeof(struct pegvm_node));
+    o = (Node) VM_MALLOC(sizeof(struct Node));
     return o;
 #endif
 }
