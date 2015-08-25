@@ -46,6 +46,28 @@ add_custom_target(generate_vm_core DEPENDS
 
 add_dependencies(moz generate_vm_core)
 
+#########################
+enable_testing()
+
+add_executable(test_ast    test/test_ast.c)
+add_executable(test_inst   test/test_inst.c)
+# add_executable(test_loader test/test_loader.c src/loader.c src/vm.c)
+add_executable(test_memo   test/test_memo.c)
+add_executable(test_node   test/test_node.c)
+add_executable(test_sym    test/test_sym.c)
+target_link_libraries(test_ast    nez)
+target_link_libraries(test_inst   nez)
+# target_link_libraries(test_loader nez)
+target_link_libraries(test_memo   nez)
+target_link_libraries(test_node   nez)
+target_link_libraries(test_sym    nez)
+add_test(moz_test_ast    test_ast   )
+add_test(moz_test_inst   test_inst  )
+# add_test(moz_test_loader test_loader)
+add_test(moz_test_memo   test_memo  )
+add_test(moz_test_node   test_node  )
+add_test(moz_test_sym    test_sym   )
+
 install(TARGETS nez LIBRARY DESTINATION lib)
 
 file(GLOB headers ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
