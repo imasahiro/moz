@@ -1,9 +1,7 @@
-build
 .DS_Store
 GPATH
 GRTAGS
 GTAGS
+GSYMS
 a.out*
-src/vm_core.c
-src/vm_inst.h
 *.nzc
