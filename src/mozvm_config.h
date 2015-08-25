@@ -36,9 +36,10 @@ extern "C" {
 // #define MOZ_JMPTABLE_SIZE 257
 
 // node
-#define MOZVM_MEMORY_USE_RCGC 1
+#define MOZVM_MEMORY_USE_RCGC  1
+#define MOZVM_NODE_ARENA_SIZE  8
 #define MOZVM_NODE_USE_MEMPOOL 1
-// #define MOZVM_USE_FREE_LIST 1
+#define MOZVM_USE_FREE_LIST 1
 // #define MOZVM_MEMORY_USE_BOEHM_GC 1
 
 // VM / bytecode
@@ -66,7 +67,7 @@ typedef unsigned long mozpos_t;
 #endif
 
 // profile
-#define MOZVM_PROFILE 1
+// #define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
 #define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;

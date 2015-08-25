@@ -33,17 +33,16 @@ static long malloc_size = 0;
 #define MALLOC_SIZE_CHECK()
 #endif
 
-#if defined(MOZVM_USE_FREE_LIST) || defined(MOZVM_USE_MEMPOOL)
+#if defined(MOZVM_USE_FREE_LIST) || defined(MOZVM_NODE_USE_MEMPOOL)
 static Node free_list = NULL;
 #endif
 
-#ifdef MOZVM_USE_MEMPOOL
+#ifdef MOZVM_NODE_USE_MEMPOOL
 static size_t free_object_count = 0;
 static struct page_header *current_page = NULL;
 
 struct page {
-#define ARENA_DEFAULT_SIZE 8
-#define PAGE_OBJECT_SIZE (ARENA_DEFAULT_SIZE * 4096 / sizeof(struct pegvm_node)-1)
+#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct pegvm_node)-1)
     struct pegvm_node nodes[PAGE_OBJECT_SIZE+1];
 };
 
@@ -81,14 +80,14 @@ void NodeManager_init()
     unsigned offset1 = offsetof(struct pegvm_node, entry.raw.size);
     unsigned offset2 = offsetof(struct pegvm_node, entry.array.size);
     assert(offset1 == offset2);
-#ifdef MOZVM_USE_MEMPOOL
+#ifdef MOZVM_NODE_USE_MEMPOOL
     alloc_page();
 #endif
 }
 
 void NodeManager_dispose()
 {
-#ifdef MOZVM_USE_MEMPOOL
+#ifdef MOZVM_NODE_USE_MEMPOOL
     while (current_page) {
         struct page_header *next = current_page->next;
         free(current_page);
@@ -112,7 +111,7 @@ void NodeManager_dispose()
     }
 #endif
     MALLOC_SIZE_CHECK();
-#endif /*MOZVM_USE_MEMPOOL*/
+#endif /*MOZVM_NODE_USE_MEMPOOL*/
 #endif /*MOZVM_USE_FREE_LIST*/
 }
 
@@ -130,7 +129,7 @@ void NodeManager_reset()
 static inline Node node_alloc()
 {
     Node o;
-#ifdef MOZVM_USE_MEMPOOL
+#ifdef MOZVM_NODE_USE_MEMPOOL
     if (free_list == NULL) {
         alloc_page();
     }
@@ -164,10 +163,10 @@ static inline void node_free(Node o)
 #endif
     free_list = o;
 #endif /*MOZVM_USE_FREE_LIST*/
-#ifdef MOZVM_USE_MEMPOOL
+#ifdef MOZVM_NODE_USE_MEMPOOL
     free_object_count += 1;
 #endif
-#if !defined(MOZVM_USE_FREE_LIST) && !defined(MOZVM_USE_MEMPOOL)
+#if !defined(MOZVM_USE_FREE_LIST) && !defined(MOZVM_NODE_USE_MEMPOOL)
     VM_FREE(o);
 #endif
 }
