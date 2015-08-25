@@ -671,7 +671,9 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         CASE_(NStr);
         CASE_(OStr);
         CASE_(RStr) {
-            asm volatile("int3");
+            STRING_t strId = *(STRING_t *)(p + 1);
+            const char *impl = STRING_GET_IMPL(L->R, strId);
+            OP_PRINT("'%s'", impl);
             break;
         }
         CASE_(Set);
