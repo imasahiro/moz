@@ -126,6 +126,7 @@ static unsigned last_id = 1;
 
 static void ast_log(AstMachine *ast, enum AstLogType type, mozpos_t pos, uintptr_t val)
 {
+#if 0
     AstLog log = {};
     log.shift = 0;
     log.e.val = val;
@@ -136,6 +137,20 @@ static void ast_log(AstMachine *ast, enum AstLogType type, mozpos_t pos, uintptr
 #endif
     SetTag(&log, type);
     ARRAY_add(AstLog, &ast->logs, &log);
+#else
+    AstLog *log;
+    ARRAY_ensureSize(AstLog, &ast->logs, 1);
+    log = ARRAY_END(ast->logs);
+    SetTag(log, type);
+    log->shift = 0;
+    log->e.val = val;
+    log->i.pos = pos;
+#ifdef AST_DEBUG
+    log->id = last_id;
+    last_id++;
+#endif
+    ARRAY_size(ast->logs) += 1;
+#endif
 }
 
 void ast_log_new(AstMachine *ast, mozpos_t pos)

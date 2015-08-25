@@ -55,7 +55,7 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
     unsigned idx = hash & m->mask;
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_SET);
-    if (e->failed != MEMO_ENTRY_FAILED && e->result) {
+    if (e->result && e->failed != MEMO_ENTRY_FAILED) {
         NODE_GC_RELEASE(e->result);
     }
     e->hash = hash;
@@ -72,7 +72,7 @@ static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned memoId)
     unsigned idx = hash & m->mask;
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_FAIL);
-    if (old->failed != MEMO_ENTRY_FAILED && old->result) {
+    if (old->result && old->failed != MEMO_ENTRY_FAILED) {
         NODE_GC_RELEASE(old->result);
     }
     old->hash = hash;
@@ -106,7 +106,7 @@ static void memo_elastic_dispose(memo_t *m)
     unsigned i;
     for (i = 0; i < ARRAY_size(m->ary); i++) {
         MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, i);
-        if (e->failed != MEMO_ENTRY_FAILED && e->result) {
+        if (e->result && e->failed != MEMO_ENTRY_FAILED) {
             NODE_GC_RELEASE(e->result);
         }
     }
