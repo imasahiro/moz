@@ -53,7 +53,7 @@ struct ARRAY(T) {\
     SizeTy capacity;\
     T *list;\
 }
-#define DEF_ARRAY_STRUCT(T) DEF_ARRAY_STRUCT0(T, int)
+#define DEF_ARRAY_STRUCT(T) DEF_ARRAY_STRUCT0(T, unsigned)
 
 #define DEF_ARRAY_T(T)\
 struct ARRAY(T);\
@@ -68,7 +68,7 @@ static inline ARRAY(T) *ARRAY_init_##T (ARRAY(T) *a, size_t initsize) {\
 }\
 static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
     size_t capacity = a->capacity; \
-    if(a->size + size <= a->capacity) {\
+    if(a->size + size <= (unsigned long)a->capacity) {\
         return;\
     }\
     while(a->size + size > a->capacity) {\

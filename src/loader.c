@@ -583,7 +583,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 
     // fprintf(stderr, "\n");
 
-    while (j < ARRAY_size(L->buf)) {
+    while (j < (int)ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);
         unsigned shift = opcode_size(opcode);
         int *ref;
@@ -630,7 +630,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 
     i = 0;
     j = 0;
-    while (j < ARRAY_size(L->buf)) {
+    while (j < (int)ARRAY_size(L->buf)) {
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
@@ -899,7 +899,6 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     if (bc->set_size > 0) {
         bc->sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc->set_size);
 #define INT_BIT (sizeof(int) * CHAR_BIT)
-#define N (256 / INT_BIT)
         for (i = 0; i < bc->set_size; i++) {
             unsigned j, k;
 #if VERBOSE_DEBUG
