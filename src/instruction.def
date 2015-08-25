@@ -228,7 +228,7 @@ DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
 {
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
-        if (entry->failed) {
+        if (entry->failed == MEMO_ENTRY_FAILED) {
             MEMO_DEBUG_FAIL_HIT(memoId);
             FAIL();
         }
@@ -314,7 +314,7 @@ DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
     AstMachine *ast = AST_MACHINE_GET();
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
-        if (entry->failed) {
+        if (entry->failed == MEMO_ENTRY_FAILED) {
             MEMO_DEBUG_T_FAIL_HIT(memoId);
             FAIL();
         }

@@ -14,7 +14,7 @@ typedef struct MemoEntry {
     unsigned consumed;
     unsigned state;
 } MemoEntry_t;
-
+#define MEMO_ENTRY_FAILED UINTPTR_MAX
 struct memo;
 typedef struct memo memo_t;
 

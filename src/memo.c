@@ -36,7 +36,7 @@ static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
     unsigned len = w * n + 1;
     ARRAY_init(MemoEntry_t, &m->ary, len);
     MemoEntry_t e = {};
-    e.hash = UINTPTR_MAX;
+    e.hash = MEMO_ENTRY_FAILED;
     for (i = 0; i < len; i++) {
         ARRAY_add(MemoEntry_t, &m->ary, &e);
     }
@@ -49,7 +49,7 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_SET);
-    if (e->failed != UINTPTR_MAX && e->result) {
+    if (e->failed != MEMO_ENTRY_FAILED && e->result) {
         NODE_GC_RELEASE(e->result);
     }
     e->hash = hash;
@@ -66,10 +66,11 @@ static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned memoId)
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_FAIL);
-    if (old->failed != UINTPTR_MAX && old->result) {
+    if (old->failed != MEMO_ENTRY_FAILED && old->result) {
         NODE_GC_RELEASE(old->result);
     }
-    old->failed = UINTPTR_MAX;
+    old->hash = hash;
+    old->failed = MEMO_ENTRY_FAILED;
     return 0;
 }
 
@@ -81,7 +82,7 @@ static MemoEntry_t *memo_elastic_get(memo_t *m, mozpos_t pos, unsigned memoId, u
     MOZVM_PROFILE_INC(MEMO_GET);
     if (e->hash == hash) {
         if (e->state == state) {
-            if (e->failed == UINTPTR_MAX) {
+            if (e->failed == MEMO_ENTRY_FAILED) {
                 MOZVM_PROFILE_INC(MEMO_HITFAIL);
             }
             else {
@@ -99,7 +100,7 @@ static void memo_elastic_dispose(memo_t *m)
     unsigned i;
     for (i = 0; i < ARRAY_size(m->ary); i++) {
         MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, i);
-        if (e->failed != UINTPTR_MAX && e->result) {
+        if (e->failed != MEMO_ENTRY_FAILED && e->result) {
             NODE_GC_RELEASE(e->result);
         }
     }
