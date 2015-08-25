@@ -77,6 +77,7 @@ file(GLOB headers ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
 foreach(it ${headers})
 	install(FILES ${it} DESTINATION include/moz)
 endforeach(it ${headers})
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/vm_inst.h DESTINATION include/moz)
 
 MESSAGE(STATUS)
 MESSAGE(STATUS "---------------------------------------------------------------------------" )
