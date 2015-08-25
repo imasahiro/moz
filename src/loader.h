@@ -11,6 +11,11 @@ struct mozvm_loader_t {
     size_t input_size;
     unsigned inst_size;
     unsigned jmptbl_id;
+#ifdef MOZVM_USE_JMPTBL
+    unsigned jmptbl1_id;
+    unsigned jmptbl2_id;
+    unsigned jmptbl3_id;
+#endif
     moz_runtime_t *R;
     unsigned *table;
     ARRAY(uint8_t) buf;

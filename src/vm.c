@@ -13,6 +13,10 @@
 #include "token.h"
 #include "symtable.h"
 
+#ifdef MOZVM_USE_JMPTBL
+#include "jmptbl.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,7 +52,7 @@ extern "C" {
 
 MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
-moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
+moz_runtime_t *moz_runtime_init(unsigned memo)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -58,15 +62,11 @@ moz_runtime_t *moz_runtime_init(unsigned jmptbl, unsigned memo)
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
     r->head = 0;
     r->input = r->tail = NULL;
-    if (jmptbl) {
-        r->C.jumps = (int *)VM_MALLOC(sizeof(int) * MOZ_JMPTABLE_SIZE * jmptbl);
-    }
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
     memset(&r->stack_[MOZ_DEFAULT_STACK_SIZE - 0xf], 0xbb, sizeof(long) * 0xf);
     r->stack = &r->stack_[0] + 0xf;
 
     r->C.memo_size = memo;
-    r->C.jumptable_size = jmptbl;
     return r;
 }
 

@@ -5,6 +5,10 @@
 #include "symtable.h"
 #include <stdint.h>
 
+#ifdef MOZVM_USE_JMPTBL
+#include "jmptbl.h"
+#endif
+
 #ifndef MOZ_VM_H
 #define MOZ_VM_H
 
@@ -13,6 +17,11 @@ typedef struct mozvm_constant_t {
     const char **tags;
     const char **strs;
     int *jumps;
+#ifdef MOZVM_USE_JMPTBL
+    jump_table1_t *jumps1;
+    jump_table2_t *jumps2;
+    jump_table3_t *jumps3;
+#endif
     const char **nterms;
 
     uint16_t set_size;
@@ -23,7 +32,6 @@ typedef struct mozvm_constant_t {
 
     unsigned inst_size;
     unsigned memo_size;
-    unsigned jumptable_size;
     unsigned input_size;
 } mozvm_constant_t;
 
@@ -74,7 +82,7 @@ typedef int *JMPTBL_t;
 #endif
 
 typedef uint8_t moz_inst_t;
-moz_runtime_t *moz_runtime_init(unsigned jmptbl_size, unsigned memo_size);
+moz_runtime_t *moz_runtime_init(unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 void moz_runtime_reset(moz_runtime_t *r);
 void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end);

@@ -66,6 +66,9 @@ enum MozOpcode {
     SCount   = 53,
     Exit     = 54,   // 7-bit only
 
+    TblJump1    = 55,  //
+    TblJump2    = 56,  //
+    TblJump3    = 57,  //
     // SkipJump = 55,
 
     Label    = 127,  // 7-bit
@@ -127,6 +130,9 @@ enum MozOpcode {
     F(SDefNum)\
     F(SCount)\
     F(Exit)\
+    F(TblJump1)\
+    F(TblJump2)\
+    F(TblJump3)\
     /*F(SkipJump)*/\
     F(Label)
 

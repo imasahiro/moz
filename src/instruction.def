@@ -221,7 +221,6 @@ DEF(First, JMPTBL_t tblId)
 {
     int *jmpTable = JMPTBL_GET_IMPL(runtime, tblId);
     int jump = jmpTable[(unsigned)*GET_CURRENT()];
-    // asm volatile("int3");
     JUMP(jump);
 }
 DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
@@ -431,6 +430,36 @@ DEF(SCount)
 DEF(Exit, int8_t status)
 {
     return status;
+}
+DEF(TblJump1, uint16_t tblId)
+{
+#ifdef MOZVM_USE_JMPTBL
+    jump_table1_t *tbl = runtime->C.jumps1 + tblId;
+    int jump = jump_table1_jump(tbl, *GET_CURRENT());
+    JUMP(jump);
+#else
+    ABORT();
+#endif
+}
+DEF(TblJump2, uint16_t tblId)
+{
+#ifdef MOZVM_USE_JMPTBL
+    jump_table2_t *tbl = runtime->C.jumps2 + tblId;
+    int jump = jump_table2_jump(tbl, *GET_CURRENT());
+    JUMP(jump);
+#else
+    ABORT();
+#endif
+}
+DEF(TblJump3, uint16_t tblId)
+{
+#ifdef MOZVM_USE_JMPTBL
+    jump_table3_t *tbl = runtime->C.jumps3 + tblId;
+    int jump = jump_table3_jump(tbl, *GET_CURRENT());
+    JUMP(jump);
+#else
+    ABORT();
+#endif
 }
 DEF(Label)
 {
