@@ -27,26 +27,32 @@ DEF_ARRAY_OP(MemoEntry_t);
 struct memo {
     ARRAY(MemoEntry_t) ary;
     unsigned shift;
+    unsigned mask;
 };
 
 #if defined(MOZVM_MEMO_TYPE_ELASTIC)
 static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
 {
     unsigned i;
-    unsigned len = w * n + 1;
+    unsigned len = w * (1 << LOG2(n));
     ARRAY_init(MemoEntry_t, &m->ary, len);
-    MemoEntry_t e = {};
-    e.hash = MEMO_ENTRY_FAILED;
+    MemoEntry_t e;;
+    e.hash = 0;
+    e.result = NULL;
+    e.consumed = 0;
+    e.state = 0;
+
     for (i = 0; i < len; i++) {
         ARRAY_add(MemoEntry_t, &m->ary, &e);
     }
+    m->mask  = len - 1;
     m->shift = LOG2(n) + 1;
 }
 
 static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node result, unsigned consumed, int state)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
-    unsigned idx = hash % ARRAY_size(m->ary);
+    unsigned idx = hash & m->mask;
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_SET);
     if (e->failed != MEMO_ENTRY_FAILED && e->result) {
@@ -63,7 +69,7 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
 static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned memoId)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
-    unsigned idx = hash % ARRAY_size(m->ary);
+    unsigned idx = hash & m->mask;
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_FAIL);
     if (old->failed != MEMO_ENTRY_FAILED && old->result) {
@@ -77,7 +83,7 @@ static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned memoId)
 static MemoEntry_t *memo_elastic_get(memo_t *m, mozpos_t pos, unsigned memoId, unsigned state)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
-    unsigned idx = hash % ARRAY_size(m->ary);
+    unsigned idx = hash & m->mask;
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
     MOZVM_PROFILE_INC(MEMO_GET);
     if (e->hash == hash) {
