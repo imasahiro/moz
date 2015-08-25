@@ -22,17 +22,6 @@ DEF_ARRAY_OP_NOPOINTER(Node);
 
 #ifdef MOZVM_MEMORY_USE_RCGC
 
-#ifdef NODE_CHECK_MALLOC
-static long malloc_size = 0;
-#define MALLOC_SIZE_INC(N)  malloc_size -= (N)
-#define MALLOC_SIZE_DEC(N)  malloc_size += (N)
-#define MALLOC_SIZE_CHECK() assert(malloc_size == 0);
-#else
-#define MALLOC_SIZE_INC(N)
-#define MALLOC_SIZE_DEC(N)
-#define MALLOC_SIZE_CHECK()
-#endif
-
 #if defined(MOZVM_USE_FREE_LIST) || defined(MOZVM_NODE_USE_MEMPOOL)
 static Node free_list = NULL;
 #endif
@@ -101,7 +90,6 @@ void NodeManager_dispose()
     while (free_list) {
         Node next = (Node)free_list->tag;
         VM_FREE(free_list);
-        MALLOC_SIZE_DEC(sizeof(struct Node));
         free_list = next;
     }
 #ifdef NODE_CHECK_MALLOC
@@ -110,7 +98,6 @@ void NodeManager_dispose()
                 malloc_size, malloc_size / sizeof(struct Node));
     }
 #endif
-    MALLOC_SIZE_CHECK();
 #endif /*MOZVM_NODE_USE_MEMPOOL*/
 #endif /*MOZVM_USE_FREE_LIST*/
 }
@@ -144,7 +131,6 @@ static inline Node node_alloc()
         free_list = (Node)o->tag;
         return o;
     }
-    MALLOC_SIZE_INC(sizeof(struct Node));
 #endif /*MOZVM_USE_FREE_LIST*/
     o = (Node) VM_MALLOC(sizeof(struct Node));
     return o;
