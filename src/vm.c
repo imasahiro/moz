@@ -17,6 +17,30 @@
 extern "C" {
 #endif
 
+
+#if 0
+#define MEMO_DEBUG_FAIL_HIT(ID)   fprintf(stderr, "%d hit_fail\n", ID)
+#define MEMO_DEBUG_HIT(ID, N)     fprintf(stderr, "%d hit %d\n", ID, N)
+#define MEMO_DEBUG_MISS(ID)       fprintf(stderr, "%d miss\n", ID)
+#define MEMO_DEBUG_MEMO(ID)       fprintf(stderr, "%d memo\n", ID)
+#define MEMO_DEBUG_MEMOFAIL(ID)   fprintf(stderr, "%d memofail\n", ID)
+#define MEMO_DEBUG_T_FAIL_HIT(ID) fprintf(stderr, "%d hit_fail\n", ID)
+#define MEMO_DEBUG_T_HIT(ID, N)   fprintf(stderr, "%d hit %d\n", ID, N)
+#define MEMO_DEBUG_T_MISS(ID)     fprintf(stderr, "%d miss\n", ID)
+#define MEMO_DEBUG_T_MEMO(ID)     fprintf(stderr, "%d memo\n", ID)
+#else
+#define MEMO_DEBUG_FAIL_HIT(ID)
+#define MEMO_DEBUG_HIT(ID, N)
+#define MEMO_DEBUG_MISS(ID)
+#define MEMO_DEBUG_MEMO(ID)
+#define MEMO_DEBUG_MEMOFAIL(ID)
+#define MEMO_DEBUG_T_FAIL_HIT(ID)
+#define MEMO_DEBUG_T_HIT(ID, N)
+#define MEMO_DEBUG_T_MISS(ID)
+#define MEMO_DEBUG_T_MEMO(ID)
+
+#endif
+
 #define MOZVM_PROFILE_DEFINE(F) \
     F(INST_COUNT) \
     F(FAIL_COUNT) \
@@ -285,7 +309,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST
 #ifdef MOZVM_DEBUG_NTERM
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%-8s SP=%p FP=%p %ld %s\n", runtime->C.nterms[nterm_id], SP, FP, (long)(PC-1), #OP);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%p %-8s \t%s\n", (PC-1), runtime->C.nterms[nterm_id], #OP);
 #else
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
 #if PRINT_INST == 1

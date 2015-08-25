@@ -15,7 +15,7 @@ DEF(Alt, int failjump)
     PUSH_FRAME(GET_POS(), PC + failjump, ast_save_tx(ast), symtable_savepoint(tbl));
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s alt   SP=%p FP=%p\n",
-    //         runtime->nterms[nterm_id], SP, FP);
+    //         runtime->C.nterms[nterm_id], SP, FP);
 #endif
 }
 DEF(Succ)
@@ -40,7 +40,7 @@ DEF(Call, int next, int jump)
     PUSH(PC + next);
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s call  SP=%p FP=%p next=%p, jump=%p\n",
-    //         runtime->nterms[nterm_id], SP, FP, PC, PC + jump);
+    //         runtime->C.nterms[nterm_id], SP, FP, PC, PC + jump);
 #else
     // (void)nterm;
 #endif
@@ -51,7 +51,7 @@ DEF(Ret, int dummy)
     moz_inst_t *next = (moz_inst_t *)POP();
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s ret   SP=%p FP=%p next=%p\n",
-    //         runtime->nterms[nterm_id], SP, FP, next);
+    //         runtime->C.nterms[nterm_id], SP, FP, next);
     nterm_id = POP();
 #endif
     // asm volatile("int3");
@@ -78,7 +78,7 @@ DEF(Skip)
 #if 0
 #ifdef MOZVM_DEBUG_NTERM
     fprintf(stderr, "%-8s skip  SP=%p FP=%p\n",
-            runtime->nterms[nterm_id], SP, FP);
+            runtime->C.nterms[nterm_id], SP, FP);
 #endif
     fprintf(stderr, "peek %ld\n", *(FP+0));
     fprintf(stderr, "peek %ld\n", *(FP+1));
@@ -229,11 +229,14 @@ DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
         if (entry->failed) {
+            MEMO_DEBUG_FAIL_HIT(memoId);
             FAIL();
         }
+        MEMO_DEBUG_HIT(memoId, entry->consumed);
         CONSUME_N(entry->consumed);
         JUMP(skip);
     }
+    MEMO_DEBUG_MISS(memoId);
 }
 DEF(Memo, uint8_t state, uint16_t memoId)
 {
@@ -243,14 +246,12 @@ DEF(Memo, uint8_t state, uint16_t memoId)
     POP_FRAME(pos, jump, ast_tx, saved);
     long length = GET_POS() - pos;
     memo_set(MEMO_GET(), pos, memoId, NULL, length, state);
-#ifdef MOZVM_DEBUG_NTERM
-    // fprintf(stderr, "%-8s memo  SP=%p FP=%p\n",
-    //         runtime->nterms[nterm_id], SP, FP);
-#endif
+    MEMO_DEBUG_MEMO(memoId);
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(MemoFail, uint8_t state, uint16_t memoId)
 {
+    MEMO_DEBUG_MEMOFAIL(memoId);
     memo_fail(MEMO_GET(), GET_POS(), memoId);
     FAIL();
     (void)state; // FIXME MemoFail needs state???
@@ -314,15 +315,15 @@ DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
         if (entry->failed) {
-            // memo_failhit();
+            MEMO_DEBUG_T_FAIL_HIT(memoId);
             FAIL();
         }
-        // memo_hit();
+        MEMO_DEBUG_T_HIT(memoId, entry->consumed);
         CONSUME_N(entry->consumed);
         ast_log_link(ast, index, entry->result);
         JUMP(skip);
     }
-    // memo_miss();
+    MEMO_DEBUG_T_MISS(memoId);
 }
 DEF(TMemo, uint8_t state, uint16_t memoId)
 {
@@ -335,11 +336,8 @@ DEF(TMemo, uint8_t state, uint16_t memoId)
     POP_FRAME(pos, jump, ast_tx, saved);
     length = GET_POS() - pos;
     node = ast_get_last_linked_node(ast);
+    MEMO_DEBUG_T_MEMO(memoId);
     memo_set(MEMO_GET(), pos, memoId, node, length, state);
-#ifdef MOZVM_DEBUG_NTERM
-    // fprintf(stderr, "%-8s tmemo SP=%p FP=%p\n",
-    //         runtime->nterms[nterm_id], SP, FP);
-#endif
     (void)saved; (void)ast_tx; (void)jump;
 }
 DEF(SOpen)
@@ -437,7 +435,4 @@ DEF(Exit, int8_t status)
 DEF(Label)
 {
     /* do nothing */
-#ifdef MOZVM_DEBUG_NTERM
-    nterm_id = label;
-#endif
 }

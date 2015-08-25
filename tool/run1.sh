@@ -1,9 +1,12 @@
 #!/bin/sh
 
-make moz
+make -C Debug clean
+make -C Debug
 FILE=$1
+TXT=$2
 # M=valgrind --leak-check=full
-java -jar ../nez.jar compile -p $FILE
+# java -jar ../nez.jar compile -p $FILE
 
-lldb -- ./build/moz -p ${FILE%.*}.nzc -i ${FILE%.*}.txt
+lldb -- ./Debug/moz -p ${FILE%.*}.nzc -i $2
+# ./Debug/moz -p ${FILE%.*}.nzc -i $2 >& out
 # valgrind --leak-check=full ./build/moz -p ${FILE%.*}.nzc -i ${FILE%.*}.txt
