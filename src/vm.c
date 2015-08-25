@@ -19,15 +19,15 @@ extern "C" {
 
 
 #if 0
-#define MEMO_DEBUG_FAIL_HIT(ID)   fprintf(stderr, "%d hit_fail\n", ID)
-#define MEMO_DEBUG_HIT(ID, N)     fprintf(stderr, "%d hit %d\n", ID, N)
-#define MEMO_DEBUG_MISS(ID)       fprintf(stderr, "%d miss\n", ID)
-#define MEMO_DEBUG_MEMO(ID)       fprintf(stderr, "%d memo\n", ID)
-#define MEMO_DEBUG_MEMOFAIL(ID)   fprintf(stderr, "%d memofail\n", ID)
-#define MEMO_DEBUG_T_FAIL_HIT(ID) fprintf(stderr, "%d hit_fail\n", ID)
-#define MEMO_DEBUG_T_HIT(ID, N)   fprintf(stderr, "%d hit %d\n", ID, N)
-#define MEMO_DEBUG_T_MISS(ID)     fprintf(stderr, "%d miss\n", ID)
-#define MEMO_DEBUG_T_MEMO(ID)     fprintf(stderr, "%d memo\n", ID)
+#define MEMO_DEBUG_FAIL_HIT(ID)   fprintf(stdout, "%d fail_hit\n", ID)
+#define MEMO_DEBUG_HIT(ID, N)     fprintf(stdout, "%d hit %d\n", ID, N)
+#define MEMO_DEBUG_MISS(ID)       fprintf(stdout, "%d miss\n", ID)
+#define MEMO_DEBUG_MEMO(ID)       fprintf(stdout, "%d memo\n", ID)
+#define MEMO_DEBUG_MEMOFAIL(ID)   fprintf(stdout, "%d memofail\n", ID)
+#define MEMO_DEBUG_T_FAIL_HIT(ID) fprintf(stdout, "%d tlookup fail_hit\n", ID)
+#define MEMO_DEBUG_T_HIT(ID, N)   fprintf(stdout, "%d tlookup hit %d\n", ID, N)
+#define MEMO_DEBUG_T_MISS(ID)     fprintf(stdout, "%d tlookup miss\n", ID)
+#define MEMO_DEBUG_T_MEMO(ID)     fprintf(stdout, "%d tmemo\n", ID)
 #else
 #define MEMO_DEBUG_FAIL_HIT(ID)
 #define MEMO_DEBUG_HIT(ID, N)
@@ -309,7 +309,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST
 #ifdef MOZVM_DEBUG_NTERM
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%p %-8s \t%s\n", (PC-1), runtime->C.nterms[nterm_id], #OP);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%p %-8s \t%s\n", (PC-1), runtime->C.nterms[nterm_id], #OP);
 #else
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
 #if PRINT_INST == 1
