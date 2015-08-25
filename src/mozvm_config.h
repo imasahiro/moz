@@ -66,7 +66,7 @@ typedef unsigned long mozpos_t;
 #endif
 
 // profile
-#define MOZVM_PROFILE 1
+// #define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
 #define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;
