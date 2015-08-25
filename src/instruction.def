@@ -30,14 +30,14 @@ DEF(Jump, int jump)
 {
     JUMP(jump);
 }
-// DEF(Call, int nterm, int jump)
-DEF(Call, int jump)
+// DEF(Call, int nterm, int next, int jump)
+DEF(Call, int next, int jump)
 {
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
     nterm_id = nterm;
 #endif
-    PUSH(PC);
+    PUSH(PC + next);
 #ifdef MOZVM_DEBUG_NTERM
     // fprintf(stderr, "%-8s call  SP=%p FP=%p next=%p, jump=%p\n",
     //         runtime->nterms[nterm_id], SP, FP, PC, PC + jump);

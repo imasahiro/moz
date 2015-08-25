@@ -310,6 +310,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #ifdef MOZVM_EMIT_OP_CALL_NTERM
         mozvm_loader_write32(L, nterm);
 #endif
+        mozvm_loader_write32(L, next);
         mozvm_loader_write32(L, jump);
         break;
         (void)next;(void)nterm;
@@ -604,8 +605,11 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             }
             *ref = L->table[*ref] - (j + shift);
             break;
-        case Alt:
         case Call:
+            // rewrite next
+            ref = GET_JUMP_ADDR(L->buf, j + shift - 2 * sizeof(int));
+            *ref = L->table[*ref] - (j + shift);
+        case Alt:
         case Lookup:
         case TLookup:
 #ifdef USE_SKIPJUMP
