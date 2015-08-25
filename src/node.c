@@ -179,7 +179,9 @@ void Node_sweep(Node o)
     assert(o->refc == 0);
     for (i = 0; i < len; i++) {
         Node node = Node_get(o, i);
-        NODE_GC_RELEASE(node);
+        if (node) {
+            NODE_GC_RELEASE(node);
+        }
     }
     if (len > NODE_SMALL_ARRAY_LIMIT) {
         ARRAY_dispose(Node, &o->entry.array);
@@ -324,8 +326,13 @@ static void Node_print2(Node o, unsigned level)
         for (i = 0; i < len; i++) {
             Node node = Node_get(o, i);
             assert(node != o);
-            print_indent(level);
-            Node_print2(node, level + 1);
+            print_indent(level + 1);
+            if (node) {
+                Node_print2(node, level + 1);
+            }
+            else {
+                fprintf(stderr, "null");
+            }
             fprintf(stderr, ",\n");
         }
         print_indent(level);
