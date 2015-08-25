@@ -2,10 +2,23 @@
 #include "karray.h"
 #include <stdlib.h>
 #include <assert.h>
+#ifdef MOZVM_PROFILE
+#include <stdio.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MOZVM_PROFILE_DEFINE(F) \
+    F(MEMO_GET)     \
+    F(MEMO_MISS)    \
+    F(MEMO_HIT)     \
+    F(MEMO_HITFAIL) \
+    F(MEMO_SET)     \
+    F(MEMO_FAIL)
+
+MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 DEF_ARRAY_STRUCT0(MemoEntry_t, unsigned);
 DEF_ARRAY_T(MemoEntry_t);
@@ -35,6 +48,7 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
+    MOZVM_PROFILE_INC(MEMO_SET);
     if (e->failed != UINTPTR_MAX && e->result) {
         NODE_GC_RELEASE(e->result);
     }
@@ -46,11 +60,12 @@ static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node resul
     return 1;
 }
 
-static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned id)
+static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned memoId)
 {
-    uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
+    uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *old = ARRAY_get(MemoEntry_t, &m->ary, idx);
+    MOZVM_PROFILE_INC(MEMO_FAIL);
     if (old->failed != UINTPTR_MAX && old->result) {
         NODE_GC_RELEASE(old->result);
     }
@@ -58,16 +73,24 @@ static int memo_elastic_fail(memo_t *m, mozpos_t pos, unsigned id)
     return 0;
 }
 
-static MemoEntry_t *memo_elastic_get(memo_t *m, mozpos_t pos, unsigned id, unsigned state)
+static MemoEntry_t *memo_elastic_get(memo_t *m, mozpos_t pos, unsigned memoId, unsigned state)
 {
-    uintptr_t hash = (((uintptr_t)pos << m->shift) | id);
+    uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash % ARRAY_size(m->ary);
     MemoEntry_t *e = ARRAY_get(MemoEntry_t, &m->ary, idx);
+    MOZVM_PROFILE_INC(MEMO_GET);
     if (e->hash == hash) {
         if (e->state == state) {
+            if (e->failed == UINTPTR_MAX) {
+                MOZVM_PROFILE_INC(MEMO_HITFAIL);
+            }
+            else {
+                MOZVM_PROFILE_INC(MEMO_HIT);
+            }
             return e;
         }
     }
+    MOZVM_PROFILE_INC(MEMO_MISS);
     return NULL;
 }
 
@@ -90,17 +113,17 @@ static void memo_null_init(memo_t *memo, unsigned w, unsigned n)
     /* do nothing */
 }
 
-static int memo_null_set(memo_t *m, mozpos_t pos, unsigned id, MemoEntry_t *e)
+static int memo_null_set(memo_t *m, mozpos_t pos, unsigned memoId, MemoEntry_t *e)
 {
     return 0;
 }
 
-static int memo_null_fail(memo_t *m, mozpos_t pos, unsigned id)
+static int memo_null_fail(memo_t *m, mozpos_t pos, unsigned memoId)
 {
     return 0;
 }
 
-static MemoEntry_t *memo_null_get(memo_t *m, mozpos_t pos, unsigned id, unsigned state)
+static MemoEntry_t *memo_null_get(memo_t *m, mozpos_t pos, unsigned memoId, unsigned state)
 {
     return NULL;
 }
@@ -171,31 +194,10 @@ int memo_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node result, unsigned con
 #endif
 }
 
-// typedef struct memo_stat {
-//     unsigned memo_stored;
-//     unsigned memo_used;
-//     unsigned memo_invalidated;
-//     unsigned memo_hit;
-//     unsigned memo_failhit;
-//     unsigned memo_miss;
-// } memo_stat_t;
-//
-// static memo_stat_t stat = {};
-//
-// void memo_hit()
-// {
-//     stat.memo_hit++;
-// }
-//
-// void memo_failhit()
-// {
-//     stat.memo_failhit++;
-// }
-//
-// void memo_miss()
-// {
-//     stat.memo_miss++;
-// }
+void memo_print_stats()
+{
+    MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+}
 
 #ifdef __cplusplus
 }
