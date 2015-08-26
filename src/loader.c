@@ -633,121 +633,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #define OP_PRINT_END()
 #endif
 
-static long get_opcode(mozvm_loader_t *L, unsigned idx)
-{
-#ifdef MOZVM_USE_DIRECT_THREADING
-    return *(long *)(L->buf.list + idx);
-#else
-    return (long)ARRAY_get(uint8_t, &L->buf, idx);
-#endif
-}
-
-static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
-{
-#ifdef MOZVM_USE_DIRECT_THREADING
-    *(long *)(L->buf.list + idx) = opcode;
-#else
-    ARRAY_set(uint8_t, &L->buf, idx, opcode);
-#endif
-}
-
-static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
+static void mozvm_loader_dump(mozvm_loader_t *L)
 {
     int i = 0, j = 0;
-#ifdef MOZVM_USE_DIRECT_THREADING
-    const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
-#endif
-    mozvm_loader_write_opcode(L, Exit); // exit sccuess
-    mozvm_loader_write8(L, 0);
-    mozvm_loader_write_opcode(L, Exit); // exit fail
-    mozvm_loader_write8(L, 1);
-    while (is->pos < is->end) {
-        L->inst_size++;
-        // unsigned cur = ARRAY_size(L->buf);
-        L->table[i++] = ARRAY_size(L->buf);
-        mozvm_loader_load_inst(L, is);
-        // fprintf(stderr, "%03d %-9s %-2d\n", cur, opcode2str(ARRAY_get(uint8_t, &L->buf, cur)), ARRAY_size(L->buf) - cur);
-    }
-
-    // fprintf(stderr, "\n");
-
-    while (j < (int)ARRAY_size(L->buf)) {
-        uint8_t opcode = get_opcode(L, j);
-        unsigned shift = opcode_size(opcode);
-        mozaddr_t *ref;
-        int i, *table = NULL;
-        uint16_t tblId = 0;
-        uint8_t *p;
-        jump_table1_t *t1;
-        jump_table2_t *t2;
-        jump_table3_t *t3;
-        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
-#define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
-        switch (opcode) {
-        case Jump:
-            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
-            // L0: Jump L3  |  L0: Ret
-            // ...          |
-            // L3: Ret      |
-            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
-                if (get_opcode(L, L->table[*ref]) == Ret) {
-                    set_opcode(L, j, Ret);
-                }
-            }
-            *ref = L->table[*ref] - (j + shift);
-            break;
-        case Call:
-            // rewrite next
-            ref = GET_JUMP_ADDR(L->buf, j + shift - 2 * sizeof(mozaddr_t));
-            *ref = L->table[*ref] - (j + shift);
-            /* fallthrough */
-        case Alt:
-        case Lookup:
-        case TLookup:
-#ifdef USE_SKIPJUMP
-        case SkipJump:
-#endif
-            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
-            *ref = L->table[*ref] - (j + shift);
-            break;
-        case First:
-            p = L->buf.list + j + shift - sizeof(JMPTBL_t);
-            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
-            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
-                table[i] = L->table[table[i]] - (j + shift);
-            }
-            break;
-        case TblJump1:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t1 = L->R->C.jumps1 + tblId;
-            t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
-            for (i = 0; i < 2; i++) {
-                t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
-            }
-            break;
-        case TblJump2:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t2 = L->R->C.jumps2 + tblId;
-            for (i = 0; i < 4; i++) {
-                t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
-            }
-            break;
-        case TblJump3:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t3 = L->R->C.jumps3 + tblId;
-            for (i = 0; i < 8; i++) {
-                t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
-            }
-            break;
-        default:
-            break;
-        }
-#undef GET_JUMP_ADDR
-        j += shift;
-    }
-
-    i = 0;
-    j = 0;
     while (j < (int)ARRAY_size(L->buf)) {
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
@@ -957,6 +845,120 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         j += shift;
         i++;
     }
+}
+
+static long get_opcode(mozvm_loader_t *L, unsigned idx)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    return *(long *)(L->buf.list + idx);
+#else
+    return (long)ARRAY_get(uint8_t, &L->buf, idx);
+#endif
+}
+
+static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    *(long *)(L->buf.list + idx) = opcode;
+#else
+    ARRAY_set(uint8_t, &L->buf, idx, opcode);
+#endif
+}
+
+static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
+{
+    int i = 0, j = 0;
+#ifdef MOZVM_USE_DIRECT_THREADING
+    const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
+#endif
+    mozvm_loader_write_opcode(L, Exit); // exit sccuess
+    mozvm_loader_write8(L, 0);
+    mozvm_loader_write_opcode(L, Exit); // exit fail
+    mozvm_loader_write8(L, 1);
+    while (is->pos < is->end) {
+        L->inst_size++;
+        L->table[i++] = ARRAY_size(L->buf);
+        mozvm_loader_load_inst(L, is);
+    }
+
+    // fprintf(stderr, "\n");
+
+    while (j < (int)ARRAY_size(L->buf)) {
+        uint8_t opcode = get_opcode(L, j);
+        unsigned shift = opcode_size(opcode);
+        mozaddr_t *ref;
+        int i, *table = NULL;
+        uint16_t tblId = 0;
+        uint8_t *p;
+        jump_table1_t *t1;
+        jump_table2_t *t2;
+        jump_table3_t *t3;
+        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
+#define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
+        switch (opcode) {
+        case Jump:
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
+            // L0: Jump L3  |  L0: Ret
+            // ...          |
+            // L3: Ret      |
+            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
+                if (get_opcode(L, L->table[*ref]) == Ret) {
+                    set_opcode(L, j, Ret);
+                }
+            }
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case Call:
+            // rewrite next
+            ref = GET_JUMP_ADDR(L->buf, j + shift - 2 * sizeof(mozaddr_t));
+            *ref = L->table[*ref] - (j + shift);
+            /* fallthrough */
+        case Alt:
+        case Lookup:
+        case TLookup:
+#ifdef USE_SKIPJUMP
+        case SkipJump:
+#endif
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case First:
+            p = L->buf.list + j + shift - sizeof(JMPTBL_t);
+            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
+            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                table[i] = L->table[table[i]] - (j + shift);
+            }
+            break;
+        case TblJump1:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t1 = L->R->C.jumps1 + tblId;
+            t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
+            for (i = 0; i < 2; i++) {
+                t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
+            }
+            break;
+        case TblJump2:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t2 = L->R->C.jumps2 + tblId;
+            for (i = 0; i < 4; i++) {
+                t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
+            }
+            break;
+        case TblJump3:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t3 = L->R->C.jumps3 + tblId;
+            for (i = 0; i < 8; i++) {
+                t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
+            }
+            break;
+        default:
+            break;
+        }
+#undef GET_JUMP_ADDR
+        j += shift;
+    }
+
+    mozvm_loader_dump(L);
 
 #ifdef MOZVM_USE_DIRECT_THREADING
     j = 0;

@@ -33,6 +33,8 @@ typedef struct mozvm_constant_t {
     unsigned inst_size;
     unsigned memo_size;
     unsigned input_size;
+#ifdef MOZVM_PROFILE_INST
+#endif
 } mozvm_constant_t;
 
 typedef struct moz_runtime_t {
