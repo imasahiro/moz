@@ -13,8 +13,6 @@ extern "C" {
 #define likely(x)     __builtin_expect(!!(x), 1)
 #endif
 
-#define VM_SMALL_ARRAY_LIMIT 2
-
 #ifndef LOG2
 #define LOG2(N) ((unsigned)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
 #endif
@@ -36,6 +34,7 @@ extern "C" {
 // #define MOZ_JMPTABLE_SIZE 257
 
 // node
+#define MOZVM_SMALL_ARRAY_LIMIT 2
 #define MOZVM_MEMORY_USE_RCGC  1
 #define MOZVM_NODE_ARENA_SIZE  8
 #define MOZVM_NODE_USE_MEMPOOL 1

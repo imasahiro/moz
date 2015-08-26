@@ -169,7 +169,7 @@ void Node_sweep(Node o)
             NODE_GC_RELEASE(node);
         }
     }
-    if (len > NODE_SMALL_ARRAY_LIMIT) {
+    if (len > MOZVM_SMALL_ARRAY_LIMIT) {
         ARRAY_dispose(Node, &o->entry.array);
     }
     MOZVM_PROFILE_INC(NODE_SWEEP);
@@ -189,7 +189,7 @@ Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size,
     o->len = len;
     o->value = value;
     o->entry.raw.size = elm_size;
-    if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
+    if (elm_size > MOZVM_SMALL_ARRAY_LIMIT) {
         unsigned i;
         ARRAY_init(Node, &o->entry.array, elm_size);
         for (i = 0; i < elm_size; i++) {
@@ -208,7 +208,7 @@ Node Node_get(Node o, unsigned index)
     unsigned len = Node_length(o);
     MOZVM_PROFILE_INC(NODE_GET);
     if (index < len) {
-        if (len > NODE_SMALL_ARRAY_LIMIT) {
+        if (len > MOZVM_SMALL_ARRAY_LIMIT) {
             return ARRAY_get(Node, &o->entry.array, index);
         }
         else {
@@ -235,7 +235,7 @@ void Node_set(Node o, unsigned index, Node n)
         Node_append(o, NULL);
     }
     len = Node_length(o);
-    if (len > NODE_SMALL_ARRAY_LIMIT) {
+    if (len > MOZVM_SMALL_ARRAY_LIMIT) {
         ARRAY_set(Node, &o->entry.array, index, n);
     }
     else {
@@ -250,7 +250,7 @@ void Node_append(Node o, Node n)
     if (n) {
         NODE_GC_RETAIN(n);
     }
-    if (len > NODE_SMALL_ARRAY_LIMIT) {
+    if (len > MOZVM_SMALL_ARRAY_LIMIT) {
         ARRAY_ensureSize(Node, &o->entry.array, 1);
         ARRAY_add(Node, &o->entry.array, n);
     }
@@ -281,7 +281,7 @@ void Node_free(Node o)
         Node node = ARRAY_get(Node, &o->entry.array, i);
         Node_free(node);
     }
-    if (len > NODE_SMALL_ARRAY_LIMIT) {
+    if (len > MOZVM_SMALL_ARRAY_LIMIT) {
         ARRAY_dispose(Node, &o->entry.array);
     }
     VM_FREE(o);

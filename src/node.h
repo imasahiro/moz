@@ -44,7 +44,6 @@ DEF_ARRAY_T(Node);
 #error node gc
 #endif
 
-#define NODE_SMALL_ARRAY_LIMIT 2
 struct Node {
     NODE_GC_HEADER;
     const char *tag;
@@ -54,7 +53,7 @@ struct Node {
     union NodeEntry {
         struct node_small_array {
             unsigned size;
-            Node ary[NODE_SMALL_ARRAY_LIMIT];
+            Node ary[MOZVM_SMALL_ARRAY_LIMIT];
         } raw;
         ARRAY(Node) array;
     } entry;
