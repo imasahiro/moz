@@ -7,13 +7,18 @@ extern "C" {
 
 /* [core] */
 
-/* [memory] */
-
 /* [profile] */
+#ifndef MOZVM_PROFILE
 // #define MOZVM_PROFILE 1
+#endif
+
 #ifdef MOZVM_PROFILE
+#ifndef MOZVM_MEMORY_PROFILE
 #define MOZVM_MEMORY_PROFILE 1
-#define MOZVM_PROFILE_INST  1
+#endif
+// #ifndef MOZVM_PROFILE_INST
+// #define MOZVM_PROFILE_INST  1
+// #endif
 #endif
 
 
@@ -91,7 +96,6 @@ typedef unsigned long mozpos_t;
 #define MOZVM_PROFILE_SHOW(X)
 #define MOZVM_PROFILE_ENABLE(X)
 #endif
-#define MOZVM_PROFILE_EACH(F) MOZVM_PROFILE_DEFINE(F)
 
 #ifdef __cplusplus
 }

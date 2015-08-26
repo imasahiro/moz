@@ -4,16 +4,19 @@
 #include <limits.h>
 
 #include "mozvm_config.h"
-#include "pstring.h"
-#include "instruction.h"
-#include "karray.h"
-#include "loader.h"
 
 // #define LOADER_DEBUG 1
-
 #if defined(MOZVM_PROFILE) && !defined(LOADER_DEBUG)
 #define LOADER_DEBUG 1
 #endif
+
+#include "pstring.h"
+#ifdef LOADER_DEBUG
+#define MOZVM_DUMP_OPCODE 1
+#endif
+#include "instruction.h"
+#include "karray.h"
+#include "loader.h"
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"
@@ -34,6 +37,10 @@ extern "C" {
 
 #ifdef MOZVM_USE_DIRECT_THREADING
 #error FIXME. Need to implement First, TblJump1, TblJump2, TblJump3
+#endif
+
+#ifdef LOADER_DEBUG
+static void mozvm_loader_dump(mozvm_loader_t *L, int print);
 #endif
 
 static char *load_file(const char *path, size_t *size)
@@ -581,10 +588,6 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 #endif
 }
 
-#ifdef LOADER_DEBUG
-static void mozvm_loader_dump(mozvm_loader_t *L, int print);
-#endif
-
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int i = 0, j = 0;
@@ -679,7 +682,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     }
 
 #ifdef LOADER_DEBUG
-    mozvm_loader_dump(L, 1);
+    mozvm_loader_dump(L, LOADER_DEBUG > 1);
 #endif
 
 #ifdef MOZVM_USE_DIRECT_THREADING

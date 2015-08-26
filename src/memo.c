@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define MOZVM_PROFILE_DEFINE(F) \
+#define MOZVM_MEMO_PROFILE_EACH(F) \
     F(MEMO_GET)     \
     F(MEMO_MISS)    \
     F(MEMO_HIT)     \
@@ -18,7 +18,7 @@ extern "C" {
     F(MEMO_SET)     \
     F(MEMO_FAIL)
 
-MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
+MOZVM_MEMO_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 DEF_ARRAY_STRUCT0(MemoEntry_t, unsigned);
 DEF_ARRAY_T(MemoEntry_t);
@@ -203,7 +203,7 @@ int memo_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node result, unsigned con
 
 void memo_print_stats()
 {
-    MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+    MOZVM_MEMO_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 
 #ifdef __cplusplus

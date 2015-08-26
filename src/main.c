@@ -25,7 +25,7 @@ static inline void _show_timer(const char *s, size_t bufsz)
     double sec = (endtime.tv_sec - g_timer.tv_sec)
         + (double)(endtime.tv_usec - g_timer.tv_usec) / 1000 / 1000;
     fprintf(stderr, "%20s: %3.4f ms  ", s, sec * 1000.0);
-    // printf("%20s: %f MB\n", s, ((double)bufsz)/1024/1024);
+    fprintf(stderr, "%f MB ",   ((double)bufsz)/1024/1024);
     fprintf(stderr, "%f Mbps\n", ((double)bufsz)*8/sec/1000/1000);
 }
 
@@ -124,7 +124,7 @@ int main(int argc, char *const argv[])
             NODE_GC_RELEASE(node);
         }
         if (print_stats) {
-            _show_timer(syntax_file, L.input_size);
+            _show_timer(input_file, L.input_size);
         }
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_GC_EXECUTED);

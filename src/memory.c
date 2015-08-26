@@ -5,10 +5,10 @@
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
 static uint64_t profile[MOZVM_MM_PROF_EVENT_MAX] = {};
 
-#define MOZVM_PROFILE_DEFINE(F) \
+#define MOZVM_MM_PROFILE_EACH(F) \
     F(MM_MEMORY_MALLOCED)
 
-MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
+MOZVM_MM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 void *mozvm_mm_malloc(size_t size)
 {

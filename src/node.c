@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define MOZVM_PROFILE_DEFINE(F) \
+#define MOZVM_NODE_PROFILE_EACH(F) \
     F(NODE_ALLOC) \
     F(NODE_FREE) \
     F(NODE_SWEEP) \
@@ -14,7 +14,7 @@ extern "C" {
     F(NODE_SET) \
     F(NODE_APPEND)
 
-MOZVM_PROFILE_EACH(MOZVM_PROFILE_DECL);
+MOZVM_NODE_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 DEF_ARRAY_OP_NOPOINTER(Node);
 
@@ -76,6 +76,9 @@ void NodeManager_init()
     unsigned offset1 = offsetof(struct Node, entry.raw.size);
     unsigned offset2 = offsetof(struct Node, entry.array.size);
     assert(offset1 == offset2);
+#ifdef NDEBUG
+    (void)offset1; (void)offset2;
+#endif
 #ifdef MOZVM_NODE_USE_MEMPOOL
     alloc_page();
 #endif
@@ -123,7 +126,7 @@ void NodeManager_print_stats()
     fprintf(stderr, "%-10s %llu\n", "MAX_ARENA_SIZE", max_arena_size);
     fprintf(stderr, "%-10s %lu\n", "NODE_PER_ARENA", PAGE_OBJECT_SIZE);
 #endif
-    MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+    MOZVM_NODE_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 
 void NodeManager_reset()
