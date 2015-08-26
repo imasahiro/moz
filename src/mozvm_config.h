@@ -54,7 +54,7 @@ extern "C" {
 #define MOZVM_USE_INDIRECT_THREADING   1
 // #define MOZVM_USE_DIRECT_THREADING     1
 
-#define MOZVM_PROFILE_INST  1
+// #define MOZVM_PROFILE_INST  1
 
 #ifdef MOZVM_USE_DIRECT_THREADING
 #define MOZVM_INST_HEADER_SIZE sizeof(long)

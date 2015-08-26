@@ -114,6 +114,11 @@ void moz_runtime_dispose(moz_runtime_t *r)
         VM_FREE(r->C.jumps3);
     }
 #endif
+#ifdef MOZVM_PROFILE_INST
+    if (r->C.profile) {
+        VM_FREE(r->C.profile);
+    }
+#endif
 
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
@@ -204,6 +209,13 @@ void moz_runtime_dispose(moz_runtime_t *r)
 
 long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t *PC)
 {
+#ifdef MOZVM_PROFILE_INST
+    const moz_inst_t *BEGIN = PC;
+#define PROFILE_INST(PC) runtime->C.profile[(PC) - BEGIN]++;
+#else
+#define PROFILE_INST(PC)
+#endif
+
     long *SP = runtime->stack;
     long *FP = SP;
 #ifdef MOZVM_DEBUG_NTERM
@@ -310,7 +322,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #define read_TAG_t(PC)     *((TAG_t *)PC);     PC += sizeof(TAG_t)
 #define read_JMPTBL_t(PC)  *((JMPTBL_t *)PC);  PC += sizeof(JMPTBL_t)
 
-#define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
+#define OP_CASE_(OP) LABEL(OP): PROFILE_INST(PC-1); MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST
 #ifdef MOZVM_DEBUG_NTERM
 #define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%p %-8s \t%s\n", (PC-1), runtime->C.nterms[nterm_id], #OP);

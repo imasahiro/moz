@@ -27,7 +27,6 @@ extern "C" {
 #include "vm_inst.h"
 
 // #define LOADER_DEBUG 1
-#define LOADER_DEBUG 0
 
 // #define MOZVM_EMIT_OP_LABEL 1
 #ifdef MOZVM_DEBUG_NTERM
@@ -208,10 +207,15 @@ void mozvm_loader_dispose(mozvm_loader_t *L)
     }
 }
 
+static void mozvm_loader_dump(mozvm_loader_t *L, int force_print);
+
 void moz_loader_print_stats(mozvm_loader_t *L)
 {
     fprintf(stderr, "instruction size : %u\n", L->inst_size);
     fprintf(stderr, "bytecode    size : %u\n", ARRAY_size(L->buf));
+#ifdef MOZVM_PROFILE_INST
+    mozvm_loader_dump(L, 1);
+#endif
 }
 
 static void mozvm_loader_write8(mozvm_loader_t *L, uint8_t v)
@@ -626,21 +630,27 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 }
 
 #if 1
-#define OP_PRINT(FMT, ...) if (LOADER_DEBUG) { fprintf(stdout, FMT, __VA_ARGS__); }
-#define OP_PRINT_END()     if (LOADER_DEBUG) { fprintf(stdout, "\n"); }
+#define OP_PRINT(FMT, ...) if (print) { fprintf(stdout, FMT, __VA_ARGS__); }
+#define OP_PRINT_END()     if (print) { fprintf(stdout, "\n"); }
 #else
 #define OP_PRINT(FMT, ...)
 #define OP_PRINT_END()
 #endif
 
-static void mozvm_loader_dump(mozvm_loader_t *L)
+static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 {
     int i = 0, j = 0;
     while (j < (int)ARRAY_size(L->buf)) {
         uint8_t *p = L->buf.list + j;
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-        OP_PRINT("%p %02d %s ", p, i, opcode2str(opcode));
+#ifdef MOZVM_PROFILE_INST
+        if (L->R->C.profile) {
+            OP_PRINT("%8ld, ", L->R->C.profile[j]);
+        }
+#endif
+
+        OP_PRINT("%ld %02d %s ", (long)p, i, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
         CASE_(Nop);
@@ -958,7 +968,13 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         j += shift;
     }
 
-    mozvm_loader_dump(L);
+    mozvm_loader_dump(L,
+#ifdef LOADER_DEBUG
+            1
+#else
+            0
+#endif
+            );
 
 #ifdef MOZVM_USE_DIRECT_THREADING
     j = 0;
@@ -1113,6 +1129,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
         fprintf(stderr, "\n");
     }
     mozvm_loader_load(L, &is);
+#ifdef MOZVM_PROFILE_INST
+    L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
+#endif
     inst = mozvm_loader_freeze(L);
     VM_FREE(is.data);
     return inst;
