@@ -312,9 +312,6 @@ static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         }
     }
     tmp = constructLeft(ast, head, tail, spos, epos, objectSize, tag, value);
-#ifdef AST_DEBUG
-    Node_print(tmp);
-#endif
     return tmp;
 }
 

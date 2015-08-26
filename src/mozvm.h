@@ -88,7 +88,18 @@ typedef uint8_t moz_inst_t;
 moz_runtime_t *moz_runtime_init(unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 void moz_runtime_reset(moz_runtime_t *r);
-void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end);
+
+static inline void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end)
+{
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    r->head = str;
+#else
+    r->head = 0;
+#endif
+    r->tail = end;
+    AstMachine_setSource(r->ast, str);
+}
+
 void moz_runtime_print_stats(moz_runtime_t *r);
 
 long moz_runtime_parse(moz_runtime_t *r, const char *str, const moz_inst_t *inst);

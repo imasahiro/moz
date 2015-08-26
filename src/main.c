@@ -117,7 +117,9 @@ int main(int argc, char *const argv[])
 #endif
         if (node) {
             if (!quiet_mode) {
+#ifdef NODE_USE_NODE_PRINT
                 Node_print(node);
+#endif
             }
             NODE_GC_RELEASE(node);
         }

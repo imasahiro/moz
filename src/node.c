@@ -306,6 +306,7 @@ void Node_free(Node o)
     VM_FREE(o);
 }
 
+#ifdef NODE_USE_NODE_PRINT
 static void print_indent(unsigned level)
 {
     unsigned i;
@@ -349,6 +350,7 @@ void Node_print(Node o)
     Node_print2(o, 0);
     fprintf(stderr, "\n");
 }
+#endif
 
 #ifdef __cplusplus
 }

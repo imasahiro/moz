@@ -78,17 +78,6 @@ void moz_runtime_reset(moz_runtime_t *r)
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
 }
 
-void moz_runtime_set_source(moz_runtime_t *r, const char *str, const char *end)
-{
-#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
-    r->head = str;
-#else
-    r->head = 0;
-#endif
-    r->tail = end;
-    AstMachine_setSource(r->ast, str);
-}
-
 void moz_runtime_print_stats(moz_runtime_t *r)
 {
     MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);

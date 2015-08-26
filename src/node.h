@@ -13,6 +13,8 @@ typedef struct Node *Node;
 DEF_ARRAY_STRUCT0(Node, unsigned);
 DEF_ARRAY_T(Node);
 
+// #define NODE_USE_NODE_PRINT 1
+
 // #define MOZVM_MEMORY_USE_BOEHM_GC
 #ifdef MOZVM_MEMORY_USE_BOEHM_GC
 #define NODE_GC_HEADER
@@ -69,7 +71,10 @@ void Node_free(Node o);
 void Node_append(Node o, Node n);
 Node Node_get(Node o, unsigned index);
 void Node_set(Node o, unsigned index, Node n);
+#ifdef NODE_USE_NODE_PRINT
 void Node_print(Node o);
+#endif
+
 #ifdef MOZVM_MEMORY_USE_RCGC
 void Node_sweep(Node o);
 #endif

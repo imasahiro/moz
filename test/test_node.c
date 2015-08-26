@@ -12,7 +12,9 @@ int main(int argc, char const* argv[])
     Node_set(root, 0, child2);
     child3 = Node_new("child3", NULL, 0, 0, NULL);
     Node_set(root, 0, child3);
+#ifdef NODE_USE_NODE_PRINT
     Node_print(root);
+#endif
     assert(root->refc == 1);
     NODE_GC_RELEASE(root);
     NodeManager_dispose();

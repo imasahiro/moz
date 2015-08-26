@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdint.h>
@@ -6,10 +5,15 @@
 
 #include "mozvm_config.h"
 #include "pstring.h"
-#define MOZVM_DUMP_OPCODE 1
 #include "instruction.h"
 #include "karray.h"
 #include "loader.h"
+
+// #define LOADER_DEBUG 1
+
+#if defined(MOZVM_PROFILE) && !defined(LOADER_DEBUG)
+#define LOADER_DEBUG 1
+#endif
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"
@@ -102,74 +106,6 @@ static int get_next(input_stream_t *is, int *has_jump)
     return read24(is);
 }
 
-static char *write_char(char *p, unsigned char ch)
-{
-    switch (ch) {
-    case '\\':
-        *p++ = '\\';
-        break;
-    case '\b':
-        *p++ = '\\';
-        *p++ = 'b';
-        break;
-    case '\f':
-        *p++ = '\\';
-        *p++ = 'f';
-        break;
-    case '\n':
-        *p++ = '\\';
-        *p++ = 'n';
-        break;
-    case '\r':
-        *p++ = '\\';
-        *p++ = 'r';
-        break;
-    case '\t':
-        *p++ = '\\';
-        *p++ = 't';
-        break;
-    default:
-        if (32 <= ch && ch <= 126) {
-            *p++ = ch;
-        }
-        else {
-            *p++ = '\\';
-            *p++ = "0123456789abcdef"[ch / 16];
-            *p++ = "0123456789abcdef"[ch % 16];
-        }
-    }
-    return p;
-}
-
-static void dump_set(bitset_t *set, char *buf)
-{
-    unsigned i, j;
-    *buf++ = '[';
-    for (i = 0; i < 256; i++) {
-        if (bitset_get(set, i)) {
-            buf = write_char(buf, i);
-            for (j = i + 1; j < 256; j++) {
-                if (!bitset_get(set, j)) {
-                    if (j == i + 1) {}
-                    else {
-                        *buf++ = '-';
-                        buf = write_char(buf, j - 1);
-                        i = j - 1;
-                    }
-                    break;
-                }
-            }
-            if (j == 256) {
-                *buf++ = '-';
-                buf = write_char(buf, j - 1);
-                break;
-            }
-        }
-    }
-    *buf++ = ']';
-    *buf++ = '\0';
-}
-
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
 mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
@@ -200,10 +136,9 @@ void mozvm_loader_dispose(mozvm_loader_t *L)
     }
 }
 
-static void mozvm_loader_dump(mozvm_loader_t *L, int force_print);
-
 void moz_loader_print_stats(mozvm_loader_t *L)
 {
+#ifdef MOZVM_PROFILE
     unsigned bytecode_size = ARRAY_size(L->buf);
     fprintf(stderr, "instruction size    %u %s\n",
             L->inst_size > 1024 * 10 ? L->inst_size / 1024 : L->inst_size,
@@ -213,6 +148,7 @@ void moz_loader_print_stats(mozvm_loader_t *L)
             bytecode_size > 1024 * 10 ? "KB" : "B");
 #ifdef MOZVM_PROFILE_INST
     mozvm_loader_dump(L, 1);
+#endif
 #endif
 }
 
@@ -627,6 +563,364 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     }
 }
 
+static long get_opcode(mozvm_loader_t *L, unsigned idx)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    return *(long *)(L->buf.list + idx);
+#else
+    return (long)ARRAY_get(uint8_t, &L->buf, idx);
+#endif
+}
+
+static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
+{
+#ifdef MOZVM_USE_DIRECT_THREADING
+    *(long *)(L->buf.list + idx) = opcode;
+#else
+    ARRAY_set(uint8_t, &L->buf, idx, opcode);
+#endif
+}
+
+#ifdef LOADER_DEBUG
+static void mozvm_loader_dump(mozvm_loader_t *L, int print);
+#endif
+
+static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
+{
+    int i = 0, j = 0;
+#ifdef MOZVM_USE_DIRECT_THREADING
+    const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
+#endif
+    mozvm_loader_write_opcode(L, Exit); // exit sccuess
+    mozvm_loader_write8(L, 0);
+    mozvm_loader_write_opcode(L, Exit); // exit fail
+    mozvm_loader_write8(L, 1);
+    while (is->pos < is->end) {
+        L->inst_size++;
+        L->table[i++] = ARRAY_size(L->buf);
+        mozvm_loader_load_inst(L, is);
+    }
+
+    // fprintf(stderr, "\n");
+
+    while (j < (int)ARRAY_size(L->buf)) {
+        uint8_t opcode = get_opcode(L, j);
+        unsigned shift = opcode_size(opcode);
+        mozaddr_t *ref;
+        int i, *table = NULL;
+        uint16_t tblId = 0;
+        uint8_t *p;
+        jump_table1_t *t1;
+        jump_table2_t *t2;
+        jump_table3_t *t3;
+        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
+#define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
+        switch (opcode) {
+        case Jump:
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
+            // L0: Jump L3  |  L0: Ret
+            // ...          |
+            // L3: Ret      |
+            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
+                if (get_opcode(L, L->table[*ref]) == Ret) {
+                    set_opcode(L, j, Ret);
+                }
+            }
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case Call:
+            // rewrite next
+            ref = GET_JUMP_ADDR(L->buf, j + shift - 2 * sizeof(mozaddr_t));
+            *ref = L->table[*ref] - (j + shift);
+            /* fallthrough */
+        case Alt:
+        case Lookup:
+        case TLookup:
+#ifdef USE_SKIPJUMP
+        case SkipJump:
+#endif
+            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
+            *ref = L->table[*ref] - (j + shift);
+            break;
+        case First:
+            p = L->buf.list + j + shift - sizeof(JMPTBL_t);
+            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
+            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                table[i] = L->table[table[i]] - (j + shift);
+            }
+            break;
+        case TblJump1:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t1 = L->R->C.jumps1 + tblId;
+            t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
+            for (i = 0; i < 2; i++) {
+                t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
+            }
+            break;
+        case TblJump2:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t2 = L->R->C.jumps2 + tblId;
+            for (i = 0; i < 4; i++) {
+                t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
+            }
+            break;
+        case TblJump3:
+            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            t3 = L->R->C.jumps3 + tblId;
+            for (i = 0; i < 8; i++) {
+                t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
+            }
+            break;
+        default:
+            break;
+        }
+#undef GET_JUMP_ADDR
+        j += shift;
+    }
+
+#ifdef LOADER_DEBUG
+    mozvm_loader_dump(L, 1);
+#endif
+
+#ifdef MOZVM_USE_DIRECT_THREADING
+    j = 0;
+    while (j < ARRAY_size(L->buf)) {
+        uint8_t opcode = get_opcode(L, j);;
+        unsigned shift = opcode_size(opcode);
+        set_opcode(L, j, addr[opcode]);
+        j += shift;
+    }
+#endif
+}
+
+static int checkFileType(input_stream_t *is)
+{
+    return read8(is) == 'N' && read8(is) == 'E' && read8(is) == 'Z';
+}
+
+#define MOZ_SUPPORTED_NEZ_VERSION 0
+static int checkVersion(input_stream_t *is)
+{
+    return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
+}
+
+int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
+{
+    L->input = load_file(file, &L->input_size);
+    return L->input != NULL;
+}
+
+moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
+{
+    unsigned i, inst_size, memo_size, jmptbl_size;
+    mozvm_constant_t *bc = NULL;
+    input_stream_t is;
+    moz_inst_t *inst = NULL;
+
+    is.pos = 0;
+    is.data = load_file(file, &is.end);
+    if (!checkFileType(&is)) {
+        fprintf(stderr, "verify error: not bytecode file\n");
+        exit(EXIT_FAILURE);
+    }
+    if (!checkVersion(&is)) {
+        fprintf(stderr, "verify error: version miss match\n");
+        exit(EXIT_FAILURE);
+    }
+
+    inst_size = (unsigned) read16(&is);
+    memo_size = (unsigned) read16(&is);
+    jmptbl_size = (unsigned) read16(&is);
+
+    mozvm_loader_init(L, inst_size);
+    L->R = moz_runtime_init(memo_size);
+
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
+    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
+#endif
+
+    bc = &L->R->C;
+    memset(bc, 0, sizeof(mozvm_constant_t));
+    bc->inst_size = inst_size;
+    bc->memo_size = memo_size;
+
+    bc->nterm_size = read16(&is);
+    if (bc->nterm_size > 0) {
+        bc->nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc->nterm_size);
+        for (i = 0; i < bc->nterm_size; i++) {
+            uint16_t len = read16(&is);
+            char *str = peek(&is);
+            skip(&is, len + 1);
+            bc->nterms[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
+            fprintf(stderr, "nterm%d %s\n", i, bc->nterms[i]);
+#endif
+        }
+    }
+
+    bc->set_size = read16(&is);
+    if (bc->set_size > 0) {
+        bc->sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc->set_size);
+#define INT_BIT (sizeof(int) * CHAR_BIT)
+        for (i = 0; i < bc->set_size; i++) {
+            unsigned j, k;
+#if VERBOSE_DEBUG
+            char buf[512] = {};
+#endif
+            bitset_t *set = &bc->sets[i];
+            bitset_init(set);
+            for (j = 0; j < 256/INT_BIT; j++) {
+                unsigned v = read32(&is);
+                for (k = 0; k < INT_BIT; k++) {
+                    unsigned mask = 1U << k;
+                    if ((v & mask) == mask)
+                        bitset_set(set, k + INT_BIT * j);
+                }
+            }
+#if VERBOSE_DEBUG
+            dump_set(set, buf);
+            fprintf(stderr, "set: %s\n", buf);
+#endif
+        }
+#undef N
+    }
+    bc->str_size = read16(&is);
+    if (bc->str_size > 0) {
+        bc->strs = (const char **)VM_MALLOC(sizeof(const char *) * bc->str_size);
+        for (i = 0; i < bc->str_size; i++) {
+            uint16_t len = read16(&is);
+            char *str = peek(&is);
+            skip(&is, len + 1);
+            bc->strs[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
+            fprintf(stderr, "str%d %s\n", i, bc->strs[i]);
+#endif
+        }
+    }
+    bc->tag_size = read16(&is);
+    if (bc->tag_size > 0) {
+        bc->tags = (const char **)VM_MALLOC(sizeof(const char *) * bc->tag_size);
+        for (i = 0; i < bc->tag_size; i++) {
+            uint16_t len = read16(&is);
+            char *str = peek(&is);
+            skip(&is, len + 1);
+            bc->tags[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
+            fprintf(stderr, "tag%d %s\n", i, bc->tags[i]);
+#endif
+        }
+    }
+    bc->table_size = read16(&is);
+    if (bc->table_size > 0) {
+        // bc->table = peek(&is);
+        assert(0 && "we do not have any specification about table");
+    }
+#if 0
+#define PRINT_FIELD(O, FIELD) \
+    fprintf(stderr, "O->" #FIELD " = %d\n", (O)->FIELD)
+    PRINT_FIELD(bc, inst_size);
+    PRINT_FIELD(bc, memo_size);
+    PRINT_FIELD(bc, jumptable_size);
+    PRINT_FIELD(bc, nterm_size);
+    PRINT_FIELD(bc, set_size);
+    PRINT_FIELD(bc, str_size);
+    PRINT_FIELD(bc, tag_size);
+    PRINT_FIELD(bc, table_size);
+#endif
+    if (0) {
+        i = 0;
+        while (is.pos + i < is.end) {
+            fprintf(stderr, "%02x ", (uint8_t)(is.data[is.pos + i]));
+            if (i != 0 && i % 16 == 15) {
+                fprintf(stderr, "\n");
+            }
+            i++;
+        }
+        fprintf(stderr, "\n");
+    }
+
+    mozvm_loader_load(L, &is);
+#ifdef MOZVM_PROFILE_INST
+    L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
+#endif
+    inst = mozvm_loader_freeze(L);
+    VM_FREE(is.data);
+
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
+    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_BYTECODE_LOAD);
+#endif
+    return inst;
+}
+
+#ifdef LOADER_DEBUG
+static char *write_char(char *p, unsigned char ch)
+{
+    switch (ch) {
+    case '\\':
+        *p++ = '\\';
+        break;
+    case '\b':
+        *p++ = '\\';
+        *p++ = 'b';
+        break;
+    case '\f':
+        *p++ = '\\';
+        *p++ = 'f';
+        break;
+    case '\n':
+        *p++ = '\\';
+        *p++ = 'n';
+        break;
+    case '\r':
+        *p++ = '\\';
+        *p++ = 'r';
+        break;
+    case '\t':
+        *p++ = '\\';
+        *p++ = 't';
+        break;
+    default:
+        if (32 <= ch && ch <= 126) {
+            *p++ = ch;
+        }
+        else {
+            *p++ = '\\';
+            *p++ = "0123456789abcdef"[ch / 16];
+            *p++ = "0123456789abcdef"[ch % 16];
+        }
+    }
+    return p;
+}
+
+static void dump_set(bitset_t *set, char *buf)
+{
+    unsigned i, j;
+    *buf++ = '[';
+    for (i = 0; i < 256; i++) {
+        if (bitset_get(set, i)) {
+            buf = write_char(buf, i);
+            for (j = i + 1; j < 256; j++) {
+                if (!bitset_get(set, j)) {
+                    if (j == i + 1) {}
+                    else {
+                        *buf++ = '-';
+                        buf = write_char(buf, j - 1);
+                        i = j - 1;
+                    }
+                    break;
+                }
+            }
+            if (j == 256) {
+                *buf++ = '-';
+                buf = write_char(buf, j - 1);
+                break;
+            }
+        }
+    }
+    *buf++ = ']';
+    *buf++ = '\0';
+}
+
 #if 1
 #define OP_PRINT(FMT, ...) if (print) { fprintf(stdout, FMT, __VA_ARGS__); }
 #define OP_PRINT_END()     if (print) { fprintf(stdout, "\n"); }
@@ -856,295 +1150,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         i++;
     }
 }
-
-static long get_opcode(mozvm_loader_t *L, unsigned idx)
-{
-#ifdef MOZVM_USE_DIRECT_THREADING
-    return *(long *)(L->buf.list + idx);
-#else
-    return (long)ARRAY_get(uint8_t, &L->buf, idx);
-#endif
-}
-
-static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
-{
-#ifdef MOZVM_USE_DIRECT_THREADING
-    *(long *)(L->buf.list + idx) = opcode;
-#else
-    ARRAY_set(uint8_t, &L->buf, idx, opcode);
-#endif
-}
-
-static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
-{
-    int i = 0, j = 0;
-#ifdef MOZVM_USE_DIRECT_THREADING
-    const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
-#endif
-    mozvm_loader_write_opcode(L, Exit); // exit sccuess
-    mozvm_loader_write8(L, 0);
-    mozvm_loader_write_opcode(L, Exit); // exit fail
-    mozvm_loader_write8(L, 1);
-    while (is->pos < is->end) {
-        L->inst_size++;
-        L->table[i++] = ARRAY_size(L->buf);
-        mozvm_loader_load_inst(L, is);
-    }
-
-    // fprintf(stderr, "\n");
-
-    while (j < (int)ARRAY_size(L->buf)) {
-        uint8_t opcode = get_opcode(L, j);
-        unsigned shift = opcode_size(opcode);
-        mozaddr_t *ref;
-        int i, *table = NULL;
-        uint16_t tblId = 0;
-        uint8_t *p;
-        jump_table1_t *t1;
-        jump_table2_t *t2;
-        jump_table3_t *t3;
-        // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
-#define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
-        switch (opcode) {
-        case Jump:
-            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
-            // L0: Jump L3  |  L0: Ret
-            // ...          |
-            // L3: Ret      |
-            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
-                if (get_opcode(L, L->table[*ref]) == Ret) {
-                    set_opcode(L, j, Ret);
-                }
-            }
-            *ref = L->table[*ref] - (j + shift);
-            break;
-        case Call:
-            // rewrite next
-            ref = GET_JUMP_ADDR(L->buf, j + shift - 2 * sizeof(mozaddr_t));
-            *ref = L->table[*ref] - (j + shift);
-            /* fallthrough */
-        case Alt:
-        case Lookup:
-        case TLookup:
-#ifdef USE_SKIPJUMP
-        case SkipJump:
-#endif
-            ref = GET_JUMP_ADDR(L->buf, j + shift - sizeof(mozaddr_t));
-            *ref = L->table[*ref] - (j + shift);
-            break;
-        case First:
-            p = L->buf.list + j + shift - sizeof(JMPTBL_t);
-            table = JMPTBL_GET_IMPL(L->R, *(JMPTBL_t *)p);
-            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
-                table[i] = L->table[table[i]] - (j + shift);
-            }
-            break;
-        case TblJump1:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t1 = L->R->C.jumps1 + tblId;
-            t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
-            for (i = 0; i < 2; i++) {
-                t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
-            }
-            break;
-        case TblJump2:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t2 = L->R->C.jumps2 + tblId;
-            for (i = 0; i < 4; i++) {
-                t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
-            }
-            break;
-        case TblJump3:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
-            t3 = L->R->C.jumps3 + tblId;
-            for (i = 0; i < 8; i++) {
-                t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
-            }
-            break;
-        default:
-            break;
-        }
-#undef GET_JUMP_ADDR
-        j += shift;
-    }
-
-    mozvm_loader_dump(L,
-#ifdef LOADER_DEBUG
-            1
-#else
-            0
-#endif
-            );
-
-#ifdef MOZVM_USE_DIRECT_THREADING
-    j = 0;
-    while (j < ARRAY_size(L->buf)) {
-        uint8_t opcode = get_opcode(L, j);;
-        unsigned shift = opcode_size(opcode);
-        set_opcode(L, j, addr[opcode]);
-        j += shift;
-    }
-#endif
-}
-
-static int checkFileType(input_stream_t *is)
-{
-    return read8(is) == 'N' && read8(is) == 'E' && read8(is) == 'Z';
-}
-
-#define MOZ_SUPPORTED_NEZ_VERSION 0
-static int checkVersion(input_stream_t *is)
-{
-    return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
-}
-
-int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
-{
-    L->input = load_file(file, &L->input_size);
-    return L->input != NULL;
-}
-
-moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
-{
-    unsigned i, inst_size, memo_size, jmptbl_size;
-    mozvm_constant_t *bc = NULL;
-    input_stream_t is;
-    moz_inst_t *inst = NULL;
-
-    is.pos = 0;
-    is.data = load_file(file, &is.end);
-    if (!checkFileType(&is)) {
-        fprintf(stderr, "verify error: not bytecode file\n");
-        exit(EXIT_FAILURE);
-    }
-    if (!checkVersion(&is)) {
-        fprintf(stderr, "verify error: version miss match\n");
-        exit(EXIT_FAILURE);
-    }
-
-    inst_size = (unsigned) read16(&is);
-    memo_size = (unsigned) read16(&is);
-    jmptbl_size = (unsigned) read16(&is);
-
-    mozvm_loader_init(L, inst_size);
-    L->R = moz_runtime_init(memo_size);
-
-#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
-    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
-#endif
-
-    bc = &L->R->C;
-    memset(bc, 0, sizeof(mozvm_constant_t));
-    bc->inst_size = inst_size;
-    bc->memo_size = memo_size;
-
-    bc->nterm_size = read16(&is);
-    if (bc->nterm_size > 0) {
-        bc->nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc->nterm_size);
-        for (i = 0; i < bc->nterm_size; i++) {
-            uint16_t len = read16(&is);
-            char *str = peek(&is);
-            skip(&is, len + 1);
-            bc->nterms[i] = pstring_alloc(str, (unsigned)len);
-#if VERBOSE_DEBUG
-            fprintf(stderr, "nterm%d %s\n", i, bc->nterms[i]);
-#endif
-        }
-    }
-
-    bc->set_size = read16(&is);
-    if (bc->set_size > 0) {
-        bc->sets = (bitset_t *) VM_MALLOC(sizeof(bitset_t) * bc->set_size);
-#define INT_BIT (sizeof(int) * CHAR_BIT)
-        for (i = 0; i < bc->set_size; i++) {
-            unsigned j, k;
-#if VERBOSE_DEBUG
-            char buf[512] = {};
-#endif
-            bitset_t *set = &bc->sets[i];
-            bitset_init(set);
-            for (j = 0; j < 256/INT_BIT; j++) {
-                unsigned v = read32(&is);
-                for (k = 0; k < INT_BIT; k++) {
-                    unsigned mask = 1U << k;
-                    if ((v & mask) == mask)
-                        bitset_set(set, k + INT_BIT * j);
-                }
-            }
-#if VERBOSE_DEBUG
-            dump_set(set, buf);
-            fprintf(stderr, "set: %s\n", buf);
-#endif
-        }
-#undef N
-    }
-    bc->str_size = read16(&is);
-    if (bc->str_size > 0) {
-        bc->strs = (const char **)VM_MALLOC(sizeof(const char *) * bc->str_size);
-        for (i = 0; i < bc->str_size; i++) {
-            uint16_t len = read16(&is);
-            char *str = peek(&is);
-            skip(&is, len + 1);
-            bc->strs[i] = pstring_alloc(str, (unsigned)len);
-#if VERBOSE_DEBUG
-            fprintf(stderr, "str%d %s\n", i, bc->strs[i]);
-#endif
-        }
-    }
-    bc->tag_size = read16(&is);
-    if (bc->tag_size > 0) {
-        bc->tags = (const char **)VM_MALLOC(sizeof(const char *) * bc->tag_size);
-        for (i = 0; i < bc->tag_size; i++) {
-            uint16_t len = read16(&is);
-            char *str = peek(&is);
-            skip(&is, len + 1);
-            bc->tags[i] = pstring_alloc(str, (unsigned)len);
-#if VERBOSE_DEBUG
-            fprintf(stderr, "tag%d %s\n", i, bc->tags[i]);
-#endif
-        }
-    }
-    bc->table_size = read16(&is);
-    if (bc->table_size > 0) {
-        // bc->table = peek(&is);
-        assert(0 && "we do not have any specification about table");
-    }
-#if 0
-#define PRINT_FIELD(O, FIELD) \
-    fprintf(stderr, "O->" #FIELD " = %d\n", (O)->FIELD)
-    PRINT_FIELD(bc, inst_size);
-    PRINT_FIELD(bc, memo_size);
-    PRINT_FIELD(bc, jumptable_size);
-    PRINT_FIELD(bc, nterm_size);
-    PRINT_FIELD(bc, set_size);
-    PRINT_FIELD(bc, str_size);
-    PRINT_FIELD(bc, tag_size);
-    PRINT_FIELD(bc, table_size);
-#endif
-    if (0) {
-        i = 0;
-        while (is.pos + i < is.end) {
-            fprintf(stderr, "%02x ", (uint8_t)(is.data[is.pos + i]));
-            if (i != 0 && i % 16 == 15) {
-                fprintf(stderr, "\n");
-            }
-            i++;
-        }
-        fprintf(stderr, "\n");
-    }
-
-    mozvm_loader_load(L, &is);
-#ifdef MOZVM_PROFILE_INST
-    L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
-#endif
-    inst = mozvm_loader_freeze(L);
-    VM_FREE(is.data);
-
-#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
-    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_BYTECODE_LOAD);
-#endif
-    return inst;
-}
+#endif /* LOADER_DEBUG */
 
 #ifdef __cplusplus
 }

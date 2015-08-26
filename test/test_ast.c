@@ -129,7 +129,9 @@ int main(int argc, char const* argv[])
     //       ]
     //    ]
     // ]
+#ifdef NODE_USE_NODE_PRINT
     Node_print(node);
+#endif
     // asm volatile("int3");
     NODE_GC_RELEASE(node);
     AstMachine_dispose(ast);

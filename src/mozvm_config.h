@@ -5,21 +5,17 @@
 extern "C" {
 #endif
 
-#ifndef unlikely
-#define unlikely(x)   __builtin_expect(!!(x), 0)
-#endif
+/* [core] */
 
-#ifndef likely
-#define likely(x)     __builtin_expect(!!(x), 1)
-#endif
+/* [memory] */
 
-#ifndef LOG2
-#define LOG2(N) ((unsigned)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
-#endif
-
-
-// memory
+/* [profile] */
+// #define MOZVM_PROFILE 1
+#ifdef MOZVM_PROFILE
 #define MOZVM_MEMORY_PROFILE 1
+#define MOZVM_PROFILE_INST  1
+#endif
+
 
 // AstMachine
 #define MOZ_AST_MACHINE_DEFAULT_LOG_SIZE 128
@@ -59,8 +55,6 @@ extern "C" {
 // #define MOZVM_USE_DIRECT_THREADING     1
 // #define MOZVM_EMIT_OP_LABEL 1
 
-// #define MOZVM_PROFILE_INST  1
-
 #ifdef MOZVM_USE_DIRECT_THREADING
 #define MOZVM_INST_HEADER_SIZE sizeof(long)
 #else
@@ -79,9 +73,6 @@ typedef const char *mozpos_t;
 #else
 typedef unsigned long mozpos_t;
 #endif
-
-// profile
-// #define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
 #define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;
