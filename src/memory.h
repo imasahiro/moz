@@ -24,6 +24,7 @@
 
 #include "mozvm_config.h"
 #include <stdio.h>
+#include <stdint.h>
 
 #ifndef VM_MEMORY_H
 #define VM_MEMORY_H

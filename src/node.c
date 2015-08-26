@@ -29,8 +29,8 @@ static Node free_list = NULL;
 #ifdef MOZVM_NODE_USE_MEMPOOL
 static size_t free_object_count = 0;
 static struct page_header *current_page = NULL;
-static unsigned long long max_arena_size = 0;
-static unsigned long long arena_size = 0;
+static uint64_t max_arena_size = 0;
+static uint64_t arena_size = 0;
 
 struct page {
 #define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct Node)-1)
