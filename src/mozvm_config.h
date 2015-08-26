@@ -8,9 +8,9 @@ extern "C" {
 /* [core] */
 
 /* [profile] */
-#ifndef MOZVM_PROFILE
+// #ifndef MOZVM_PROFILE
 // #define MOZVM_PROFILE 1
-#endif
+// #endif
 
 #ifdef MOZVM_PROFILE
 #ifndef MOZVM_MEMORY_PROFILE

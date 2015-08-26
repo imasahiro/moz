@@ -13,7 +13,7 @@ typedef struct Node *Node;
 DEF_ARRAY_STRUCT0(Node, unsigned);
 DEF_ARRAY_T(Node);
 
-// #define NODE_USE_NODE_PRINT 1
+#define NODE_USE_NODE_PRINT 1
 
 // #define MOZVM_MEMORY_USE_BOEHM_GC
 #ifdef MOZVM_MEMORY_USE_BOEHM_GC
