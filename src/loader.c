@@ -925,13 +925,14 @@ static void dump_set(bitset_t *set, char *buf)
 }
 
 #if 1
-#define OP_PRINT(FMT, ...) if (print) { fprintf(stdout, FMT, __VA_ARGS__); }
-#define OP_PRINT_END()     if (print) { fprintf(stdout, "\n"); }
+#define OP_PRINT(FMT, ...) if (print) { fprintf(stderr, FMT, __VA_ARGS__); }
+#define OP_PRINT_END()     if (print) { fprintf(stderr, "\n"); }
 #else
 #define OP_PRINT(FMT, ...)
 #define OP_PRINT_END()
 #endif
 
+static char *write_char(char *p, unsigned char ch);
 static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 {
     int i = 0, j = 0;
@@ -945,7 +946,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         }
 #endif
 
-        OP_PRINT("%ld %02d %s ", (long)p, i, opcode2str(opcode));
+        OP_PRINT("%ld, %04d, %s ", (long)p, i, opcode2str(opcode));
         switch (opcode) {
 #define CASE_(OP) case OP:
         CASE_(Nop);
@@ -959,7 +960,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             break;
         }
         CASE_(Call) {
-            OP_PRINT("%d", *(mozaddr_t *)(p + 1));
+            OP_PRINT("%d ", *(mozaddr_t *)(p + 1));
             OP_PRINT("%d", *(mozaddr_t *)(p + 1 + sizeof(mozaddr_t)));
             break;
         }
@@ -973,7 +974,10 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(NByte);
         CASE_(OByte);
         CASE_(RByte) {
-            OP_PRINT("%d", *(p + 1));
+            char buf[10] = {};
+            char *s = write_char(buf, *(p + 1));
+            s[0] = '\0';
+            OP_PRINT("%d '%s'", *(p + 1), buf);
             break;
         }
         CASE_(Any);
