@@ -32,7 +32,7 @@ static inline enum AstLogType GetTag(AstLog *log)
 
 static inline mozpos_t GetPos(AstLog *log)
 {
-#if 0
+#ifdef AST_LOG_UNBOX
     enum AstLogType tag = GetTag(log);
     assert(tag != TypePop);
     return ((tag & 1) == 0) ? log->i.pos : NULL;
@@ -126,18 +126,6 @@ static unsigned last_id = 1;
 
 static void ast_log(AstMachine *ast, enum AstLogType type, mozpos_t pos, uintptr_t val)
 {
-#if 0
-    AstLog log = {};
-    log.shift = 0;
-    log.e.val = val;
-    log.i.pos = pos;
-#ifdef AST_DEBUG
-    log.id = last_id;
-    last_id++;
-#endif
-    SetTag(&log, type);
-    ARRAY_add(AstLog, &ast->logs, &log);
-#else
     AstLog *log;
     ARRAY_ensureSize(AstLog, &ast->logs, 1);
     log = ARRAY_END(ast->logs);
@@ -150,7 +138,6 @@ static void ast_log(AstMachine *ast, enum AstLogType type, mozpos_t pos, uintptr
     last_id++;
 #endif
     ARRAY_size(ast->logs) += 1;
-#endif
 }
 
 void ast_log_new(AstMachine *ast, mozpos_t pos)
@@ -166,15 +153,11 @@ void ast_log_capture(AstMachine *ast, mozpos_t pos)
 void ast_log_tag(AstMachine *ast, const char *tag)
 {
     ast_log(ast, TypeTag, (mozpos_t)tag, 0);
-    // assert(((uintptr_t)tag & TypeMask) == 0);
-    // ast_log(ast, TypeTag, NULL, (uintptr_t)tag);
 }
 
 void ast_log_replace(AstMachine *ast, const char *str)
 {
     ast_log(ast, TypeReplace, (mozpos_t)str, 0);
-    // assert(((uintptr_t)str & TypeMask) == 0);
-    // ast_log(ast, TypeReplace, NULL, (uintptr_t)str);
 }
 
 void ast_log_swap(AstMachine *ast, mozpos_t pos)
@@ -199,12 +182,8 @@ void ast_log_link(AstMachine *ast, int index, Node node)
     i.idx = index;
     if (node) {
         NODE_GC_RETAIN(node); // log
-        // NODE_GC_RETAIN(node); // last_linked
     }
     ast_log(ast, TypeLink, i.pos, (uintptr_t)node);
-    if (ast->last_linked) {
-        // NODE_GC_RELEASE(ast->last_linked);
-    }
     ast->last_linked = node;
 }
 
@@ -225,8 +204,6 @@ void ast_rollback_tx(AstMachine *ast, long tx)
         }
     }
 
-    // fprintf(stderr, "rollback %d %d\n", ARRAY_size(ast->logs), tx);
-    // AstMachine_dumpLog(ast);
     ARRAY_size(ast->logs) = tx;
 }
 
