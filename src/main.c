@@ -116,13 +116,13 @@ int main(int argc, char *const argv[])
         moz_runtime_reset(L.R);
         NodeManager_reset();
     }
-    moz_runtime_dispose(L.R);
     if (print_stats) {
         NodeManager_print_stats();
         memo_print_stats();
         moz_loader_print_stats(&L);
         moz_runtime_print_stats(L.R);
     }
+    moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
     NodeManager_dispose();
     return 0;
