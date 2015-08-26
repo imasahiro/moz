@@ -4,14 +4,10 @@
 #if defined(PRINT_INST) &&  PRINT_INST > 2
 #define MOZVM_DUMP_OPCODE
 #endif
-#include "instruction.h"
-#include "mozvm_config.h"
+
 #include "mozvm.h"
+#include "instruction.h"
 #include "pstring.h"
-#include "ast.h"
-#include "memo.h"
-#include "token.h"
-#include "symtable.h"
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"
@@ -172,7 +168,6 @@ void moz_runtime_dispose(moz_runtime_t *r)
 #define POP()  *--SP
 
 #define ABORT() __asm volatile("int3")
-#define TODO() __asm volatile("int3")
 
 #define FP_FP     0
 #define FP_POS    1
