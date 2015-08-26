@@ -41,6 +41,8 @@ add_library(nez SHARED ${NEZ_SRC})
 add_executable(moz ${MOZ_SRC})
 target_link_libraries(moz nez)
 
+add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC})
+
 add_executable(moz_profile ${MOZ2_SRC})
 target_link_libraries(moz_profile nez)
 

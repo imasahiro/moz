@@ -92,6 +92,9 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
+#ifdef MOZVM_MEMORY_PROFILE
+        mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
+#endif
     NodeManager_init();
     inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);

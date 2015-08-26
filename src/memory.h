@@ -38,12 +38,13 @@
 #endif
 
 #if !defined(VM_MALLOC) && defined(MOZVM_MEMORY_PROFILE)
-#define MOZVM_MM_PROF_EVENT_RUNTIME_INIT    (0)
-#define MOZVM_MM_PROF_EVENT_BYTECODE_LOAD   (1)
-#define MOZVM_MM_PROF_EVENT_PARSE_START     (2)
-#define MOZVM_MM_PROF_EVENT_PARSE_END       (3)
-#define MOZVM_MM_PROF_EVENT_GC_EXECUTED     (4)
-#define MOZVM_MM_PROF_EVENT_MAX             (5)
+#define MOZVM_MM_PROF_EVENT_INPUT_LOAD      (0)
+#define MOZVM_MM_PROF_EVENT_RUNTIME_INIT    (1)
+#define MOZVM_MM_PROF_EVENT_BYTECODE_LOAD   (2)
+#define MOZVM_MM_PROF_EVENT_PARSE_START     (3)
+#define MOZVM_MM_PROF_EVENT_PARSE_END       (4)
+#define MOZVM_MM_PROF_EVENT_GC_EXECUTED     (5)
+#define MOZVM_MM_PROF_EVENT_MAX             (6)
 
 #define VM_MALLOC(N)       mozvm_mm_malloc(N)
 #define VM_CALLOC(N, S)    mozvm_mm_calloc(N, S)
