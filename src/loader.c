@@ -26,8 +26,8 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
-// #define VERBOSE_DEBUG 1
-#define VERBOSE_DEBUG 0
+// #define LOADER_DEBUG 1
+#define LOADER_DEBUG 0
 
 // #define MOZVM_EMIT_OP_LABEL 1
 #ifdef MOZVM_DEBUG_NTERM
@@ -35,10 +35,8 @@ extern "C" {
 #endif
 
 #ifdef MOZVM_USE_DIRECT_THREADING
-#error need to implement First, TblJump1, TblJump2, TblJump3
+#error FIXME. Need to implement First, TblJump1, TblJump2, TblJump3
 #endif
-
-static int loader_debug = VERBOSE_DEBUG;
 
 static char *load_file(const char *path, size_t *size)
 {
@@ -620,8 +618,8 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 }
 
 #if 1
-#define OP_PRINT(FMT, ...) if (loader_debug) { fprintf(stdout, FMT, __VA_ARGS__); }
-#define OP_PRINT_END()     if (loader_debug) { fprintf(stdout, "\n"); }
+#define OP_PRINT(FMT, ...) if (LOADER_DEBUG) { fprintf(stdout, FMT, __VA_ARGS__); }
+#define OP_PRINT_END()     if (LOADER_DEBUG) { fprintf(stdout, "\n"); }
 #else
 #define OP_PRINT(FMT, ...)
 #define OP_PRINT_END()
