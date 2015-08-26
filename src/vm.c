@@ -173,6 +173,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
 
 #define ABORT() __asm volatile("int3")
 #define TODO() __asm volatile("int3")
+
 #define FP_FP     0
 #define FP_POS    1
 #define FP_NEXT   2
@@ -229,6 +230,12 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #define CONSUME()    __pos++
 #define CONSUME_N(N) __pos += N
 #endif
+
+#define SYMTABLE_GET() (TBL)
+#define AST_MACHINE_GET() (AST)
+#define MEMO_GET() (MEMO)
+#define HEAD (runtime)->head
+#define EOS() (GET_CURRENT() == runtime->tail)
 
 #if 1
     AstMachine *AST = runtime->ast;
@@ -296,26 +303,16 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
     PUSH(nterm_id);
 #endif
     PUSH(PC);
-#ifdef MOZVM_USE_DIRECT_THREADING
-    PC += 2 * (sizeof(void *) + 1);
-#else
-    PC += 4;
-#endif
+    PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
+
 #define read_uint8_t(PC)  *(PC);             PC += sizeof(uint8_t)
 #define read_int8_t(PC)   *((int8_t *)PC);   PC += sizeof(int8_t)
 #define read_int(PC)      *((int *)PC);      PC += sizeof(int)
 #define read_uint16_t(PC) *((uint16_t *)PC); PC += sizeof(uint16_t)
-#define read_uint32_t(PC) *((uint32_t *)PC); PC += sizeof(uint32_t)
 #define read_STRING_t(PC) *((STRING_t *)PC); PC += sizeof(STRING_t)
 #define read_BITSET_t(PC) *((BITSET_t *)PC); PC += sizeof(BITSET_t)
 #define read_TAG_t(PC)    *((TAG_t *)PC);    PC += sizeof(TAG_t)
 #define read_JMPTBL_t(PC) *((JMPTBL_t *)PC); PC += sizeof(JMPTBL_t)
-
-#define SYMTABLE_GET() (TBL)
-#define AST_MACHINE_GET() (AST)
-#define MEMO_GET() (MEMO)
-#define HEAD (runtime)->head
-#define EOS() (GET_CURRENT() == runtime->tail)
 
 #define OP_CASE_(OP) LABEL(OP): MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST

@@ -68,6 +68,7 @@ void AstMachine_dispose(AstMachine *ast)
     ast_rollback_tx(ast, 0);
     ARRAY_dispose(AstLog, &ast->logs);
     VM_FREE(ast);
+    (void)ARRAY_AstLog_add;
 }
 
 #ifdef AST_DEBUG
@@ -181,7 +182,7 @@ void ast_log_link(AstMachine *ast, int index, Node node)
     union ast_log_index i;
     i.idx = index;
     if (node) {
-        NODE_GC_RETAIN(node); // log
+        NODE_GC_RETAIN(node);
     }
     ast_log(ast, TypeLink, i.pos, (uintptr_t)node);
     ast->last_linked = node;
@@ -214,8 +215,8 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mo
 #ifndef MOZVM_USE_POINTER_AS_POS_REGISTER
             ast->source +
 #endif
-            spos,
-            len, objectSize, value);
+            spos, len, objectSize, value);
+
     if(objectSize == 0) {
         return newnode;
     }

@@ -188,7 +188,6 @@ Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size,
     o->pos = str;
     o->len = len;
     o->value = value;
-    // assert(o->len < 100);
     o->entry.raw.size = elm_size;
     if (elm_size > NODE_SMALL_ARRAY_LIMIT) {
         unsigned i;
@@ -328,7 +327,6 @@ static void Node_print2(Node o, unsigned level)
 
 void Node_print(Node o)
 {
-    // fprintf(stderr, "%d\n", sizeof(*o));
     Node_print2(o, 0);
     fprintf(stderr, "\n");
 }
