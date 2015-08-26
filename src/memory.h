@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 #include "mozvm_config.h"
+#include <stdio.h>
 
 #ifndef VM_MEMORY_H
 #define VM_MEMORY_H
@@ -34,6 +35,26 @@
 #define VM_MALLOC(N)        GC_MALLOC(N)
 #define VM_REALLOC(PTR, N)  GC_REALLOC(PTR, N)
 #define VM_FREE(PTR)        ((void)PTR)
+#endif
+
+#if !defined(VM_MALLOC) && defined(MOZVM_MEMORY_PROFILE)
+#define MOZVM_MM_PROF_EVENT_RUNTIME_INIT    (0)
+#define MOZVM_MM_PROF_EVENT_BYTECODE_LOAD   (1)
+#define MOZVM_MM_PROF_EVENT_PARSE_START     (2)
+#define MOZVM_MM_PROF_EVENT_PARSE_END       (3)
+#define MOZVM_MM_PROF_EVENT_GC_EXECUTED     (4)
+#define MOZVM_MM_PROF_EVENT_MAX             (5)
+
+#define VM_MALLOC(N)       mozvm_mm_malloc(N)
+#define VM_CALLOC(N, S)    mozvm_mm_calloc(N, S)
+#define VM_REALLOC(PTR, S) mozvm_mm_realloc(PTR, S)
+#define VM_FREE(PTR)       mozvm_mm_free(PTR)
+void *mozvm_mm_malloc(size_t size);
+void *mozvm_mm_calloc(size_t count, size_t size);
+void *mozvm_mm_realloc(void *ptr, size_t size);
+void  mozvm_mm_free(void *ptr);
+void  mozvm_mm_print_stats();
+void  mozvm_mm_snapshot(unsigned event_id);
 #endif
 
 #ifndef VM_MALLOC

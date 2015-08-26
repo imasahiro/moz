@@ -32,7 +32,7 @@ if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
     add_definitions(-DNDEBUG)
 endif()
 
-set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c)
+set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
 set(MOZ_SRC  src/loader.c src/main.c src/vm.c)
 set(MOZ2_SRC src/loader.c src/main.c src/vm_profile.c)
 

@@ -92,18 +92,26 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
+    NodeManager_init();
     inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);
+
     while (loop-- > 0) {
         Node node = NULL;
         reset_timer();
         moz_runtime_set_source(L.R, L.input, L.input + L.input_size);
+#ifdef MOZVM_MEMORY_PROFILE
+        mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_PARSE_START);
+#endif
         parsed = moz_runtime_parse(L.R, L.input, inst);
         if (parsed != 0) {
             fprintf(stderr, "parse error\n");
             break;
         }
         node = ast_get_parsed_node(L.R->ast);
+#ifdef MOZVM_MEMORY_PROFILE
+        mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_PARSE_END);
+#endif
         if (node) {
             if (!quiet_mode) {
                 Node_print(node);
@@ -113,13 +121,19 @@ int main(int argc, char *const argv[])
         if (print_stats) {
             _show_timer(syntax_file, L.input_size);
         }
+#ifdef MOZVM_MEMORY_PROFILE
+    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_GC_EXECUTED);
+#endif
         moz_runtime_reset(L.R);
         NodeManager_reset();
     }
     if (print_stats) {
+#ifdef MOZVM_MEMORY_PROFILE
+        mozvm_mm_print_stats();
+#endif
+        moz_loader_print_stats(&L);
         NodeManager_print_stats();
         memo_print_stats();
-        moz_loader_print_stats(&L);
         moz_runtime_print_stats(L.R);
     }
     moz_runtime_dispose(L.R);

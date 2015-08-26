@@ -29,6 +29,8 @@ static Node free_list = NULL;
 #ifdef MOZVM_NODE_USE_MEMPOOL
 static size_t free_object_count = 0;
 static struct page_header *current_page = NULL;
+static uint64_t max_arena_size = 0;
+static uint64_t arena_size = 0;
 
 struct page {
 #define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct Node)-1)
@@ -57,6 +59,7 @@ static struct page *alloc_page()
     free_object_count += PAGE_OBJECT_SIZE;
     tail->tag = (const char *)(free_list);
     free_list = head;
+    arena_size += 1;
     return p;
 }
 #endif
@@ -77,10 +80,14 @@ void NodeManager_init()
 void NodeManager_dispose()
 {
 #ifdef MOZVM_NODE_USE_MEMPOOL
+    if (max_arena_size < arena_size) {
+        max_arena_size = arena_size;
+    }
     while (current_page) {
         struct page_header *next = current_page->next;
         free(current_page);
         current_page = next;
+        arena_size -= 1;
     }
 
     free_list = NULL;
@@ -104,6 +111,8 @@ void NodeManager_dispose()
 
 void NodeManager_print_stats()
 {
+    fprintf(stderr, "%-10s %llu\n", "MAX_ARENA_SIZE", max_arena_size);
+    fprintf(stderr, "%-10s %lu\n", "NODE_PER_ARENA", PAGE_OBJECT_SIZE);
     MOZVM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 

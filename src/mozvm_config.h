@@ -17,6 +17,10 @@ extern "C" {
 #define LOG2(N) ((unsigned)((sizeof(void *) * 8) - __builtin_clzl(N - 1)))
 #endif
 
+
+// memory
+#define MOZVM_MEMORY_PROFILE 1
+
 // AstMachine
 #define MOZ_AST_MACHINE_DEFAULT_LOG_SIZE 128
 
@@ -27,7 +31,7 @@ extern "C" {
 #define MOZVM_MEMO_TYPE_ELASTIC 1
 
 // Runtime
-#define MOZ_DEFAULT_STACK_SIZE  (128*1024)
+#define MOZ_DEFAULT_STACK_SIZE  (1024)
 
 // jump table
 #define MOZ_JMPTABLE_SIZE 256
@@ -76,16 +80,22 @@ typedef unsigned long mozpos_t;
 #endif
 
 // profile
-// #define MOZVM_PROFILE 1
+#define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
 #define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;
 #define MOZVM_PROFILE_INC(X)  (_PROFILE_##X)++
+#define MOZVM_PROFILE_DEC(X)  (_PROFILE_##X)--
+#define MOZVM_PROFILE_INC_N(X, N)  (_PROFILE_##X) += (N)
+#define MOZVM_PROFILE_DEC_N(X, N)  (_PROFILE_##X) -= (N)
 #define MOZVM_PROFILE_SHOW(X) fprintf(stderr, "%-10s %llu\n", #X, _PROFILE_##X);
 #define MOZVM_PROFILE_ENABLE(X)
 #else
 #define MOZVM_PROFILE_DECL(X)
 #define MOZVM_PROFILE_INC(X)
+#define MOZVM_PROFILE_DEC(X)
+#define MOZVM_PROFILE_INC_N(X, N)
+#define MOZVM_PROFILE_DEC_N(X, N)
 #define MOZVM_PROFILE_SHOW(X)
 #define MOZVM_PROFILE_ENABLE(X)
 #endif

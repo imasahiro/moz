@@ -107,7 +107,6 @@ static int get_next(input_stream_t *is, int *has_jump)
     return read24(is);
 }
 
-#if VERBOSE_DEBUG
 static char *write_char(char *p, unsigned char ch)
 {
     switch (ch) {
@@ -175,7 +174,6 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = ']';
     *buf++ = '\0';
 }
-#endif
 
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
@@ -211,8 +209,13 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int force_print);
 
 void moz_loader_print_stats(mozvm_loader_t *L)
 {
-    fprintf(stderr, "instruction size : %u\n", L->inst_size);
-    fprintf(stderr, "bytecode    size : %u\n", ARRAY_size(L->buf));
+    unsigned bytecode_size = ARRAY_size(L->buf);
+    fprintf(stderr, "instruction size    %u %s\n",
+            L->inst_size > 1024 * 10 ? L->inst_size / 1024 : L->inst_size,
+            L->inst_size > 1024 * 10 ? "KB" : "B");
+    fprintf(stderr, "bytecode    size    %u %s\n",
+            bytecode_size > 1024 * 10 ? bytecode_size / 1024 : bytecode_size,
+            bytecode_size > 1024 * 10 ? "KB" : "B");
 #ifdef MOZVM_PROFILE_INST
     mozvm_loader_dump(L, 1);
 #endif
@@ -702,7 +705,9 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(RSet) {
             BITSET_t setId = *(BITSET_t *)(p + 1);
             bitset_t *impl = BITSET_GET_IMPL(L->R, setId);
-            OP_PRINT("%p", impl);
+            char buf[1024];
+            dump_set(impl, buf);
+            OP_PRINT("%p %s", impl, buf);
             break;
         }
         CASE_(Consume) {
@@ -1029,6 +1034,10 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     mozvm_loader_init(L, inst_size);
     L->R = moz_runtime_init(memo_size);
 
+#ifdef MOZVM_MEMORY_PROFILE
+    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
+#endif
+
     bc = &L->R->C;
     memset(bc, 0, sizeof(mozvm_constant_t));
     bc->inst_size = inst_size;
@@ -1128,12 +1137,17 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
         }
         fprintf(stderr, "\n");
     }
+
     mozvm_loader_load(L, &is);
 #ifdef MOZVM_PROFILE_INST
     L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
 #endif
     inst = mozvm_loader_freeze(L);
     VM_FREE(is.data);
+
+#ifdef MOZVM_MEMORY_PROFILE
+    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_BYTECODE_LOAD);
+#endif
     return inst;
 }
 
