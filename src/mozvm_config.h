@@ -48,6 +48,7 @@ extern "C" {
 #define MOZVM_SMALL_BITSET_INST 1
 #define MOZVM_SMALL_JMPTBL_INST 1
 #define MOZVM_USE_JMPTBL 1
+// #define MOZVM_USE_INT16_ADDR 1
 // #define MOZVM_DEBUG_NTERM       1
 #define MOZVM_USE_SSE4_2        1
 // #define MOZVM_USE_SWITCH_CASE_DISPATCH 1
@@ -58,6 +59,12 @@ extern "C" {
 #define MOZVM_INST_HEADER_SIZE sizeof(long)
 #else
 #define MOZVM_INST_HEADER_SIZE sizeof(unsigned char)
+#endif
+
+#ifdef MOZVM_USE_INT16_ADDR
+typedef short mozaddr_t;
+#else
+typedef int   mozaddr_t;
 #endif
 
 #define MOZVM_USE_POINTER_AS_POS_REGISTER 1

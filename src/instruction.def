@@ -7,7 +7,7 @@ DEF(Fail)
 L_fail:
     FAIL_IMPL();
 }
-DEF(Alt, int failjump)
+DEF(Alt, mozaddr_t failjump)
 {
     AstMachine *ast = AST_MACHINE_GET();
     symtable_t *tbl = SYMTABLE_GET();
@@ -26,12 +26,12 @@ DEF(Succ)
     POP_FRAME(pos, jump, ast_tx, saved);
     (void)saved; (void)ast_tx; (void)jump; (void)pos;
 }
-DEF(Jump, int jump)
+DEF(Jump, mozaddr_t jump)
 {
     JUMP(jump);
 }
-// DEF(Call, int nterm, int next, int jump)
-DEF(Call, int next, int jump)
+// DEF(Call, int nterm, mozaddr_t next, mozaddr_t jump)
+DEF(Call, mozaddr_t next, mozaddr_t jump)
 {
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
@@ -46,7 +46,7 @@ DEF(Call, int next, int jump)
 #endif
     JUMP(jump);
 }
-DEF(Ret, int dummy)
+DEF(Ret, mozaddr_t dummy)
 {
     moz_inst_t *next = (moz_inst_t *)POP();
 #ifdef MOZVM_DEBUG_NTERM
@@ -223,7 +223,7 @@ DEF(First, JMPTBL_t tblId)
     int jump = jmpTable[(unsigned)*GET_CURRENT()];
     JUMP(jump);
 }
-DEF(Lookup, uint8_t state, uint16_t memoId, int skip)
+DEF(Lookup, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
     if (entry) {
@@ -308,7 +308,7 @@ DEF(TAbort)
     /* not implemented */
     ABORT();
 }
-DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, int skip)
+DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
