@@ -38,7 +38,7 @@
 #define VM_FREE(PTR)        ((void)PTR)
 #endif
 
-#if !defined(VM_MALLOC) && defined(MOZVM_MEMORY_PROFILE)
+#if !defined(VM_MALLOC) && defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
 #define MOZVM_MM_PROF_EVENT_INPUT_LOAD      (0)
 #define MOZVM_MM_PROF_EVENT_RUNTIME_INIT    (1)
 #define MOZVM_MM_PROF_EVENT_BYTECODE_LOAD   (2)

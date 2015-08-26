@@ -28,11 +28,6 @@ extern "C" {
 
 // #define LOADER_DEBUG 1
 
-// #define MOZVM_EMIT_OP_LABEL 1
-#ifdef MOZVM_DEBUG_NTERM
-#define MOZVM_EMIT_OP_CALL_NTERM 1
-#endif
-
 #ifdef MOZVM_USE_DIRECT_THREADING
 #error FIXME. Need to implement First, TblJump1, TblJump2, TblJump3
 #endif
@@ -362,7 +357,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int next  = read24(is);
         int nterm = read16(is);
         int jump  = get_next(is, &has_jump);
-#ifdef MOZVM_EMIT_OP_CALL_NTERM
+#ifdef MOZVM_DEBUG_NTERM
         mozvm_loader_write32(L, nterm);
 #endif
         mozvm_loader_write_addr(L, next);
@@ -1034,7 +1029,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     mozvm_loader_init(L, inst_size);
     L->R = moz_runtime_init(memo_size);
 
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
 #endif
 
@@ -1145,7 +1140,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     inst = mozvm_loader_freeze(L);
     VM_FREE(is.data);
 
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_BYTECODE_LOAD);
 #endif
     return inst;

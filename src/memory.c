@@ -2,9 +2,8 @@
 
 #include <stdlib.h>
 
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
 static uint64_t profile[MOZVM_MM_PROF_EVENT_MAX] = {};
-
-#ifdef MOZVM_MEMORY_PROFILE
 
 #define MOZVM_PROFILE_DEFINE(F) \
     F(MM_MEMORY_MALLOCED)

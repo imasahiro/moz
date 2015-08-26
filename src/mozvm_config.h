@@ -54,9 +54,10 @@ extern "C" {
 // #define MOZVM_USE_INT16_ADDR 1
 // #define MOZVM_DEBUG_NTERM       1
 #define MOZVM_USE_SSE4_2        1
-// #define MOZVM_USE_SWITCH_CASE_DISPATCH 1
-#define MOZVM_USE_INDIRECT_THREADING   1
+#define MOZVM_USE_SWITCH_CASE_DISPATCH 1
+// #define MOZVM_USE_INDIRECT_THREADING   1
 // #define MOZVM_USE_DIRECT_THREADING     1
+// #define MOZVM_EMIT_OP_LABEL 1
 
 // #define MOZVM_PROFILE_INST  1
 
@@ -80,7 +81,7 @@ typedef unsigned long mozpos_t;
 #endif
 
 // profile
-#define MOZVM_PROFILE 1
+// #define MOZVM_PROFILE 1
 
 #ifdef MOZVM_PROFILE
 #define MOZVM_PROFILE_DECL(X) unsigned long long _PROFILE_##X = 0;

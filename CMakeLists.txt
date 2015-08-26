@@ -34,7 +34,6 @@ endif()
 
 set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
 set(MOZ_SRC  src/loader.c src/main.c src/vm.c)
-set(MOZ2_SRC src/loader.c src/main.c src/vm_profile.c)
 
 add_library(nez SHARED ${NEZ_SRC})
 
@@ -42,9 +41,6 @@ add_executable(moz ${MOZ_SRC})
 target_link_libraries(moz nez)
 
 add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC})
-
-add_executable(moz_profile ${MOZ2_SRC})
-target_link_libraries(moz_profile nez)
 
 add_custom_command(OUTPUT vm_core.c vm_inst.h
     COMMAND ruby

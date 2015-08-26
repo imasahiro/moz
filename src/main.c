@@ -92,7 +92,7 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
 #endif
     NodeManager_init();
@@ -103,7 +103,7 @@ int main(int argc, char *const argv[])
         Node node = NULL;
         reset_timer();
         moz_runtime_set_source(L.R, L.input, L.input + L.input_size);
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_PARSE_START);
 #endif
         parsed = moz_runtime_parse(L.R, L.input, inst);
@@ -112,7 +112,7 @@ int main(int argc, char *const argv[])
             break;
         }
         node = ast_get_parsed_node(L.R->ast);
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_PARSE_END);
 #endif
         if (node) {
@@ -124,14 +124,14 @@ int main(int argc, char *const argv[])
         if (print_stats) {
             _show_timer(syntax_file, L.input_size);
         }
-#ifdef MOZVM_MEMORY_PROFILE
-    mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_GC_EXECUTED);
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
+        mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_GC_EXECUTED);
 #endif
         moz_runtime_reset(L.R);
         NodeManager_reset();
     }
     if (print_stats) {
-#ifdef MOZVM_MEMORY_PROFILE
+#if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_print_stats();
 #endif
         moz_loader_print_stats(&L);
