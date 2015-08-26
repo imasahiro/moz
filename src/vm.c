@@ -107,6 +107,17 @@ void moz_runtime_dispose(moz_runtime_t *r)
     if (r->C.jumps) {
         VM_FREE(r->C.jumps);
     }
+#ifdef MOZVM_USE_JMPTBL
+    if (r->C.jumps1) {
+        VM_FREE(r->C.jumps1);
+    }
+    if (r->C.jumps2) {
+        VM_FREE(r->C.jumps2);
+    }
+    if (r->C.jumps3) {
+        VM_FREE(r->C.jumps3);
+    }
+#endif
 
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
