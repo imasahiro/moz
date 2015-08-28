@@ -348,7 +348,17 @@ static const unsigned int SegmentNodeCount_GC_MARGIN[] = {
 
 static bitmap_t bitmap_empty = BITMAP_FULL;
 static bitmap_t *bitmap_dummy = &bitmap_empty;
-static Segment segment_dummy = {{0}};
+static Segment segment_dummy = {
+    {0}, 0, 0, 0, 0,
+#ifdef USE_GENERATIONAL_GC
+    {0}, 0, 0,
+#else
+    0,
+#endif
+#if GCDEBUG
+    0, 0
+#endif
+};
 
 static const unsigned int BITMAP_LIMIT[][SEGMENT_LEVEL] = {
     {0/* klass0 */}, {0/* klass1 */}, {0/* klass2 */}, {0/* klass3 */}, {0/* klass4 */},
