@@ -128,8 +128,9 @@ int main(int argc, char *const argv[])
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_GC_EXECUTED);
 #endif
-        moz_runtime_reset(L.R);
+        moz_runtime_reset1(L.R);
         NodeManager_reset();
+        moz_runtime_reset2(L.R);
     }
     if (print_stats) {
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)

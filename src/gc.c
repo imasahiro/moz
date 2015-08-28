@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
-//#define GCDEBUG 1
+// #define GCDEBUG 1
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,8 +45,8 @@ extern "C" {
 
 /* memory config */
 
-#define GC_USE_DEFERREDSWEEP 1
-#define USE_SAFEPOINT_POLICY 1
+// #define GC_USE_DEFERREDSWEEP 1
+// #define USE_SAFEPOINT_POLICY 1
 #define SUBHEAP_DEFAULT_SEGPOOL_SIZE (128)/* 128 * SEGMENT_SIZE(128k) = 16MB*/
 #define SUBHEAP_KLASS_MIN  5 /* 1 <<  5 == 32 */
 #define SUBHEAP_KLASS_MAX 12 /* 1 << 12 == 4096 */
@@ -127,7 +127,7 @@ static inline int bitmap_get(bitmap_t *bm, unsigned index)
     return (*bm & mask) != 0;
 }
 
-static inline void bitmap_Set(bitmap_t *bm, unsigned index, unsigned val)
+static inline void bitmap_set(bitmap_t *bm, unsigned index, unsigned val)
 {
     bitmap_t mask = (uintptr_t)val << (index % BITS);
     *bm |= mask;
@@ -476,11 +476,11 @@ static const unsigned BM_SIZE[] = {
 #define gc_info(fmt, ...)  fprintf(stderr, "(%s:%d) " fmt "\n" , __func__, __LINE__,  ## __VA_ARGS__)
 #define gc_debug(fmt, ...) fprintf(stderr, "(%s:%d) " fmt "\n" , __func__, __LINE__, ## __VA_ARGS__)
 #define gc_stat(fmt, ...)  gc_debug(fmt, ##__VA_ARGS__);\
-    fprintf(global_gc_stat.fp, "(%s:%d) " fmt "\n" , __func__, __LINE__,  ## __VA_ARGS__)
+    fprintf(stderr, "(%s:%d) " fmt "\n" , __func__, __LINE__,  ## __VA_ARGS__)
 #else
 #define gc_info(fmt, ...)
 #define gc_debug(fmt, ...)
-#define gc_stat(fmt, ...)  fprintf(global_gc_stat.fp, "(%s:%d) " fmt "\n" , __func__, __LINE__,  ## __VA_ARGS__)
+#define gc_stat(fmt, ...)  fprintf(stderr, "(%s:%d) " fmt "\n" , __func__, __LINE__,  ## __VA_ARGS__)
 #endif
 
 #define Object_SetTenure(o) KFlag_Set(uintptr_t,(o)->flag, 1,1)
@@ -795,7 +795,7 @@ static bool nextSegment(HeapManager *mng, SubHeap *h, AllocationPointer *p)
         }
     }
 #ifdef USE_GENERATIONAL_GC
-    bitmap_Set(&mng->flags, GC_MINOR_FLAG,
+    bitmap_set(&mng->flags, GC_MINOR_FLAG,
             (uintptr_t)((--h->minor_count) & (MINOR_COUNT-1)) == 0);
 #endif
 
@@ -957,7 +957,7 @@ static void *tryAlloc(HeapManager *mng, SubHeap *h)
     isEmpty = inc(p, h);
 
 #ifdef USE_GENERATIONAL_GC
-    bitmap_Set(&mng->flags, GC_MAJOR_FLAG,
+    bitmap_set(&mng->flags, GC_MAJOR_FLAG,
             (mng->segmentList == NULL && h->freelist == NULL && isEmpty));
 #else
     (void)isEmpty;
@@ -1178,12 +1178,12 @@ static void deferred_sweep(HeapManager *mng, kObject *o)
 #endif
     bmgc_Object_free(o);
 #else
-    assert(kObject_class(o) == NULL);
+    // assert(kObject_class(o) == NULL);
 #endif
 }
 
-#define minorGC(kctx, mng) bitmapMarkingGC(kctx, mng, GC_MAJOR)
-#define majorGC(kctx, mng) bitmapMarkingGC(kctx, mng, GC_MINOR)
+#define minorGC(mng) bitmapMarkingGC(mng, GC_MAJOR)
+#define majorGC(mng) bitmapMarkingGC(mng, GC_MINOR)
 
 static kObject *bm_malloc_internal(HeapManager *mng, size_t n)
 {
@@ -1205,18 +1205,18 @@ static kObject *bm_malloc_internal(HeapManager *mng, size_t n)
         goto L_finaly;
 #ifdef USE_SAFEPOINT_POLICY
 #ifdef USE_GENERATIONAL_GC
-    bitmap_Set(&mng->flags, GC_MAJOR_FLAG, 1);
+    bitmap_set(&mng->flags, GC_MAJOR_FLAG, 1);
 #endif
     HeapManager_ExpandHeap(mng, SUBHEAP_DEFAULT_SEGPOOL_SIZE*2);
     newSegment(mng, h);
 #else
 #ifdef USE_GENERATIONAL_GC
-    minorGC(kctx, mng);
+    minorGC(mng);
     temp = tryAlloc(mng, h);
 #endif
     if(temp != NULL)
         goto L_finaly;
-    majorGC(kctx, mng);
+    majorGC(mng);
 #endif /* defined(USE_SAFEPOINT_POLICY) */
     temp = (kObject *)tryAlloc(mng, h);
     if(temp == NULL) {
@@ -1321,9 +1321,7 @@ static void b0_final_sweep(bitmap_t bm, size_t idx, Segment *seg)
     while(mask) {
         o = indexToAddr(seg, idx, mask);
 #if GCDEBUG
-        if(kObject_class(o)) {
-            global_gc_stat.collected[seg->heap_klass] += 1;
-        }
+        // global_gc_stat.collected[seg->heap_klass] += 1;
 #endif
         bmgc_Object_free(o);
         NEXT_MASK(bm, mask);
@@ -1497,7 +1495,7 @@ static void RememberSet_Add(kObject *o)
 #endif
 
 #ifdef USE_GENERATIONAL_GC
-    bitmap_Set(map+(offset/BITS), offset%BITS, Object_isTenure(o));
+    bitmap_set(map+(offset/BITS), offset%BITS, Object_isTenure(o));
 #else
     Segment *seg;
     int index, klass;
@@ -1505,7 +1503,7 @@ static void RememberSet_Add(kObject *o)
     OBJECT_LOAD_BLOCK_INFO(o, seg, index, klass);
     BITPTR_INIT_(bpidx, bpmask, index);
     bitmap_t *bm  = SEG_TRACE_BITMAP_N(seg, 0, bpidx);
-    bitmap_Set(map+(offset/BITS), offset%BITS, !BM_TEST(*bm, bpmask));
+    bitmap_set(map+(offset/BITS), offset%BITS, !BM_TEST(*bm, bpmask));
 #endif
 }
 #endif
@@ -1619,7 +1617,7 @@ static void rearrangeSegList(SubHeap *h, unsigned klass, bitmap_t *checkFull)
     *unfilled_tail = NULL;
     h->freelist = unfilled;
     fetchSegment(h, klass);
-    bitmap_Set(checkFull, klass,
+    bitmap_set(checkFull, klass,
             (count_dead < SegmentNodeCount[klass] && h->freelist == NULL));
 }
 
@@ -1628,9 +1626,6 @@ static void bmgc_gc_sweep(HeapManager *mng)
     bitmap_t checkFull = 0;
     size_t i, j;
     SubHeap *h;
-#ifndef GC_USE_DEFERREDSWEEP
-    KonohaContext *kctx = mng->kctx;
-#endif
 
     for_each_heap(h, j, mng->heaps) {
 #ifndef GC_USE_DEFERREDSWEEP
@@ -1640,7 +1635,7 @@ static void bmgc_gc_sweep(HeapManager *mng)
             bitmap_t *b0 = (bitmap_t *) seg->base[0];
             bitmap_t *l0 = b0 + SegmentBitMapCount[j];
             for (bm0 = b0; bm0 < l0; ++bm0) {
-                b0_final_sweep(kctx, *bm0, bm0 - b0, seg);
+                b0_final_sweep(*bm0, bm0 - b0, seg);
             }
         }
         gc_info("heap[%d] collected %lu",
@@ -1652,7 +1647,7 @@ static void bmgc_gc_sweep(HeapManager *mng)
 
     if(checkFull) {
 #ifdef USE_GENERATIONAL_GC
-        bitmap_Set(&mng->flags, GC_MAJOR_FLAG, 1);
+        bitmap_set(&mng->flags, GC_MAJOR_FLAG, 1);
 #endif
         HeapManager_ExpandHeap(mng, SUBHEAP_DEFAULT_SEGPOOL_SIZE*2);
         for_each_heap(h, i, mng->heaps) {
@@ -1669,7 +1664,7 @@ static void bitmapMarkingGC(HeapManager *mng, enum gc_mode mode)
     bmgc_gc_Init(mng, mode);
 #ifdef GCSTAT
     size_t i = 0, marked = 0, collected = 0, heap_size = 0;
-    FOR_EACH_ARRAY_(mng->heap_size_a, i) {
+    for (i = 0; i < ARRAY_size(mng->heap_size_a); i++) {
         heap_size += ARRAY_n(mng->heap_size_a, i);
     }
 #endif
@@ -1776,13 +1771,8 @@ static kObject *node_alloc()
     size_t size = sizeof(kObject);
     HeapManager *mng = g_manager;
     kObject *o = (kObject *)bm_malloc_internal(mng, size);
+    memset(o, 0, sizeof(*o));
     NODE_GC_INIT(o);
-#if GCDEBUG
-    OLDTRACE_SWITCH_TO_KTrace(LOGPOL_DEBUG,
-            LogText("@", "new"),
-            KeyValue_p("ptr", o),
-            LogUint("size", size));
-#endif
     return o;
 }
 

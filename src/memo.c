@@ -110,6 +110,7 @@ static void memo_elastic_dispose(memo_t *m)
             NODE_GC_RELEASE(e->result);
         }
     }
+    memset(m->ary.list, 0, sizeof(MemoEntry_t) * ARRAY_size(m->ary));
     ARRAY_dispose(MemoEntry_t, &m->ary);
 }
 
@@ -213,8 +214,8 @@ void memo_trace(void *p, NodeVisitor *visitor)
 #if defined(MOZVM_MEMO_TYPE_ELASTIC)
     MemoEntry_t *x, *e;
     FOR_EACH_ARRAY(m->ary, x, e) {
-        if (e->result && e->failed != MEMO_ENTRY_FAILED) {
-            visitor->fn_visit(visitor, e->result);
+        if (x->result && x->failed != MEMO_ENTRY_FAILED) {
+            visitor->fn_visit(visitor, x->result);
         }
     }
 #endif
