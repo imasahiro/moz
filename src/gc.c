@@ -31,6 +31,10 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 // #define GCDEBUG 1
 // #define GCSTAT 1
 

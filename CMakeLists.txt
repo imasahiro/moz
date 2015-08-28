@@ -1,5 +1,7 @@
 include(CheckTypeSize)
 include(CheckIncludeFiles)
+include(CheckSymbolExists)
+include(CheckLibraryExists)
 
 cmake_minimum_required(VERSION 2.4)
 project(moz)
@@ -58,6 +60,32 @@ add_custom_target(generate_vm_core DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c")
 
 add_dependencies(moz generate_vm_core)
+
+check_type_size("void *" SIZEOF_VOIDP)
+check_type_size(long     SIZEOF_LONG)
+check_type_size(int      SIZEOF_INT)
+check_type_size(float    SIZEOF_FLOAT)
+check_type_size(double   SIZEOF_DOUBLE)
+
+check_include_files(gc.h HAVE_GC_H)
+
+set(_HEADERS stdio.h stdlib.h string.h ctype.h)
+if(UNIX)
+	set(_HEADERS ${_HEADERS} sys/mman.h unistd.h)
+endif(UNIX)
+
+if(APPLE)
+	set(_HEADERS ${_HEADERS} mach-o/dyld.h)
+endif(APPLE)
+
+check_symbol_exists(posix_memalign "${_HEADERS}" HAVE_POSIX_MEMALIGN)
+check_symbol_exists(memalign       "${_HEADERS}" HAVE_MEMALIGN)
+check_symbol_exists(__builtin_ctzl "${_HEADERS}" HAVE_BUILTIN_CTZL)
+check_symbol_exists(bzero "${_HEADERS}" HAVE_BZERO)
+
+add_definitions(-DHAVE_CONFIG_H)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
+		${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 #########################
 enable_testing()
