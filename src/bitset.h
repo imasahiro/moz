@@ -33,7 +33,10 @@ typedef unsigned long bitset_entry_t;
 typedef unsigned bitset_entry_t;
 #endif
 
+#ifndef BITS
 #define BITS (sizeof(bitset_entry_t) * 8)
+#endif
+
 typedef struct bitset_t {
     bitset_entry_t data[256/BITS];
 } bitset_t;

@@ -358,6 +358,23 @@ Node ast_get_parsed_node(AstMachine *ast)
     return parsed;
 }
 
+#ifdef MOZVM_MEMORY_USE_MSGC
+void ast_trace(void *p, NodeVisitor *visitor)
+{
+    AstMachine *ast = (AstMachine *) p;
+    AstLog *cur = ARRAY_n(ast->logs, 0);
+    AstLog *tail = ARRAY_last(ast->logs);
+    for (; cur <= tail; ++cur) {
+        if(GetTag(cur) == TypeLink) {
+            Node o = GetNode(cur);
+            if (o) {
+                visitor->fn_visit(visitor, o);
+            }
+        }
+    }
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

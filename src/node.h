@@ -42,6 +42,17 @@ DEF_ARRAY_T(Node);
     (DST) = (SRC); \
 } while (0)
 #endif
+#elif defined(MOZVM_MEMORY_USE_MSGC)
+#define NODE_GC_HEADER  unsigned _flag;
+#define NODE_GC_INIT(O) (O)->_flag = 0
+#define NODE_GC_RETAIN(O)
+#define NODE_GC_RELEASE(O)
+typedef struct NodeVisitor NodeVisitor;
+struct NodeVisitor {
+    void (*fn_visit)(NodeVisitor *visitor, Node object);
+    void (*fn_visit_range)(NodeVisitor *visitor, Node *, Node *);
+};
+
 #else
 #error node gc
 #endif
@@ -78,6 +89,12 @@ void Node_print(Node o);
 #ifdef MOZVM_MEMORY_USE_RCGC
 void Node_sweep(Node o);
 #endif
+
+#ifdef MOZVM_MEMORY_USE_MSGC
+typedef void (*f_trace)(void *p, NodeVisitor *v);
+void NodeManager_add_gc_root(void *ptr, f_trace f);
+#endif
+
 
 void NodeManager_init();
 void NodeManager_dispose();

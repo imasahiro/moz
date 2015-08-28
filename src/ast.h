@@ -80,5 +80,8 @@ static inline Node ast_get_last_linked_node(AstMachine *ast)
 }
 
 Node ast_get_parsed_node(AstMachine *ast);
+#ifdef MOZVM_MEMORY_USE_MSGC
+void ast_trace(void *p, NodeVisitor *visitor);
+#endif
 
 #endif /* end of include guard */

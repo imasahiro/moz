@@ -28,4 +28,8 @@ int memo_set(memo_t *memo, mozpos_t pos, uint32_t memoId, Node n, unsigned consu
 int memo_fail(memo_t *memo, mozpos_t pos, uint32_t memoId);
 MemoEntry_t *memo_get(memo_t *memo, mozpos_t pos, uint32_t memoId, uint8_t state);
 
+#ifdef MOZVM_MEMORY_USE_MSGC
+void memo_trace(void *p, NodeVisitor *visitor);
+#endif
+
 #endif /* end of include guard */

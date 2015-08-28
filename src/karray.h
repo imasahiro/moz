@@ -106,7 +106,9 @@ static inline void ARRAY_##T##_set(ARRAY(T) *a, int idx, T v) {\
 }\
 DEF_ARRAY_OP__(T, T)
 
-#define DEF_ARRAY_T_OP(T) DEF_ARRAY_T(T);DEF_ARRAY_OP(T)
+#define DEF_ARRAY_S_T(T) DEF_ARRAY_STRUCT(T); DEF_ARRAY_T(T)
+#define DEF_ARRAY_T_OP(T)           DEF_ARRAY_S_T(T); DEF_ARRAY_OP(T)
+#define DEF_ARRAY_T_OP_NOPOINTER(T) DEF_ARRAY_S_T(T); DEF_ARRAY_OP_NOPOINTER(T)
 
 #define ARRAY_get(T, a, idx)    ARRAY_##T##_get(a, idx)
 #define ARRAY_set(T, a, idx, v) ARRAY_##T##_set(a, idx, v)

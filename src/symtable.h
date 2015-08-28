@@ -36,4 +36,5 @@ static inline long symtable_savepoint(symtable_t *tbl)
 }
 
 void symtable_rollback(symtable_t *tbl, long saved);
+
 #endif /* end of include guard */

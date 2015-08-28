@@ -15,7 +15,9 @@ int main(int argc, char const* argv[])
 #ifdef NODE_USE_NODE_PRINT
     Node_print(root);
 #endif
+#ifdef MOZVM_MEMORY_USE_RCGC
     assert(root->refc == 1);
+#endif
     NODE_GC_RELEASE(root);
     NodeManager_dispose();
     return 0;

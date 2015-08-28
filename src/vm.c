@@ -63,6 +63,10 @@ moz_runtime_t *moz_runtime_init(unsigned memo)
     r->stack = &r->stack_[0] + 0xf;
 
     r->C.memo_size = memo;
+#ifdef MOZVM_MEMORY_USE_MSGC
+    NodeManager_add_gc_root(r->ast, ast_trace);
+    NodeManager_add_gc_root(r->memo, memo_trace);
+#endif
     return r;
 }
 
@@ -76,6 +80,10 @@ void moz_runtime_reset(moz_runtime_t *r)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+#ifdef MOZVM_MEMORY_USE_MSGC
+    NodeManager_add_gc_root(r->ast, ast_trace);
+    NodeManager_add_gc_root(r->memo, memo_trace);
+#endif
 }
 
 void moz_runtime_print_stats(moz_runtime_t *r)

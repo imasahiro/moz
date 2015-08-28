@@ -206,6 +206,21 @@ void memo_print_stats()
     MOZVM_MEMO_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 
+#ifdef MOZVM_MEMORY_USE_MSGC
+void memo_trace(void *p, NodeVisitor *visitor)
+{
+    memo_t *m = (memo_t *)p;
+#if defined(MOZVM_MEMO_TYPE_ELASTIC)
+    MemoEntry_t *x, *e;
+    FOR_EACH_ARRAY(m->ary, x, e) {
+        if (e->result && e->failed != MEMO_ENTRY_FAILED) {
+            visitor->fn_visit(visitor, e->result);
+        }
+    }
+#endif
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif
