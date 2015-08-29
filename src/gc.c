@@ -1767,18 +1767,15 @@ static void Node_reftrace(Node o, NodeVisitor *visitor)
     unsigned len = Node_length(o);
     Node *begin, *end;
     assert(MOZVM_SMALL_ARRAY_LIMIT == 2);
-    switch (len) {
-    case 2:
-        visitor->fn_visit(visitor, o->entry.raw.ary[1]);
-    case 1:
-        visitor->fn_visit(visitor, o->entry.raw.ary[0]);
-    case 0:
-        break;
-    default:
+    if (len <= MOZVM_SMALL_ARRAY_LIMIT) {
+        begin = o->entry.raw.ary;
+        end   = o->entry.raw.ary + len;
+    }
+    else {
         begin = ARRAY_BEGIN(o->entry.array);
         end   = ARRAY_END(o->entry.array);
-        visitor->fn_visit_range(visitor, begin, end);
     }
+    visitor->fn_visit_range(visitor, begin, end);
 }
 
 static kObject *node_alloc()
