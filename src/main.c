@@ -1,5 +1,4 @@
 #include "mozvm.h"
-#include "ast.h"
 #include "loader.h"
 #include <stdio.h>
 #include <assert.h>

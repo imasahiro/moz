@@ -1,13 +1,12 @@
 #include "mozvm_config.h"
+#include "libnez.h"
 #include "bitset.h"
-#include "ast.h"
-#include "memo.h"
-#include "symtable.h"
-#include <stdint.h>
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"
 #endif
+
+#include <stdint.h>
 
 #ifndef MOZ_VM_H
 #define MOZ_VM_H
