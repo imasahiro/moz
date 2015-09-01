@@ -11,6 +11,16 @@
 #ifndef MOZ_VM_H
 #define MOZ_VM_H
 
+typedef uint8_t moz_inst_t;
+
+#ifdef MOZVM_ENABLE_JIT
+typedef struct mozvm_nterm_entry_t {
+    moz_inst_t *begin;
+    moz_inst_t *end;
+    void *compiled_code;
+} mozvm_nterm_entry_t;
+#endif
+
 typedef struct mozvm_constant_t {
     bitset_t *sets;
     const char **tags;
@@ -47,6 +57,9 @@ typedef struct moz_runtime_t {
     long *stack;
     long *fp;
 
+#ifdef MOZVM_ENABLE_JIT
+    mozvm_nterm_entry_t *nterm_entry;
+#endif
     mozvm_constant_t C;
     long stack_[1];
 } moz_runtime_t;
@@ -84,8 +97,7 @@ typedef int *JMPTBL_t;
 #define JMPTBL_GET_IMPL(runtime, ID) (ID)
 #endif
 
-typedef uint8_t moz_inst_t;
-moz_runtime_t *moz_runtime_init(unsigned memo_size);
+moz_runtime_t *moz_runtime_init(unsigned memo_size, unsigned nterm_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 void moz_runtime_reset1(moz_runtime_t *r);
 void moz_runtime_reset2(moz_runtime_t *r);

@@ -19,8 +19,15 @@ open(file) {|f|
       types << [op, *a.map{|e| e.split(" ")[0].strip }]
       a.each {|e|
         e = e.strip
-        type, name = e.split(" ")
-        out.puts TAB + e + " = read_#{type}(PC);"
+        type, name, cond = e.split(" ")
+        if cond != nil
+          out.puts "#ifdef " + cond
+        end
+        out.puts TAB + "#{type} #{name} = read_#{type}(PC);"
+        if cond != nil
+          out.puts "#endif /* #{cond} */"
+        end
+
       }
     elsif l == "{\n"
     elsif l == "}\n"

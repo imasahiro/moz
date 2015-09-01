@@ -4,7 +4,10 @@
 #include <limits.h>
 
 #include "mozvm_config.h"
-
+// #define VERBOSE_DEBUG 1
+#ifdef VERBOSE_DEBUG
+#define LOADER_DEBUG 1
+#endif
 // #define LOADER_DEBUG 1
 #if defined(MOZVM_PROFILE) && !defined(LOADER_DEBUG)
 #define LOADER_DEBUG 1
@@ -130,9 +133,19 @@ mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
+    unsigned i;
+    moz_inst_t *inst = ARRAY_n(L->buf, 0);
     VM_FREE(L->table);
     L->table = NULL;
-    return ARRAY_n(L->buf, 0);
+#ifdef MOZVM_ENABLE_JIT
+    for (i = 0; i < L->R->C.nterm_size; i++) {
+        unsigned begin = (unsigned) L->R->nterm_entry[i].begin;
+        unsigned end   = (unsigned) L->R->nterm_entry[i].end;
+        L->R->nterm_entry[i].begin = inst + begin;
+        L->R->nterm_entry[i].end   = inst + end;
+    }
+#endif
+    return inst;
 }
 
 void mozvm_loader_dispose(mozvm_loader_t *L)
@@ -300,8 +313,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int next  = read24(is);
         int nterm = read16(is);
         int jump  = get_next(is, &has_jump);
-#ifdef MOZVM_DEBUG_NTERM
-        mozvm_loader_write32(L, nterm);
+        fprintf(stderr, "nterm %d\n", nterm);
+#ifdef MOZVM_USE_NTERM
+        mozvm_loader_write16(L, nterm);
 #endif
         mozvm_loader_write_addr(L, next);
         mozvm_loader_write_addr(L, jump);
@@ -590,7 +604,7 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
-    int i = 0, j = 0;
+    int i = 0, j = 0, nterm = 0;
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
@@ -599,9 +613,22 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     mozvm_loader_write_opcode(L, Exit); // exit fail
     mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
+        uint8_t opcode = *peek(is);
         L->inst_size++;
+#ifdef MOZVM_ENABLE_JIT
+        if (opcode == Label) {
+            long begin = (long)ARRAY_size(L->buf);
+            L->R->nterm_entry[nterm].begin = (moz_inst_t *)begin;
+        }
+#endif
         L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);
+#ifdef MOZVM_ENABLE_JIT
+        if (opcode == Label) {
+            long end = (long)ARRAY_size(L->buf);
+            L->R->nterm_entry[nterm++].begin = (moz_inst_t *)end;
+        }
+#endif
     }
 
     // fprintf(stderr, "\n");
@@ -715,7 +742,7 @@ int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
 
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 {
-    unsigned i, inst_size, memo_size, jmptbl_size;
+    unsigned i, inst_size, memo_size, jmptbl_size, nterm_size;
     mozvm_constant_t *bc = NULL;
     input_stream_t is;
     moz_inst_t *inst = NULL;
@@ -734,9 +761,10 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     inst_size = (unsigned) read16(&is);
     memo_size = (unsigned) read16(&is);
     jmptbl_size = (unsigned) read16(&is);
+    nterm_size  = (unsigned) read16(&is);
 
     mozvm_loader_init(L, inst_size);
-    L->R = moz_runtime_init(memo_size);
+    L->R = moz_runtime_init(memo_size, nterm_size);
 
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
@@ -746,8 +774,8 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     memset(bc, 0, sizeof(mozvm_constant_t));
     bc->inst_size = inst_size;
     bc->memo_size = memo_size;
+    bc->nterm_size = nterm_size;
 
-    bc->nterm_size = read16(&is);
     if (bc->nterm_size > 0) {
         bc->nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc->nterm_size);
         for (i = 0; i < bc->nterm_size; i++) {

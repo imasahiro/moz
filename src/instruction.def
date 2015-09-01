@@ -30,9 +30,12 @@ DEF(Jump, mozaddr_t jump)
 {
     JUMP(jump);
 }
-// DEF(Call, int nterm, mozaddr_t next, mozaddr_t jump)
-DEF(Call, mozaddr_t next, mozaddr_t jump)
+DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
 {
+#ifdef MOZVM_ENABLE_JIT
+    (void)nterm;
+#endif
+
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(nterm_id);
     nterm_id = nterm;

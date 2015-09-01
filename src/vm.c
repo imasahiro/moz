@@ -48,7 +48,7 @@ extern "C" {
 
 MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
-moz_runtime_t *moz_runtime_init(unsigned memo)
+moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -64,6 +64,9 @@ moz_runtime_t *moz_runtime_init(unsigned memo)
     r->fp = r->stack;
 
     r->C.memo_size = memo;
+#ifdef MOZVM_ENABLE_JIT
+    r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, sizeof(mozvm_nterm_entry_t) * (nterm_size + 1));
+#endif
 #ifdef MOZVM_MEMORY_USE_MSGC
     NodeManager_add_gc_root(r->ast, ast_trace);
     NodeManager_add_gc_root(r->memo, memo_trace);
@@ -123,6 +126,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
 #endif
 
+#ifdef MOZVM_ENABLE_JIT
+    VM_FREE(r->nterm_entry);
+#endif
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
     }
