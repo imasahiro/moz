@@ -987,6 +987,10 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             break;
         }
         CASE_(Call) {
+#ifdef MOZVM_USE_NTERM
+            OP_PRINT("%d ", *(int16_t *)(p + 1));
+            p += sizeof(int16_t);
+#endif
             OP_PRINT("%d ", *(mozaddr_t *)(p + 1));
             OP_PRINT("%d", *(mozaddr_t *)(p + 1 + sizeof(mozaddr_t)));
             break;
