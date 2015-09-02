@@ -1,7 +1,8 @@
 #!/bin/bash
 
+#if [ -e $1 ]; then
+#	g++ -c $1 -o 2.out `llvm-config --cxxflags --ldflags --libs` -ldl -lpthread
+#fi
 if [ -n $1 -a -e $1 ]; then
-	gcc `llvm-config --cflags` -c $1 -o tmp.o
-	g++ tmp.o `llvm-config --cxxflags --ldflags --libs core executionengine jit interpreter analysis native bitwriter --system-libs`
-	rm tmp.o
+	g++ $1 `llvm-config --cxxflags --ldflags --libs` -ldl -lpthread
 fi
