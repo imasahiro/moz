@@ -313,7 +313,6 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         int next  = read24(is);
         int nterm = read16(is);
         int jump  = get_next(is, &has_jump);
-        fprintf(stderr, "nterm %d\n", nterm);
 #ifdef MOZVM_USE_NTERM
         mozvm_loader_write16(L, nterm);
 #endif
