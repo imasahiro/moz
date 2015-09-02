@@ -8,7 +8,7 @@
 #ifdef VERBOSE_DEBUG
 #define LOADER_DEBUG 1
 #endif
-// #define LOADER_DEBUG 1
+// #define LOADER_DEBUG 2
 #if defined(MOZVM_PROFILE) && !defined(LOADER_DEBUG)
 #define LOADER_DEBUG 1
 #endif
