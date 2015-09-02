@@ -43,7 +43,7 @@ int main(int argc, char *const argv[])
 {
     long parsed;
     mozvm_loader_t L = {};
-    moz_inst_t *inst;
+    moz_inst_t *head, *inst;
 
     const char *syntax_file = NULL;
     const char *input_file = NULL;
@@ -95,16 +95,18 @@ int main(int argc, char *const argv[])
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
 #endif
     NodeManager_init();
-    inst = mozvm_loader_load_file(&L, syntax_file);
+    head = inst = mozvm_loader_load_file(&L, syntax_file);
     assert(inst != NULL);
 
     while (loop-- > 0) {
         Node node = NULL;
         reset_timer();
+        inst = head;
         moz_runtime_set_source(L.R, L.input, L.input + L.input_size);
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_PARSE_START);
 #endif
+        inst = moz_runtime_parse_init(L.R, L.input, inst);
         parsed = moz_runtime_parse(L.R, L.input, inst);
         if (parsed != 0) {
             fprintf(stderr, "parse error\n");

@@ -48,7 +48,7 @@ extern "C" {
 
 MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
-moz_runtime_t *moz_runtime_init(unsigned memo)
+moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -61,8 +61,12 @@ moz_runtime_t *moz_runtime_init(unsigned memo)
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
     memset(&r->stack_[MOZ_DEFAULT_STACK_SIZE - 0xf], 0xbb, sizeof(long) * 0xf);
     r->stack = &r->stack_[0] + 0xf;
+    r->fp = r->stack;
 
     r->C.memo_size = memo;
+#ifdef MOZVM_ENABLE_JIT
+    r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, sizeof(mozvm_nterm_entry_t) * (nterm_size + 1));
+#endif
 #ifdef MOZVM_MEMORY_USE_MSGC
     NodeManager_add_gc_root(r->ast, ast_trace);
     NodeManager_add_gc_root(r->memo, memo_trace);
@@ -80,6 +84,8 @@ void moz_runtime_reset1(moz_runtime_t *r)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+    r->stack = &r->stack_[0] + 0xf;
+    r->fp = r->stack;
 }
 void moz_runtime_reset2(moz_runtime_t *r)
 {
@@ -120,6 +126,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
 #endif
 
+#ifdef MOZVM_ENABLE_JIT
+    VM_FREE(r->nterm_entry);
+#endif
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
     }
@@ -207,6 +216,56 @@ void moz_runtime_dispose(moz_runtime_t *r)
     POS    = (mozpos_t *)(FP+FP_POS);\
 } while (0)
 
+moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_inst_t *PC)
+{
+    long *SP = runtime->stack;
+    long *FP = SP;
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+#define GET_POS()     CURRENT
+    const char *CURRENT = str;
+#else
+#define GET_POS()     __pos
+    size_t __pos = 0;
+#endif
+
+#ifdef MOZVM_DEFINE_LOCAL_VAR
+    AstMachine *AST = runtime->ast;
+    symtable_t *TBL = runtime->table;
+    memo_t *MEMO    = runtime->memo;
+#else
+#define AST  runtime->ast
+#define TBL  runtime->table
+#define MEMO runtime->memo
+#endif
+
+    // Instruction layout
+    //   PC[0]  Exit
+    //   PC[1]  0    /*parse success*/
+    //   PC[2]  Exit
+    //   PC[3]  0    /*parse fail   */
+    //   PC[4]  ...
+#ifdef MOZVM_USE_DIRECT_THREADING
+    assert(*(void const **)PC == &&LABEL(Exit));
+#else
+    assert(*PC == Exit);
+#endif
+    PUSH_FRAME(GET_POS(),
+#ifdef MOZVM_USE_DIRECT_THREADING
+            PC + sizeof(void *) + 1,
+#else
+            PC + 2,
+#endif
+            ast_save_tx(AST), symtable_savepoint(TBL));
+#ifdef MOZVM_DEBUG_NTERM
+    PUSH(nterm_id);
+#endif
+    PUSH(PC);
+    PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
+    runtime->stack = SP;
+    runtime->fp    = FP;
+    return PC;
+}
+
 long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t *PC)
 {
 #ifdef MOZVM_PROFILE_INST
@@ -217,21 +276,19 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #endif
 
     long *SP = runtime->stack;
-    long *FP = SP;
+    long *FP = runtime->fp;
 #ifdef MOZVM_DEBUG_NTERM
     long nterm_id = 0;
 #endif
 
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     const char *CURRENT = str;
-#define GET_POS()     CURRENT
 #define SET_POS(P)    CURRENT = (P)
 #define GET_CURRENT() (CURRENT)
 #define CONSUME()     CURRENT++
 #define CONSUME_N(N)  CURRENT += N
 #else
     size_t __pos = 0;
-#define GET_POS()     __pos
 #define SET_POS(P)    __pos = (P)
 #define GET_CURRENT() (str + __pos)
 #define CONSUME()    __pos++
@@ -244,14 +301,10 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 #define HEAD (runtime)->head
 #define EOS() (GET_CURRENT() == runtime->tail)
 
-#if 1
+#ifdef MOZVM_DEFINE_LOCAL_VAR
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
     memo_t *MEMO    = runtime->memo;
-#else
-#define AST  runtime->ast
-#define TBL  runtime->table
-#define MEMO runtime->memo
 #endif
 
 #ifdef MOZVM_USE_SWITCH_CASE_DISPATCH
@@ -287,30 +340,6 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 
 #define NEXT() DISPATCH()
 #define JUMP(N) PC += N; DISPATCH()
-
-    // Instruction layout
-    //   PC[0]  Exit
-    //   PC[1]  0    /*parse success*/
-    //   PC[2]  Exit
-    //   PC[3]  0    /*parse fail   */
-    //   PC[4]  ...
-#ifdef MOZVM_USE_DIRECT_THREADING
-    assert(*(void const **)PC == &&LABEL(Exit));
-#else
-    assert(*PC == Exit);
-#endif
-    PUSH_FRAME(GET_POS(),
-#ifdef MOZVM_USE_DIRECT_THREADING
-            PC + sizeof(void *) + 1,
-#else
-            PC + 2,
-#endif
-            ast_save_tx(AST), symtable_savepoint(TBL));
-#ifdef MOZVM_DEBUG_NTERM
-    PUSH(nterm_id);
-#endif
-    PUSH(PC);
-    PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
 
 #define read_uint8_t(PC)   *(PC);              PC += sizeof(uint8_t)
 #define read_int8_t(PC)    *((int8_t *)PC);    PC += sizeof(int8_t)
