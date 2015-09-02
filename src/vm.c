@@ -13,6 +13,10 @@
 #include "jmptbl.h"
 #endif
 
+#ifdef MOZVM_ENABLE_JIT
+#include "jit.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,6 +70,7 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
     r->C.memo_size = memo;
 #ifdef MOZVM_ENABLE_JIT
     r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, sizeof(mozvm_nterm_entry_t) * (nterm_size + 1));
+    mozvm_jit_init(r);
 #endif
 #ifdef MOZVM_MEMORY_USE_MSGC
     NodeManager_add_gc_root(r->ast, ast_trace);
@@ -80,6 +85,9 @@ void moz_runtime_reset1(moz_runtime_t *r)
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
+#ifdef MOZVM_ENABLE_JIT
+    mozvm_jit_reset(r);
+#endif
 
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
@@ -128,6 +136,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
 
 #ifdef MOZVM_ENABLE_JIT
     VM_FREE(r->nterm_entry);
+    mozvm_jit_dispose(r);
 #endif
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
