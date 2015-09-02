@@ -56,6 +56,7 @@ extern "C" {
 // #define MOZVM_USE_INT16_ADDR 1
 // #define MOZVM_DEBUG_NTERM       1
 #define MOZVM_ENABLE_JIT       1
+#define MOZVM_JIT_COUNTER_THRESHOLD 1
 #define MOZVM_USE_SSE4_2        1
 // #define MOZVM_USE_SWITCH_CASE_DISPATCH 1
 #define MOZVM_USE_INDIRECT_THREADING   1

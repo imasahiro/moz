@@ -17,6 +17,7 @@ typedef uint8_t moz_inst_t;
 typedef struct mozvm_nterm_entry_t {
     moz_inst_t *begin;
     moz_inst_t *end;
+    unsigned call_counter;
     void *compiled_code;
 } mozvm_nterm_entry_t;
 #endif
