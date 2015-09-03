@@ -216,7 +216,7 @@ DEF(RSet, BITSET_t setId)
         CONSUME();
     }
 }
-DEF(Consume, int shift)
+DEF(Consume, int8_t shift)
 {
     CONSUME_N(shift);
 }
