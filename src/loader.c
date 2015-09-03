@@ -498,7 +498,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TReplace) {
-        asm volatile("int3");
+        uint16_t strId = read16(is);
+        const char *impl = L->R->C.strs[strId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl);
         break;
     }
     CASE_(TStart) {
