@@ -1,3 +1,6 @@
+#ifndef MOZ_VM_H
+#define MOZ_VM_H
+
 #include "mozvm_config.h"
 #include "libnez.h"
 #include "bitset.h"
@@ -8,18 +11,19 @@
 
 #include <stdint.h>
 
-#ifndef MOZ_VM_H
-#define MOZ_VM_H
-
 typedef uint8_t moz_inst_t;
+struct moz_runtime_t;
 
 #ifdef MOZVM_ENABLE_JIT
+typedef unsigned (*moz_jit_func_t)(struct moz_runtime_t *, const char *);
+
 typedef struct mozvm_nterm_entry_t {
     moz_inst_t *begin;
     moz_inst_t *end;
     unsigned call_counter;
-    void *compiled_code;
+    moz_jit_func_t compiled_code;
 } mozvm_nterm_entry_t;
+
 typedef void jit_context_t;
 #endif
 

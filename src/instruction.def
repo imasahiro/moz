@@ -35,9 +35,9 @@ DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
 #ifdef MOZVM_ENABLE_JIT
     mozvm_nterm_entry_t *e = runtime->nterm_entry + nterm;
     if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
-        void *compiled_code;
-        if ((compiled_code = mozvm_jit_compile(runtime, nterm))) {
-            if (!(((uint8_t (*)(moz_runtime_t *, const char *))compiled_code)(runtime, GET_CURRENT()))) {
+        moz_jit_func_t func = mozvm_jit_compile(runtime, e);
+        if (func) {
+            if (func(runtime, GET_CURRENT()) == 0) {
                 FAIL();
             }
             JUMP(next);
