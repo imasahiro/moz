@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-typedef struct Node *Node;
+typedef struct _Node *Node;
 DEF_ARRAY_STRUCT0(Node, unsigned);
 DEF_ARRAY_T(Node);
 
@@ -57,7 +57,7 @@ struct NodeVisitor {
 #error node gc
 #endif
 
-struct Node {
+struct _Node {
     NODE_GC_HEADER;
     const char *tag;
     const char *pos;
