@@ -33,7 +33,14 @@ DEF(Jump, mozaddr_t jump)
 DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
 {
 #ifdef MOZVM_ENABLE_JIT
-    (void)nterm;
+    if (1/* check counter greater than threshold */) {
+        void *compiled_code = runtime->nterm_entry[nterm].compiled_code;
+        if (compiled_code == NULL) {
+            compiled_code = runtime->nterm_entry[nterm].compiled_code = mozvm_jit_compile(runtime, nterm);
+        }
+        CONSUME_N(((unsigned (*)(moz_runtime_t *, const char *))compiled_code)(runtime, GET_CURRENT()));
+        JUMP(next);
+    }
 #endif
 
 #ifdef MOZVM_DEBUG_NTERM
