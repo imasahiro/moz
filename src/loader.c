@@ -533,15 +533,11 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         mozvm_loader_write16(L, memoId);
         break;
     }
-    CASE_(SOpen) {
-        asm volatile("int3");
-    }
+    CASE_(SOpen)
     CASE_(SClose) {
-        asm volatile("int3");
+        break;
     }
-    CASE_(SMask) {
-        asm volatile("int3");
-    }
+    CASE_(SMask)
     CASE_(SDef);
     CASE_(SIsDef);
     CASE_(SExists);
@@ -1149,15 +1145,11 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             OP_PRINT("%d %d", state, memoId);
             break;
         }
-        CASE_(SOpen) {
-            asm volatile("int3");
-        }
+        CASE_(SOpen);
         CASE_(SClose) {
-            asm volatile("int3");
+            break;
         }
-        CASE_(SMask) {
-            asm volatile("int3");
-        }
+        CASE_(SMask);
         CASE_(SDef);
         CASE_(SIsDef);
         CASE_(SExists);
