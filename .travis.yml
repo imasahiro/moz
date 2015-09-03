@@ -1,10 +1,14 @@
 language: c
+sudo: false
 compiler:
 - clang
 - gcc
 
 addons:
     apt:
+        sources:
+            - llvm-toolchain-precise
+            - llvm-toolchain-precise-3.5
         packages:
             - cmake
             - llvm-3.5
