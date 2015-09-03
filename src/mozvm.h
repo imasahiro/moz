@@ -17,8 +17,10 @@ typedef uint8_t moz_inst_t;
 typedef struct mozvm_nterm_entry_t {
     moz_inst_t *begin;
     moz_inst_t *end;
+    unsigned call_counter;
     void *compiled_code;
 } mozvm_nterm_entry_t;
+typedef void jit_context_t;
 #endif
 
 typedef struct mozvm_constant_t {
@@ -60,6 +62,7 @@ typedef struct moz_runtime_t {
 
 #ifdef MOZVM_ENABLE_JIT
     mozvm_nterm_entry_t *nterm_entry;
+    jit_context_t *jit_context;
 #endif
     mozvm_constant_t C;
     long stack_[1];

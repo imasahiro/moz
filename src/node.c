@@ -192,8 +192,8 @@ static uint64_t arena_size = 0;
 #endif
 
 struct page {
-#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct Node)-1)
-    struct Node nodes[PAGE_OBJECT_SIZE+1];
+#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct _Node)-1)
+    struct _Node nodes[PAGE_OBJECT_SIZE+1];
 };
 
 struct page_header {
@@ -230,8 +230,8 @@ void NodeManager_init()
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
-    unsigned offset1 = offsetof(struct Node, entry.raw.size);
-    unsigned offset2 = offsetof(struct Node, entry.array.size);
+    unsigned offset1 = offsetof(struct _Node, entry.raw.size);
+    unsigned offset2 = offsetof(struct _Node, entry.array.size);
     assert(offset1 == offset2);
 #ifdef NDEBUG
     (void)offset1; (void)offset2;
@@ -270,7 +270,7 @@ void NodeManager_dispose()
 #ifdef NODE_CHECK_MALLOC
     if (malloc_size) {
         fprintf(stderr, "memory leak %ld byte (%ld nodes)\n",
-                malloc_size, malloc_size / sizeof(struct Node));
+                malloc_size, malloc_size / sizeof(struct _Node));
     }
 #endif
 #endif /*MOZVM_NODE_USE_MEMPOOL*/
@@ -310,7 +310,7 @@ static inline Node node_alloc()
         return o;
     }
 #endif /*MOZVM_USE_FREE_LIST*/
-    o = (Node) VM_MALLOC(sizeof(struct Node));
+    o = (Node) VM_MALLOC(sizeof(struct _Node));
     return o;
 #endif
 }

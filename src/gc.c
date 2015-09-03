@@ -188,7 +188,7 @@ struct SubHeap {
 #define for_each_heap(H, I, HEAPS) \
     for (I = SUBHEAP_KLASS_MIN, H = (HEAPS)+I; I <= SUBHEAP_KLASS_MAX; ++H, ++I)
 
-typedef struct Node kObject;
+typedef struct _Node kObject;
 typedef struct MarkStack {
     kObject **stack;
     size_t tail;
