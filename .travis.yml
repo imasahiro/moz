@@ -13,6 +13,8 @@ addons:
             - cmake
             - llvm-3.5
             - llvm-3.5-dev
+            - llvm-3.5-runtime
+            - libllvm3.5
 script:
     - mkdir -p build install
     - cd build
