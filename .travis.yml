@@ -2,12 +2,17 @@ language: c
 compiler:
 - clang
 - gcc
-before_install:
-- sudo apt-get install cmake llvm-3.5 llvm-3.5-dev
-before_script:
-- mkdir -p build install
-- cd build
-- cmake ../ -DCMAKE_INSTALL_PREFIX=../install
-- make
-- make install
-script: make test
+
+addons:
+    apt:
+        packages:
+            - cmake
+            - llvm-3.5
+            - llvm-3.5-dev
+script:
+    - mkdir -p build install
+    - cd build
+    - cmake ../ -DCMAKE_INSTALL_PREFIX=../install
+    - make
+    - make test
+    - make install
