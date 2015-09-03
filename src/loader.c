@@ -5,10 +5,12 @@
 
 #include "mozvm_config.h"
 // #define VERBOSE_DEBUG 1
-#ifdef VERBOSE_DEBUG
-#define LOADER_DEBUG 1
-#endif
 // #define LOADER_DEBUG 2
+
+#if defined(VERBOSE_DEBUG) && !defined(LOADER_DEBUG)
+#define LOADER_DEBUG 2
+#endif
+
 #if defined(MOZVM_PROFILE) && !defined(LOADER_DEBUG)
 #define LOADER_DEBUG 1
 #endif
@@ -44,6 +46,7 @@ extern "C" {
 
 #ifdef LOADER_DEBUG
 static void mozvm_loader_dump(mozvm_loader_t *L, int print);
+static void dump_set(bitset_t *set, char *buf);
 #endif
 
 static char *load_file(const char *path, size_t *size)
@@ -536,23 +539,16 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(SMask) {
         asm volatile("int3");
     }
-    CASE_(SDef) {
-        asm volatile("int3");
-    }
-    CASE_(SIsDef) {
-        asm volatile("int3");
-    }
-    CASE_(SExists) {
-        asm volatile("int3");
-    }
-    CASE_(SMatch) {
-        asm volatile("int3");
-    }
-    CASE_(SIs) {
-        asm volatile("int3");
-    }
+    CASE_(SDef);
+    CASE_(SIsDef);
+    CASE_(SExists);
+    CASE_(SMatch);
+    CASE_(SIs);
     CASE_(SIsa) {
-        asm volatile("int3");
+        uint16_t tblId = read16(is);
+        tag_t *impl = L->R->C.tables[tblId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tblId, (void *)impl);
+        break;
     }
     CASE_(SDefNum) {
         asm volatile("int3");
@@ -842,8 +838,16 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     }
     bc->table_size = read16(&is);
     if (bc->table_size > 0) {
-        // bc->table = peek(&is);
-        assert(0 && "we do not have any specification about table");
+        bc->tables = (const char **)VM_MALLOC(sizeof(const char *) * bc->table_size);
+        for (i = 0; i < bc->table_size; i++) {
+            uint16_t len = read16(&is);
+            char *str = peek(&is);
+            skip(&is, len + 1);
+            bc->tables[i] = pstring_alloc(str, (unsigned)len);
+#if VERBOSE_DEBUG
+            fprintf(stderr, "tbl%d %s\n", i, bc->tables[i]);
+#endif
+        }
     }
 #if 0
 #define PRINT_FIELD(O, FIELD) \
@@ -1150,23 +1154,16 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(SMask) {
             asm volatile("int3");
         }
-        CASE_(SDef) {
-            asm volatile("int3");
-        }
-        CASE_(SIsDef) {
-            asm volatile("int3");
-        }
-        CASE_(SExists) {
-            asm volatile("int3");
-        }
-        CASE_(SMatch) {
-            asm volatile("int3");
-        }
-        CASE_(SIs) {
-            asm volatile("int3");
-        }
+        CASE_(SDef);
+        CASE_(SIsDef);
+        CASE_(SExists);
+        CASE_(SMatch);
+        CASE_(SIs);
         CASE_(SIsa) {
-            asm volatile("int3");
+            TAG_t tagId = *(TAG_t *)(p + 1);
+            tag_t *impl = TBL_GET_IMPL(L->R, tagId);
+            OP_PRINT("%p", impl);
+            break;
         }
         CASE_(SDefNum) {
             asm volatile("int3");

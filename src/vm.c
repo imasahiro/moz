@@ -132,6 +132,12 @@ void moz_runtime_dispose(moz_runtime_t *r)
     if (r->C.set_size) {
         VM_FREE(r->C.sets);
     }
+    if (r->C.table_size) {
+        for (i = 0; i < r->C.table_size; i++) {
+            pstring_delete((const char *)r->C.tables[i]);
+        }
+        VM_FREE(r->C.tables);
+    }
     if (r->C.tag_size) {
         for (i = 0; i < r->C.tag_size; i++) {
             pstring_delete((const char *)r->C.tags[i]);

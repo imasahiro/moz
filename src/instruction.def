@@ -356,14 +356,14 @@ DEF(SClose)
 DEF(SMask, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     PUSH(symtable_savepoint(tbl));
     symtable_add_symbol_mask(tbl, tableName);
 }
 DEF(SDef, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     token_t captured;
     token_init(&captured, (const char *)POP(), GET_CURRENT());
     symtable_add_symbol(tbl, tableName, &captured);
@@ -376,7 +376,7 @@ DEF(SIsDef)
 DEF(SExists, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     if (!symtable_has_symbol(tbl, tableName)) {
         FAIL();
     }
@@ -384,7 +384,7 @@ DEF(SExists, TAG_t tagId)
 DEF(SMatch, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     token_t t;
     if (symtable_get_symbol(tbl, tableName, &t)) {
         if (token_equal_string(&t, GET_CURRENT())) {
@@ -397,7 +397,7 @@ DEF(SMatch, TAG_t tagId)
 DEF(SIs, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     token_t t;
     if (symtable_get_symbol(tbl, tableName, &t)) {
         token_t captured;
@@ -413,7 +413,7 @@ DEF(SIsa, TAG_t tagId)
 {
     symtable_t *tbl = SYMTABLE_GET();
     token_t captured;
-    tag_t *tableName = TAG_GET_IMPL(runtime, tagId);
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
     token_init(&captured, (const char *)POP(), GET_CURRENT());
     if (!symtable_contains(tbl, tableName, &captured)) {
         FAIL();

@@ -25,6 +25,7 @@ typedef struct mozvm_constant_t {
     bitset_t *sets;
     const char **tags;
     const char **strs;
+    const char **tables;
     int *jumps;
 #ifdef MOZVM_USE_JMPTBL
     jump_table1_t *jumps1;
@@ -76,9 +77,11 @@ typedef const char tag_t;
 #if MOZVM_SMALL_TAG_INST
 typedef uint16_t TAG_t;
 #define TAG_GET_IMPL(runtime, ID) runtime->C.tags[(ID)]
+#define TBL_GET_IMPL(runtime, ID) runtime->C.tables[(ID)]
 #else
 typedef tag_t *TAG_t;
 #define TAG_GET_IMPL(runtime, ID) (ID)
+#define TBL_GET_IMPL(runtime, ID) (ID)
 #endif
 
 #if MOZVM_SMALL_BITSET_INST
