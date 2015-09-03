@@ -3,7 +3,7 @@ compiler:
 - clang
 - gcc
 before_install:
-- sudo apt-get install cmake
+- sudo apt-get install cmake llvm-3.5 llvm-3.5-dev
 before_script:
 - mkdir -p build install
 - cd build
