@@ -4,7 +4,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/JIT.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
 
 #include "jit.h"
 #include "instruction.h"
@@ -35,7 +35,7 @@ JitContext::JitContext() {
     LLVMContext& context = getGlobalContext();
 
     module = new Module("top", context);
-    EE = EngineBuilder(module).create();
+    EE = EngineBuilder(std::unique_ptr<Module>(module)).create();
 
     runtimeType = StructType::create(context, "moz_runtime_t");
     argTypes[0] = runtimeType->getPointerTo();
