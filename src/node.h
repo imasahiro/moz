@@ -9,9 +9,12 @@
 extern "C" {
 #endif
 
-typedef struct _Node *Node;
-DEF_ARRAY_STRUCT0(Node, unsigned);
-DEF_ARRAY_T(Node);
+struct Node;
+typedef struct Node Node;
+typedef Node *NodePtr;
+
+DEF_ARRAY_STRUCT0(NodePtr, unsigned);
+DEF_ARRAY_T(NodePtr);
 
 #define NODE_USE_NODE_PRINT 1
 
@@ -49,15 +52,15 @@ DEF_ARRAY_T(Node);
 #define NODE_GC_RELEASE(O)
 typedef struct NodeVisitor NodeVisitor;
 struct NodeVisitor {
-    void (*fn_visit)(NodeVisitor *visitor, Node object);
-    void (*fn_visit_range)(NodeVisitor *visitor, Node *, Node *);
+    void (*fn_visit)(NodeVisitor *visitor, Node *object);
+    void (*fn_visit_range)(NodeVisitor *visitor, Node **, Node **);
 };
 
 #else
 #error node gc
 #endif
 
-struct _Node {
+struct Node {
     NODE_GC_HEADER;
     const char *tag;
     const char *pos;
@@ -66,28 +69,28 @@ struct _Node {
     union NodeEntry {
         struct node_small_array {
             unsigned size;
-            Node ary[MOZVM_SMALL_ARRAY_LIMIT];
+            Node *ary[MOZVM_SMALL_ARRAY_LIMIT];
         } raw;
-        ARRAY(Node) array;
+        ARRAY(NodePtr) array;
     } entry;
 };
 
-static inline unsigned Node_length(Node o)
+static inline unsigned Node_length(Node *o)
 {
     return o->entry.raw.size;
 }
 
-Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value);
-void Node_free(Node o);
-void Node_append(Node o, Node n);
-Node Node_get(Node o, unsigned index);
-void Node_set(Node o, unsigned index, Node n);
+Node *Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value);
+void Node_free(Node *o);
+void Node_append(Node *o, Node *n);
+Node *Node_get(Node *o, unsigned index);
+void Node_set(Node *o, unsigned index, Node *n);
 #ifdef NODE_USE_NODE_PRINT
-void Node_print(Node o);
+void Node_print(Node *o);
 #endif
 
 #ifdef MOZVM_MEMORY_USE_RCGC
-void Node_sweep(Node o);
+void Node_sweep(Node *o);
 #endif
 
 #ifdef MOZVM_MEMORY_USE_MSGC

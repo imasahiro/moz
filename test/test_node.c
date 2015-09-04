@@ -2,7 +2,7 @@
 
 int main(int argc, char const* argv[])
 {
-    Node root, child1, child2, child3;
+    Node *root, *child1, *child2, *child3;
     NodeManager_init();
     root = Node_new("root", NULL, 0, 1, NULL);
     NODE_GC_RETAIN(root);

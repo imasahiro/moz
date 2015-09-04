@@ -31,7 +31,7 @@ typedef struct AstLog {
     int shift;
     union ast_log_entry {
         uintptr_t val;
-        Node ref;
+        Node *ref;
     } e;
     union ast_log_index {
         long idx;
@@ -44,8 +44,8 @@ DEF_ARRAY_T(AstLog);
 
 struct AstMachine {
     ARRAY(AstLog) logs;
-    Node last_linked;
-    Node parsed;
+    Node *last_linked;
+    Node *parsed;
     const char *source;
 };
 
@@ -72,14 +72,14 @@ void ast_log_pop(AstMachine *ast, int index);
 void ast_log_push(AstMachine *ast);
 void ast_log_swap(AstMachine *ast, mozpos_t pos);
 void ast_log_tag(AstMachine *ast, const char *tag);
-void ast_log_link(AstMachine *ast, int index, Node result);
+void ast_log_link(AstMachine *ast, int index, Node *result);
 
-static inline Node ast_get_last_linked_node(AstMachine *ast)
+static inline Node *ast_get_last_linked_node(AstMachine *ast)
 {
     return ast->last_linked;
 }
 
-Node ast_get_parsed_node(AstMachine *ast);
+Node *ast_get_parsed_node(AstMachine *ast);
 #ifdef MOZVM_MEMORY_USE_MSGC
 void ast_trace(void *p, NodeVisitor *visitor);
 #endif

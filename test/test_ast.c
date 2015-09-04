@@ -25,12 +25,12 @@ int main(int argc, char const* argv[])
 #define TAG_JSON     ((char *)tags[4].tag)
 
     AstMachine *ast;
-    Node node;
-    Node key;
-    Node elm0;
-    Node elm1;
-    Node list;
-    Node kv;
+    Node *node;
+    Node *key;
+    Node *elm0;
+    Node *elm1;
+    Node *list;
+    Node *kv;
     const char input[] = "{ 'key' : [12, 345] }";
     char *str = (char *)pstring_alloc(input, strlen(input));
     int i;

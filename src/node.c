@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-DEF_ARRAY_OP_NOPOINTER(Node);
+DEF_ARRAY_OP_NOPOINTER(NodePtr);
 
 #define MOZVM_NODE_PROFILE_EACH(F) \
     F(NODE_ALLOC) \
@@ -19,11 +19,11 @@ MOZVM_NODE_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
 // #define DEBUG2 1
 
-static inline Node node_alloc();
+static inline Node *node_alloc();
 
-Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value)
+Node *Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size, const char *value)
 {
-    Node o = node_alloc();
+    Node *o = node_alloc();
     MOZVM_PROFILE_INC(NODE_ALLOC);
 #ifdef DEBUG2
     fprintf(stderr, "A %p %d\n", o, elm_size);
@@ -36,9 +36,9 @@ Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size,
     o->entry.raw.size = elm_size;
     if (elm_size > MOZVM_SMALL_ARRAY_LIMIT) {
         unsigned i;
-        ARRAY_init(Node, &o->entry.array, elm_size);
+        ARRAY_init(NodePtr, &o->entry.array, elm_size);
         for (i = 0; i < elm_size; i++) {
-            ARRAY_add(Node, &o->entry.array, NULL);
+            ARRAY_add(NodePtr, &o->entry.array, NULL);
         }
     }
     else {
@@ -48,13 +48,13 @@ Node Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size,
     return o;
 }
 
-Node Node_get(Node o, unsigned index)
+Node *Node_get(Node *o, unsigned index)
 {
     unsigned len = Node_length(o);
     MOZVM_PROFILE_INC(NODE_GET);
     if (index < len) {
         if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-            return ARRAY_get(Node, &o->entry.array, index);
+            return ARRAY_get(NodePtr, &o->entry.array, index);
         }
         else {
             return o->entry.raw.ary[index];
@@ -63,14 +63,14 @@ Node Node_get(Node o, unsigned index)
     return NULL;
 }
 
-void Node_set(Node o, unsigned index, Node n)
+void Node_set(Node *o, unsigned index, Node *n)
 {
     unsigned len;
     assert(o != n);
     MOZVM_PROFILE_INC(NODE_SET);
 
 #ifdef MOZVM_MEMORY_USE_RCGC
-    Node v = Node_get(o, index);
+    Node *v = Node_get(o, index);
     NODE_GC_RETAIN(n);
     if (v) {
         NODE_GC_RELEASE(v);
@@ -81,14 +81,14 @@ void Node_set(Node o, unsigned index, Node n)
     }
     len = Node_length(o);
     if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-        ARRAY_set(Node, &o->entry.array, index, n);
+        ARRAY_set(NodePtr, &o->entry.array, index, n);
     }
     else {
         o->entry.raw.ary[index] = n;
     }
 }
 
-void Node_append(Node o, Node n)
+void Node_append(Node *o, Node *n)
 {
     unsigned len = Node_length(o);
     MOZVM_PROFILE_INC(NODE_APPEND);
@@ -96,16 +96,16 @@ void Node_append(Node o, Node n)
         NODE_GC_RETAIN(n);
     }
     if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-        ARRAY_ensureSize(Node, &o->entry.array, 1);
-        ARRAY_add(Node, &o->entry.array, n);
+        ARRAY_ensureSize(NodePtr, &o->entry.array, 1);
+        ARRAY_add(NodePtr, &o->entry.array, n);
     }
     else if (len == 2) {
-        Node e0 = o->entry.raw.ary[0];
-        Node e1 = o->entry.raw.ary[1];
-        ARRAY_init(Node, &o->entry.array, 3);
-        ARRAY_add(Node, &o->entry.array, e0);
-        ARRAY_add(Node, &o->entry.array, e1);
-        ARRAY_add(Node, &o->entry.array, n);
+        Node *e0 = o->entry.raw.ary[0];
+        Node *e1 = o->entry.raw.ary[1];
+        ARRAY_init(NodePtr, &o->entry.array, 3);
+        ARRAY_add(NodePtr, &o->entry.array, e0);
+        ARRAY_add(NodePtr, &o->entry.array, e1);
+        ARRAY_add(NodePtr, &o->entry.array, n);
     }
     else if (len == 1) {
         o->entry.raw.size += 1;
@@ -117,17 +117,17 @@ void Node_append(Node o, Node n)
     }
 }
 
-void Node_free(Node o)
+void Node_free(Node *o)
 {
     unsigned i, len = Node_length(o);
     MOZVM_PROFILE_INC(NODE_FREE);
 
     for (i = 0; i < len; i++) {
-        Node node = ARRAY_get(Node, &o->entry.array, i);
+        Node *node= ARRAY_get(NodePtr, &o->entry.array, i);
         Node_free(node);
     }
     if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-        ARRAY_dispose(Node, &o->entry.array);
+        ARRAY_dispose(NodePtr, &o->entry.array);
     }
     VM_FREE(o);
 }
@@ -141,7 +141,7 @@ static void print_indent(unsigned level)
     }
 }
 
-static void Node_print2(Node o, unsigned level)
+static void Node_print2(Node *o, unsigned level)
 {
     unsigned i, len = Node_length(o);
 
@@ -155,7 +155,7 @@ static void Node_print2(Node o, unsigned level)
         fprintf(stderr, "[\n");
 
         for (i = 0; i < len; i++) {
-            Node node = Node_get(o, i);
+            Node *node = Node_get(o, i);
             assert(node != o);
             print_indent(level + 1);
             if (node) {
@@ -171,7 +171,7 @@ static void Node_print2(Node o, unsigned level)
     }
 }
 
-void Node_print(Node o)
+void Node_print(Node *o)
 {
     Node_print2(o, 0);
     fprintf(stderr, "\n");
@@ -180,7 +180,7 @@ void Node_print(Node o)
 
 #ifdef MOZVM_MEMORY_USE_RCGC
 #if defined(MOZVM_USE_FREE_LIST) || defined(MOZVM_NODE_USE_MEMPOOL)
-static Node free_list = NULL;
+static Node *free_list = NULL;
 #endif
 
 #ifdef MOZVM_NODE_USE_MEMPOOL
@@ -192,8 +192,8 @@ static uint64_t arena_size = 0;
 #endif
 
 struct page {
-#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(struct _Node)-1)
-    struct _Node nodes[PAGE_OBJECT_SIZE+1];
+#define PAGE_OBJECT_SIZE (MOZVM_NODE_ARENA_SIZE * 4096 / sizeof(Node)-1)
+    Node nodes[PAGE_OBJECT_SIZE+1];
 };
 
 struct page_header {
@@ -204,9 +204,9 @@ static struct page *alloc_page()
 {
     struct page *p = (struct page *)calloc(1, sizeof(*p));
     struct page_header *h = (struct page_header *)p;
-    Node head = p->nodes + 1;
-    Node cur  = head;
-    Node tail = p->nodes + PAGE_OBJECT_SIZE;
+    Node *head = p->nodes + 1;
+    Node *cur  = head;
+    Node *tail = p->nodes + PAGE_OBJECT_SIZE;
 
     h->next = current_page;
     current_page = h;
@@ -230,8 +230,8 @@ void NodeManager_init()
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
-    unsigned offset1 = offsetof(struct _Node, entry.raw.size);
-    unsigned offset2 = offsetof(struct _Node, entry.array.size);
+    unsigned offset1 = offsetof(Node, entry.raw.size);
+    unsigned offset2 = offsetof(Node, entry.array.size);
     assert(offset1 == offset2);
 #ifdef NDEBUG
     (void)offset1; (void)offset2;
@@ -263,7 +263,7 @@ void NodeManager_dispose()
     current_page = NULL;
 #elif defined(MOZVM_USE_FREE_LIST)
     while (free_list) {
-        Node next = (Node)free_list->tag;
+        Node *next = (Node)free_list->tag;
         VM_FREE(free_list);
         free_list = next;
     }
@@ -291,15 +291,15 @@ void NodeManager_reset()
     NodeManager_init();
 }
 
-static inline Node node_alloc()
+static inline Node *node_alloc()
 {
-    Node o;
+    Node *o;
 #ifdef MOZVM_NODE_USE_MEMPOOL
     if (free_list == NULL) {
         alloc_page();
     }
     o = free_list;
-    free_list = (Node)o->tag;
+    free_list = (Node *)o->tag;
     free_object_count -= 1;
     return o;
 #else
@@ -315,7 +315,7 @@ static inline Node node_alloc()
 #endif
 }
 
-static inline void node_free(Node o)
+static inline void node_free(Node *o)
 {
     assert(o->refc == 0);
     memset(o, 0xa, sizeof(*o));
@@ -336,19 +336,19 @@ static inline void node_free(Node o)
 }
 
 
-void Node_sweep(Node o)
+void Node_sweep(Node *o)
 {
     // FIXME stack over flow
     unsigned i, len = Node_length(o);
     assert(o->refc == 0);
     for (i = 0; i < len; i++) {
-        Node node = Node_get(o, i);
+        Node *node= Node_get(o, i);
         if (node) {
             NODE_GC_RELEASE(node);
         }
     }
     if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-        ARRAY_dispose(Node, &o->entry.array);
+        ARRAY_dispose(NodePtr, &o->entry.array);
     }
     MOZVM_PROFILE_INC(NODE_SWEEP);
     node_free(o);

@@ -99,7 +99,7 @@ int main(int argc, char *const argv[])
     assert(inst != NULL);
 
     while (loop-- > 0) {
-        Node node = NULL;
+        Node *node = NULL;
         reset_timer();
         inst = head;
         moz_runtime_set_source(L.R, L.input, L.input + L.input_size);

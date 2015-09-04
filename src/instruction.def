@@ -343,7 +343,7 @@ DEF(TMemo, uint8_t state, uint16_t memoId)
     long saved, ast_tx;
     moz_inst_t *jump;
     mozpos_t pos;
-    Node node;
+    Node *node;
     POP_FRAME(pos, jump, ast_tx, saved);
     length = GET_POS() - pos;
     node = ast_get_last_linked_node(ast);

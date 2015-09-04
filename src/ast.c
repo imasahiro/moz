@@ -42,7 +42,7 @@ static inline mozpos_t GetPos(AstLog *log)
 
 }
 
-static inline Node GetNode(AstLog *log)
+static inline Node *GetNode(AstLog *log)
 {
 #ifdef AST_LOG_UNBOX
     uintptr_t val = log->e.val & ~TypeMask;
@@ -177,7 +177,7 @@ void ast_log_pop(AstMachine *ast, int index)
     ast_log(ast, TypePop, (mozpos_t)val, 0);
 }
 
-void ast_log_link(AstMachine *ast, int index, Node node)
+void ast_log_link(AstMachine *ast, int index, Node *node)
 {
     union ast_log_index i;
     i.idx = index;
@@ -196,7 +196,7 @@ void ast_rollback_tx(AstMachine *ast, long tx)
         AstLog *tail = ARRAY_last(ast->logs);
         for (; cur <= tail; ++cur) {
             if(GetTag(cur) == TypeLink) {
-                Node o = GetNode(cur);
+                Node *o = GetNode(cur);
                 if (o) {
                     NODE_GC_RELEASE(o);
                     cur->e.ref = NULL;
@@ -208,10 +208,10 @@ void ast_rollback_tx(AstMachine *ast, long tx)
     ARRAY_size(ast->logs) = tx;
 }
 
-Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mozpos_t epos, long objectSize, const char *tag, const char *value)
+Node *constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mozpos_t epos, long objectSize, const char *tag, const char *value)
 {
     long len = epos - spos;
-    Node newnode = Node_new(tag,
+    Node *newnode = Node_new(tag,
 #ifndef MOZVM_USE_POINTER_AS_POS_REGISTER
             ast->source +
 #endif
@@ -224,7 +224,7 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mo
         if(GetTag(cur) == TypeLink) {
             int index = cur->i.idx;
             int shift = cur->shift;
-            Node child = GetNode(cur);
+            Node *child = GetNode(cur);
             if(child) {
                 assert(index >= 0);
                 Node_set(newnode, index, child);
@@ -237,11 +237,11 @@ Node constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mo
     return newnode;
 }
 
-static Node ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
+static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
 {
     AstLog *head, *tail;
     mozpos_t spos, epos;
-    Node tmp;
+    Node *tmp;
     const char *tag = NULL;
     const char *value = NULL;
     long objectSize = 0;
@@ -324,17 +324,17 @@ void ast_commit_tx(AstMachine *ast, int index, long tx)
     fprintf(stderr, "0: %ld %d\n", tx, ARRAY_size(ast->logs)-1);
     AstMachine_dumpLog(ast);
 #endif
-    Node node = ast_create_node(ast, cur, NULL);
+    Node *node = ast_create_node(ast, cur, NULL);
     ast_rollback_tx(ast, tx);
     if (node) {
         ast_log_link(ast, index, node);
     }
 }
 
-Node ast_get_parsed_node(AstMachine *ast)
+Node *ast_get_parsed_node(AstMachine *ast)
 {
     AstLog *cur, *tail;
-    Node parsed = NULL;
+    Node *parsed = NULL;
     if (ast->parsed) {
         return ast->parsed;
     }
@@ -366,7 +366,7 @@ void ast_trace(void *p, NodeVisitor *visitor)
     AstLog *tail = ARRAY_last(ast->logs);
     for (; cur <= tail; ++cur) {
         if(GetTag(cur) == TypeLink) {
-            Node o = GetNode(cur);
+            Node *o = GetNode(cur);
             if (o) {
                 visitor->fn_visit(visitor, o);
             }

@@ -49,7 +49,7 @@ static void memo_elastic_init(memo_t *m, unsigned w, unsigned n)
     m->shift = LOG2(n) + 1;
 }
 
-static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node result, unsigned consumed, int state)
+static int memo_elastic_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node *result, unsigned consumed, int state)
 {
     uintptr_t hash = (((uintptr_t)pos << m->shift) | memoId);
     unsigned idx = hash & m->mask;
@@ -185,7 +185,7 @@ int memo_fail(memo_t *m, mozpos_t pos, uint32_t memoId)
 #endif
 }
 
-int memo_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node result, unsigned consumed, int state)
+int memo_set(memo_t *m, mozpos_t pos, uint32_t memoId, Node *result, unsigned consumed, int state)
 {
     if (result) {
         NODE_GC_RETAIN(result);
