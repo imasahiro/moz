@@ -54,7 +54,7 @@ target_link_libraries(moz nez)
 #add_executable(moz_stat ${STAT_SRC})
 add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC})
 
-llvm_map_components_to_libnames(llvm_libs support core mcjit nativecodegen)
+llvm_map_components_to_libnames(llvm_libs support core nativecodegen mcdisassembler mcjit)
 target_link_libraries(moz ${llvm_libs})
 target_link_libraries(moz_all ${llvm_libs})
 
