@@ -20,13 +20,10 @@ using namespace llvm;
 
 class JitContext {
 public:
-    Module *module;
     ExecutionEngine *EE;
     StructType *runtimeType;
     FunctionType *funcType;
-    ~JitContext() {
-        delete module;
-    }
+    ~JitContext() {};
     JitContext();
 };
 
@@ -34,8 +31,7 @@ JitContext::JitContext() {
     Type *argTypes[2];
     LLVMContext& context = getGlobalContext();
 
-    module = new Module("top", context);
-    EE = EngineBuilder(std::unique_ptr<Module>(module)).create();
+    EE = NULL;
 
     runtimeType = StructType::create(context, "moz_runtime_t");
     argTypes[0] = runtimeType->getPointerTo();
@@ -53,6 +49,7 @@ static inline JitContext *get_context(moz_runtime_t *r)
 void mozvm_jit_init(moz_runtime_t *runtime)
 {
     InitializeNativeTarget();
+    InitializeNativeTargetAsmPrinter();
     runtime->jit_context = reinterpret_cast<void *>(new JitContext());
 }
 
@@ -79,7 +76,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     LLVMContext& context = getGlobalContext();
     IRBuilder<> builder(context);
-    Module *M = _ctx->module;
+    Module *M = new Module("top", context);
+    if(_ctx->EE) {
+        _ctx->EE->addModule(std::unique_ptr<Module>(M));
+    }
+    else {
+        _ctx->EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
+    }
 
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
@@ -334,6 +337,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         F->eraseFromParent();
         return NULL;
     }
+    _ctx->EE->finalizeObject();
     e->compiled_code = (moz_jit_func_t) _ctx->EE->getPointerToFunction(F);
     return e->compiled_code;
 }
