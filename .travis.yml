@@ -1,20 +1,36 @@
-language: c
+language: cpp
 sudo: false
 compiler:
-- clang
-- gcc
+    - gcc
+
+env:
+    - COMPILER=clang++-3.6 CCOMPILER=clang-3.6
+    - COMPILER=g++-4.9     CCOMPILER=gcc-4.9
+
 
 addons:
     apt:
         sources:
             - llvm-toolchain-precise
-            - llvm-toolchain-precise-3.5
+            - llvm-toolchain-precise-3.6
+            - ubuntu-toolchain-r-test
         packages:
-            - cmake
-            - llvm-3.5
-            - llvm-3.5-dev
-            - llvm-3.5-runtime
-            - libllvm3.5
+            - libconfig++8-dev
+            - linux-libc-dev:i386
+            - libedit2
+            - libedit-dev
+            - clang-3.6
+            - gcc-4.9
+            - g++-4.9
+            - llvm-3.6
+            - llvm-3.6-dev
+
+before_script:
+    - export CXX=$COMPILER
+    - export CC=$CCOMPILER
+    - $CC  --version
+    - $CXX --version
+    - cmake  --version
 script:
     - mkdir -p build install
     - cd build
