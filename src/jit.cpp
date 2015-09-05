@@ -28,7 +28,7 @@ public:
 };
 
 JitContext::JitContext() {
-    Type *argTypes[2];
+    Type *argTypes[3];
     LLVMContext& context = getGlobalContext();
 
     EE = NULL;
@@ -36,8 +36,9 @@ JitContext::JitContext() {
     runtimeType = StructType::create(context, "moz_runtime_t");
     argTypes[0] = runtimeType->getPointerTo();
     argTypes[1] = Type::getInt8PtrTy(context);
+    argTypes[2] = Type::getInt32PtrTy(context);
 
-    ArrayRef<Type *> argsRef(argTypes, 2);
+    ArrayRef<Type *> argsRef(argTypes, 3);
     funcType = FunctionType::get(Type::getInt8Ty(context), argsRef, false);
 }
 
@@ -91,6 +92,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Function::arg_iterator arg_iter=F->arg_begin();
     Value *runtime_ = arg_iter++;
     Value *str = arg_iter++;
+    Value *len = arg_iter++;
 
     BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
     builder.SetInsertPoint(entry);
@@ -126,7 +128,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Ret) {
-                asm volatile("int3");
+                builder.CreateRet(builder.getInt8(0));
                 break;
             }
             CASE_(Pos) {
