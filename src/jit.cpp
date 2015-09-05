@@ -73,6 +73,19 @@ void mozvm_jit_dispose(moz_runtime_t *runtime)
     runtime->jit_context = NULL;
 }
 
+#define DECLARE_FUNC(MODULE, DEST, RETURN_TYPE, FUNCNAME, ...) do {\
+    Type *args_[] = { __VA_ARGS__ };\
+    ArrayRef<Type *> argsRef_(args_, sizeof(args_) / sizeof(args_[0]));\
+    FunctionType *funcType_ = FunctionType::get(RETURN_TYPE, argsRef_, false);\
+    DEST = (MODULE)->getOrInsertFunction(StringRef(FUNCNAME), funcType_);\
+} while(0)
+
+#define CALL_FUNC(BUILDER, RESULT, FUNC, ...) do {\
+    Value *params_[] = { __VA_ARGS__ };\
+    ArrayRef<Value *> paramsRef_(params_, sizeof(params_) / sizeof(params_[0]));\
+    RESULT = (BUILDER).CreateCall(FUNC, paramsRef_);\
+} while(0)
+
 moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 {
     JitContext *_ctx = get_context(runtime);
@@ -130,7 +143,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Ret) {
-                builder.CreateRet(builder.getInt32(0));
+                builder.CreateRet(builder.getInt8(0));
                 break;
             }
             CASE_(Pos) {
@@ -206,7 +219,34 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(RSet) {
-                asm volatile("int3");
+                Type *bitsetRefType = M->getTypeByName(StringRef("struct.bitset_t"))->getPointerTo();
+                Value *bitsetgetimpl;
+                DECLARE_FUNC(M, bitsetgetimpl, bitsetRefType, "bitset_Get_Impl", _ctx->runtimeType->getPointerTo(), builder.getInt16Ty());
+                Value *set;
+                CALL_FUNC(builder, set, bitsetgetimpl, runtime_, builder.getInt16(*((uint16_t *)p)));
+                BasicBlock *rstart = BasicBlock::Create(context, "repetition.start", F);
+                builder.CreateBr(rstart);
+
+                builder.SetInsertPoint(rstart);
+                Value *pos = builder.CreateLoad(len);
+                Value *current = builder.CreateGEP(str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+                Value *bitsetget;
+                DECLARE_FUNC(M, bitsetget, builder.getInt32Ty(), "call_bitset_get", bitsetRefType, builder.getInt32Ty());
+                Value *result;
+                CALL_FUNC(builder, result, bitsetget, set, index);
+                Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
+                BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
+                BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
+                builder.CreateCondBr(cond, rend, rbody);
+
+                builder.SetInsertPoint(rbody);
+                Value *newpos = builder.CreateAdd(pos, builder.getInt32(1));
+                builder.CreateStore(newpos, len);
+                builder.CreateBr(rstart);
+
+                builder.SetInsertPoint(rend);
                 break;
             }
             CASE_(Consume) {

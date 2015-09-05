@@ -38,7 +38,7 @@ DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
         moz_jit_func_t func = mozvm_jit_compile(runtime, e);
         if (func) {
             uint32_t len = 0;
-            if (func(runtime, GET_CURRENT(), &len) == 0) {
+            if (func(runtime, GET_CURRENT(), &len)) {
                 FAIL();
             }
             CONSUME_N(len);
