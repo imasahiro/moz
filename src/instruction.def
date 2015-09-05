@@ -37,9 +37,11 @@ DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
     if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
         moz_jit_func_t func = mozvm_jit_compile(runtime, e);
         if (func) {
-            if (func(runtime, GET_CURRENT()) == 0) {
+            uint32_t len = 0;
+            if (func(runtime, GET_CURRENT(), &len) == 0) {
                 FAIL();
             }
+            CONSUME_N(len);
             JUMP(next);
         }
     }
