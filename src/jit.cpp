@@ -1,12 +1,17 @@
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
 
 #include "jit.h"
+#include "api.h"
 #include "instruction.h"
 
 #ifdef __cplusplus
@@ -30,10 +35,12 @@ public:
 JitContext::JitContext() {
     Type *argTypes[3];
     LLVMContext& context = getGlobalContext();
+    SMDiagnostic err;
+    std::unique_ptr<llvm::Module> apiModule = parseIR(MemoryBufferRef(StringRef(API_IR), StringRef("api.h")), err, context);
+    runtimeType = apiModule.get()->getTypeByName(StringRef("struct.moz_runtime_t"));
 
-    EE = NULL;
+    EE = EngineBuilder(std::move(apiModule)).create();
 
-    runtimeType = StructType::create(context, "moz_runtime_t");
     argTypes[0] = runtimeType->getPointerTo();
     argTypes[1] = Type::getInt8PtrTy(context);
     argTypes[2] = Type::getInt32PtrTy(context);
@@ -78,12 +85,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     LLVMContext& context = getGlobalContext();
     IRBuilder<> builder(context);
     Module *M = new Module("top", context);
-    if(_ctx->EE) {
-        _ctx->EE->addModule(std::unique_ptr<Module>(M));
-    }
-    else {
-        _ctx->EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
-    }
+    _ctx->EE->addModule(std::unique_ptr<Module>(M));
 
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
