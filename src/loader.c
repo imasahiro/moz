@@ -612,19 +612,22 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 #ifdef MOZVM_ENABLE_JIT
         if (opcode == Label) {
             long begin = (long)ARRAY_size(L->buf);
-            L->R->nterm_entry[nterm].begin = (moz_inst_t *)begin;
+            if (nterm > 0) {
+                L->R->nterm_entry[nterm-1].end = (moz_inst_t *)begin;
+            }
+            L->R->nterm_entry[nterm++].begin = (moz_inst_t *)begin;
         }
 #endif
         L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);
-#ifdef MOZVM_ENABLE_JIT
-        if (opcode == Label) {
-            long end = (long)ARRAY_size(L->buf);
-            L->R->nterm_entry[nterm++].begin = (moz_inst_t *)end;
-        }
-#endif
     }
 
+#ifdef MOZVM_ENABLE_JIT
+    if (nterm > 0) {
+        long end = (long)ARRAY_size(L->buf);
+        L->R->nterm_entry[nterm-1].end = (moz_inst_t *)end;
+    }
+#endif
     // fprintf(stderr, "\n");
 
     while (j < (int)ARRAY_size(L->buf)) {
