@@ -1,4 +1,5 @@
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
@@ -9,6 +10,70 @@
 #include "jit.h"
 #include "instruction.h"
 
+using namespace llvm;
+
+template<class Vector, class First>
+void set_vector(const Vector& dest, const First& first) {
+    dest->push_back(first);
+}
+
+template<class Vector, class First, class... Rest>
+void set_vector(const Vector& dest, const First& first, const Rest&... rest) {
+    set_vector(dest, first);
+    set_vector(dest, rest...);
+}
+
+template<class... Args>
+StructType *jit_define_struct_type(const char *name, const Args&... args) {
+    std::vector<Type *> elements;
+    set_vector(&elements, args...);
+    ArrayRef<Type *> elmsRef(elements);
+
+    LLVMContext& context = getGlobalContext();
+    StructType *s_ty = StructType::create(context, name);
+    s_ty->setBody(elmsRef);
+    return s_ty;
+}
+
+template<class Builder, class... Args>
+Value *jit_create_get_element_ptr(const Builder &builder, Value *Val, const Args&... args) {
+    std::vector<Value *> indexs;
+    set_vector(&indexs, args...);
+    ArrayRef<Value *> idxsRef(indexs);
+
+    return builder->CreateGEP(Val, idxsRef);
+}
+
+template<class Returns, class... Args>
+FunctionType *jit_get_function_type(const Returns& returntype, const Args&... args) {
+    std::vector<Type *> parameters;
+    set_vector(&parameters, args...);
+    ArrayRef<Type *> paramsRef(parameters);
+
+    return FunctionType::get(returntype, paramsRef, false);
+}
+
+template<class Builder, class... Args>
+Value *jit_create_call_inst(const Builder &builder, Value *F, const Args&... args) {
+    std::vector<Value *> arguments;
+    set_vector(&arguments, args...);
+    ArrayRef<Value *> argsRef(arguments);
+
+    return builder->CreateCall(F, argsRef);
+}
+
+Value *jit_bitset_ptr(IRBuilder<> *builder, Value *runtime, BITSET_t id) {
+#if MOZVM_SMALL_BITSET_INST
+	Value *r_c_sets = jit_create_get_element_ptr(builder, runtime, builder->getInt32(0), builder->getInt32(10), builder->getInt32(0));
+	Value *sets_head = builder->CreateLoad(r_c_sets);
+    return jit_create_get_element_ptr(builder, sets_head, builder->getInt32(id));
+#else
+    asm volatile("int3");
+    //bitset_t *_set = (bitset_t *)id;
+    return NULL;
+#endif
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,11 +81,13 @@ extern "C" {
 #define MOZVM_OPCODE_SIZE 1
 #include "vm_inst.h"
 
-using namespace llvm;
-
 class JitContext {
 public:
     ExecutionEngine *EE;
+    StructType *bsetType;
+    StructType *astType;
+    StructType *symtableType;
+    StructType *memoType;
     StructType *runtimeType;
     FunctionType *funcType;
     ~JitContext() {};
@@ -28,18 +95,50 @@ public:
 };
 
 JitContext::JitContext() {
-    Type *argTypes[3];
     LLVMContext& context = getGlobalContext();
 
     EE = NULL;
 
-    runtimeType = StructType::create(context, "moz_runtime_t");
-    argTypes[0] = runtimeType->getPointerTo();
-    argTypes[1] = Type::getInt8PtrTy(context);
-    argTypes[2] = Type::getInt32PtrTy(context);
+#if defined(BITSET_USE_ULONG)
+    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(Type::getInt64Ty(context), (256/BITS)));
+#elif defined(BITSET_USE_UINT)
+    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(Type::getInt32Ty(context), (256/BITS)));
+#endif
 
-    ArrayRef<Type *> argsRef(argTypes, 3);
-    funcType = FunctionType::get(Type::getInt8Ty(context), argsRef, false);
+	StructType *constantType = jit_define_struct_type("mozvm_constant_t",
+       bsetType->getPointerTo(),
+       Type::getInt8PtrTy(context)->getPointerTo(), Type::getInt8PtrTy(context)->getPointerTo(), //tags, strs
+       Type::getInt8PtrTy(context)->getPointerTo(), Type::getInt32Ty(context), //tables, jumps
+#ifdef MOZVM_USE_JMPTBL
+       Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //jumps1, jumps2, jumps3
+#endif
+       Type::getInt8PtrTy(context)->getPointerTo(), //nterms
+       Type::getInt16Ty(context), Type::getInt16Ty(context), Type::getInt16Ty(context), //set_size, str_size, tag_size
+       Type::getInt16Ty(context), Type::getInt16Ty(context), //table_size, nterm_size
+       Type::getInt32Ty(context), Type::getInt32Ty(context), Type::getInt32Ty(context) //inst_size, memo_size, input_size
+#ifdef MOZVM_PROFILE_INST
+       , Type::getInt64PtrTy(context) //profile
+#endif
+    );
+
+    astType = StructType::create(context, "AstMachine");
+    symtableType = StructType::create(context, "symtable_t");
+    memoType = StructType::create(context, "memo_t");
+    runtimeType = jit_define_struct_type("moz_runtime_t",
+        astType->getPointerTo(), symtableType->getPointerTo(), memoType->getPointerTo(),
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+        Type::getInt8PtrTy(context), //head
+#else
+        Type::getInt64Ty(context),   //head
+#endif
+        Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //tail, input
+        Type::getInt64PtrTy(context), Type::getInt64PtrTy(context), //stack, fp
+        Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //nterm_entry, jit_context
+        constantType, ArrayType::get(Type::getInt64Ty(context), 1)
+    );
+
+    funcType = jit_get_function_type(Type::getInt8Ty(context),
+            runtimeType->getPointerTo(), Type::getInt8PtrTy(context), Type::getInt32PtrTy(context));
 }
 
 static inline JitContext *get_context(moz_runtime_t *r)
@@ -204,7 +303,30 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(RSet) {
-                asm volatile("int3");
+                llvm::sys::DynamicLibrary::AddSymbol(llvm::StringRef("bitset_get"), (void *)bitset_get);
+                Value *set = jit_bitset_ptr(&builder, runtime_, *((BITSET_t *)(p+1)));
+                BasicBlock *rstart = BasicBlock::Create(context, "repetition.start", F);
+                builder.CreateBr(rstart);
+
+                builder.SetInsertPoint(rstart);
+                Value *pos = builder.CreateLoad(len);
+                Value *current = builder.CreateGEP(str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+                FunctionType *bitsetgetType = jit_get_function_type(builder.getInt32Ty(), _ctx->bsetType->getPointerTo(), builder.getInt32Ty());
+                Value *bitsetget = M->getOrInsertFunction(StringRef("bitset_get"), bitsetgetType);
+                Value *result = jit_create_call_inst(&builder, bitsetget, set, index);
+                Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
+                BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
+                BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
+                builder.CreateCondBr(cond, rbody, rend);
+
+                builder.SetInsertPoint(rbody);
+                Value *newpos = builder.CreateAdd(pos, builder.getInt32(1));
+                builder.CreateStore(newpos, len);
+                builder.CreateBr(rstart);
+
+                builder.SetInsertPoint(rend);
                 break;
             }
             CASE_(Consume) {
