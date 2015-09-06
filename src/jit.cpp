@@ -1,3 +1,8 @@
+#include "jit.h"
+
+#ifdef MOZVM_ENABLE_JIT
+#include "instruction.h"
+
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -6,8 +11,6 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
 
-#include "jit.h"
-#include "instruction.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -345,3 +348,4 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 #ifdef __cplusplus
 }
 #endif
+#endif /*MOZVM_ENABLE_JIT*/

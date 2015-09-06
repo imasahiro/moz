@@ -136,16 +136,18 @@ mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
-    unsigned i;
     moz_inst_t *inst = ARRAY_n(L->buf, 0);
     VM_FREE(L->table);
     L->table = NULL;
 #ifdef MOZVM_ENABLE_JIT
-    for (i = 0; i < L->R->C.nterm_size; i++) {
-        unsigned begin = (unsigned) L->R->nterm_entry[i].begin;
-        unsigned end   = (unsigned) L->R->nterm_entry[i].end;
-        L->R->nterm_entry[i].begin = inst + begin;
-        L->R->nterm_entry[i].end   = inst + end;
+    {
+        unsigned i;
+        for (i = 0; i < L->R->C.nterm_size; i++) {
+            unsigned begin = (unsigned) L->R->nterm_entry[i].begin;
+            unsigned end   = (unsigned) L->R->nterm_entry[i].end;
+            L->R->nterm_entry[i].begin = inst + begin;
+            L->R->nterm_entry[i].end   = inst + end;
+        }
     }
 #endif
     return inst;
@@ -598,7 +600,10 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
-    int i = 0, j = 0, nterm = 0;
+    int i = 0, j = 0;
+#ifdef MOZVM_ENABLE_JIT
+    int nterm = 0;
+#endif
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
@@ -607,14 +612,14 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     mozvm_loader_write_opcode(L, Exit); // exit fail
     mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
-        uint8_t opcode = *peek(is);
-        L->inst_size++;
 #ifdef MOZVM_ENABLE_JIT
+        uint8_t opcode = *peek(is);
         if (opcode == Label) {
             long begin = (long)ARRAY_size(L->buf);
             L->R->nterm_entry[nterm++].begin = (moz_inst_t *)begin;
         }
 #endif
+        L->inst_size++;
         L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);
     }

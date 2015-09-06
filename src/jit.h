@@ -7,10 +7,12 @@
 extern "C" {
 #endif
 
+#ifdef MOZVM_ENABLE_JIT
 void mozvm_jit_init(moz_runtime_t *runtime);
 void mozvm_jit_reset(moz_runtime_t *runtime);
 void mozvm_jit_dispose(moz_runtime_t *runtime);
 moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e);
+#endif
 
 #ifdef __cplusplus
 }
