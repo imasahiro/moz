@@ -16,7 +16,7 @@ open(file) {|f|
       op = a.shift
       # puts "#line #{$line} \"#{FILE}\""
       out.puts "OP_CASE(#{op})\n{"
-      types << [op, *a.map{|e| e.split(" ")[0].strip }]
+      types << [op, *a]
       a.each {|e|
         e = e.strip
         type, name, cond = e.split(" ")
@@ -44,12 +44,24 @@ open(file) {|f|
 #ifdef MOZVM_OPCODE_SIZE
 static unsigned opcode_size(int opcode)
 {
+    unsigned size = MOZVM_INST_HEADER_SIZE;
     switch (opcode) {
 TXT
-  types.each {|e|
-    op = e[0]
-    size = ["MOZVM_INST_HEADER_SIZE", *(e[1..-1].map{|e| "sizeof(#{e})" })].join(" + ")
-    out.puts TAB + "case #{op}: return #{size};"
+  tab2 = TAB + TAB
+  types.each {|a|
+    op = a.shift
+    out.puts TAB + "case #{op}:"
+    a.each do |e|
+      type, name, cond = e.split(" ")
+      if cond != nil
+        out.puts "#ifdef " + cond
+      end
+      out.puts tab2 + "size += sizeof(#{type.strip});"
+      if cond != nil
+        out.puts "#endif /* #{cond} */"
+      end
+    end
+    out.puts tab2 + "return size;"
   }
   out.puts <<-TXT
     default: break;
