@@ -80,7 +80,7 @@ Value *jit_consume_n(IRBuilder<> &builder, Value *pos, Value *N) {
 
 Value *jit_bitset_ptr(IRBuilder<> *builder, Value *runtime, BITSET_t id) {
 #if MOZVM_SMALL_BITSET_INST
-	Value *r_c_sets = jit_create_get_element_ptr(builder, runtime, builder->getInt32(0), builder->getInt32(10), builder->getInt32(0));
+	Value *r_c_sets = jit_create_get_element_ptr(builder, runtime, builder->getInt64(0), builder->getInt32(10), builder->getInt32(0));
 	Value *sets_head = builder->CreateLoad(r_c_sets);
     return jit_create_get_element_ptr(builder, sets_head, builder->getInt32(id));
 #else
@@ -213,7 +213,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Value *consumed = arg_iter++;
 
     BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
-    builder.SetInsertPoint(entry);
+    BasicBlock *currentBB = entry;
+    builder.SetInsertPoint(currentBB);
 
     moz_inst_t *p = e->begin;
     while (p < e->end) {
@@ -323,12 +324,17 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             }
             CASE_(RSet) {
                 llvm::sys::DynamicLibrary::AddSymbol(llvm::StringRef("bitset_get"), (void *)bitset_get);
-                Value *set = jit_bitset_ptr(&builder, runtime_, *((BITSET_t *)(p+1)));
                 BasicBlock *rstart = BasicBlock::Create(context, "repetition.start", F);
+                BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
+                BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
+
+                Value *set = jit_bitset_ptr(&builder, runtime_, *((BITSET_t *)(p+1)));
+                Value *firstpos = builder.CreateLoad(consumed);
                 builder.CreateBr(rstart);
 
                 builder.SetInsertPoint(rstart);
-                Value *pos = builder.CreateLoad(consumed);
+                PHINode *pos = builder.CreatePHI(_ctx->mozposType, 2);
+                pos->addIncoming(firstpos, currentBB);
                 Value *current = jit_get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
@@ -336,16 +342,16 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *bitsetget = M->getOrInsertFunction(StringRef("bitset_get"), bitsetgetType);
                 Value *result = jit_create_call_inst(&builder, bitsetget, set, index);
                 Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
-                BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
-                BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
                 builder.CreateCondBr(cond, rbody, rend);
 
                 builder.SetInsertPoint(rbody);
-                Value *newpos = jit_consume_n(builder, pos, builder.getInt32(1));
-                builder.CreateStore(newpos, consumed);
+                Value *nextpos = jit_consume_n(builder, pos, builder.getInt32(1));
+                pos->addIncoming(nextpos, rbody);
                 builder.CreateBr(rstart);
 
                 builder.SetInsertPoint(rend);
+                builder.CreateStore(pos, consumed);
+                currentBB = rend;
                 break;
             }
             CASE_(Consume) {
