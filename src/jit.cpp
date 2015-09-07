@@ -108,14 +108,17 @@ public:
     StructType *runtimeType;
     FunctionType *funcType;
 
+    FunctionType *bitsetgetType;
+
     ~JitContext() {};
     JitContext();
+
+    FunctionType *Create_bitset_get(IRBuilder<> &builder, Module *M);
 };
 
 JitContext::JitContext() {
     LLVMContext& context = getGlobalContext();
-
-    EE = NULL;
+    IRBuilder<> builder(context);
 
 #if defined(BITSET_USE_ULONG)
     bsetType = jit_define_struct_type("bitset_t", ArrayType::get(Type::getInt64Ty(context), (256/BITS)));
@@ -158,6 +161,55 @@ JitContext::JitContext() {
 
     funcType = jit_get_function_type(Type::getInt8Ty(context),
             runtimeType->getPointerTo(), Type::getInt8PtrTy(context), mozposType->getPointerTo());
+
+    Module *M = new Module("top", context);
+    bitsetgetType = Create_bitset_get(builder, M);
+    EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
+    EE->finalizeObject();
+}
+
+FunctionType *JitContext::Create_bitset_get(IRBuilder<> &builder, Module *M) {
+    LLVMContext& context = M->getContext();
+    Type *I32Ty = builder.getInt32Ty();
+    Type *I64Ty = builder.getInt64Ty();
+    FunctionType *funcTy = jit_get_function_type(I32Ty, bsetType->getPointerTo(), I32Ty);
+    Function *F = Function::Create(funcTy,
+            Function::ExternalLinkage,
+            "bitset_get", M);
+
+    Function::arg_iterator arg_iter=F->arg_begin();
+    Value *set = arg_iter++;
+    Value *idx = arg_iter++;
+
+    BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
+    builder.SetInsertPoint(entry);
+
+    Value *i32_0 = builder.getInt32(0);
+    Value *i64_0 = builder.getInt64(0);
+
+#if defined(BITSET_USE_ULONG)
+    Value *Mod    = builder.CreateAnd(idx, builder.getInt32(63));
+    Value *Mod_   = builder.CreateZExt(Mod, I64Ty);
+    Value *Mask   = builder.CreateShl(builder.getInt64(1), Mod_);
+    Value *Div    = builder.CreateLShr(idx, builder.getInt32(6));
+    Value *Div_   = builder.CreateZExt(Div, I64Ty);
+    Value *Ptr    = jit_create_get_element_ptr(&builder, set, i64_0, i32_0, Div_);
+    Value *Data   = builder.CreateLoad(Ptr);
+    Value *Result = builder.CreateAnd(Data, Mask);
+    Value *NEq0   = builder.CreateICmpNE(Result, i64_0);
+#elif defined(BITSET_USE_UINT)
+    Value *Mod    = builder.CreateAnd(idx, builder.getInt32(31));
+    Value *Mask   = builder.CreateShl(builder.getInt32(1), Mod);
+    Value *Div    = builder.CreateLShr(idx, builder.getInt32(5));
+    Value *Div_   = builder.CreateZExt(Div, I64Ty);
+    Value *Ptr    = jit_create_get_element_ptr(&builder, set, i64_0, i32_0, Div_);
+    Value *Data   = builder.CreateLoad(Ptr);
+    Value *Result = builder.CreateAnd(Data, Mask);
+    Value *NEq0   = builder.CreateICmpNE(Result, i32_0);
+#endif
+    Value *RetVal = builder.CreateZExt(NEq0, I32Ty);
+    builder.CreateRet(RetVal);
+    return funcTy;
 }
 
 static inline JitContext *get_context(moz_runtime_t *r)
@@ -196,12 +248,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     LLVMContext& context = getGlobalContext();
     IRBuilder<> builder(context);
     Module *M = new Module("top", context);
-    if(_ctx->EE) {
-        _ctx->EE->addModule(std::unique_ptr<Module>(M));
-    }
-    else {
-        _ctx->EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
-    }
+    _ctx->EE->addModule(std::unique_ptr<Module>(M));
 
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
@@ -323,7 +370,6 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(RSet) {
-                llvm::sys::DynamicLibrary::AddSymbol(llvm::StringRef("bitset_get"), (void *)bitset_get);
                 BasicBlock *rstart = BasicBlock::Create(context, "repetition.start", F);
                 BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
                 BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
@@ -338,8 +384,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *current = jit_get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                FunctionType *bitsetgetType = jit_get_function_type(builder.getInt32Ty(), _ctx->bsetType->getPointerTo(), builder.getInt32Ty());
-                Value *bitsetget = M->getOrInsertFunction(StringRef("bitset_get"), bitsetgetType);
+                Value *bitsetget = M->getOrInsertFunction(StringRef("bitset_get"), _ctx->bitsetgetType);
                 Value *result = jit_create_call_inst(&builder, bitsetget, set, index);
                 Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
                 builder.CreateCondBr(cond, rbody, rend);
