@@ -411,10 +411,17 @@ DEF(SDef, TAG_t tagId)
     token_init(&captured, (const char *)POP(), GET_CURRENT());
     symtable_add_symbol(tbl, tableName, &captured);
 }
-DEF(SIsDef)
+DEF(SIsDef, TAG_t tagId, STRING_t strId)
 {
-    /* not implemented */
-    ABORT();
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName   = TBL_GET_IMPL(runtime, tagId);
+    const char *symbol = STRING_GET_IMPL(runtime, strId);
+    token_t t;
+    t.s = symbol;
+    t.len = pstring_length(symbol);
+    if (!symtable_contains(tbl, tableName, &t)) {
+        FAIL();
+    }
 }
 DEF(SExists, TAG_t tagId)
 {

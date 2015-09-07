@@ -549,9 +549,17 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(SClose) {
         break;
     }
+    CASE_(SIsDef) {
+        uint16_t tblId = read16(is);
+        uint16_t strId = read16(is);
+        tag_t *impl1 = L->R->C.tables[tblId];
+        const char *impl2 = L->R->C.strs[strId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tblId, (void *)impl1);
+        mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl2);
+        break;
+    }
     CASE_(SMask)
     CASE_(SDef);
-    CASE_(SIsDef);
     CASE_(SExists);
     CASE_(SMatch);
     CASE_(SIs);
@@ -1155,9 +1163,17 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(SClose) {
             break;
         }
+        CASE_(SIsDef) {
+            TAG_t    tagId = *(TAG_t *)(p + 1);
+            STRING_t strId = *(STRING_t *)(p + 1 + sizeof(TAG_t));
+            tag_t      *impl1 = TBL_GET_IMPL(L->R, tagId);
+            const char *impl2 = STRING_GET_IMPL(L->R, strId);
+            OP_PRINT("%p %s", impl1, impl2);
+            break;
+        }
+
         CASE_(SMask);
         CASE_(SDef);
-        CASE_(SIsDef);
         CASE_(SExists);
         CASE_(SMatch);
         CASE_(SIs);
