@@ -5,7 +5,7 @@
 #define AST_H
 
 // #define AST_LOG_UNBOX
-enum AstLogType {
+typedef enum AstLogType {
     // TypeNode     = 0,
     TypeTag      = 1,
     TypePop      = 2,
@@ -15,7 +15,7 @@ enum AstLogType {
     TypeNew      = 6,
     TypeLink     = 7,
     TypeCapture  = 8,
-};
+} AstLogType;
 
 // #define AST_DEBUG 1
 
@@ -26,7 +26,7 @@ typedef struct AstLog {
 #ifdef AST_LOG_UNBOX
 #define TypeMask (0xfUL)
 #else
-    enum AstLogType type;
+    AstLogType type;
 #endif
     int shift;
     union ast_log_entry {
