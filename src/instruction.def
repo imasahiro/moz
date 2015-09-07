@@ -491,6 +491,7 @@ DEF(TblJump1, uint16_t tblId)
     int jump = jump_table1_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }
@@ -501,6 +502,7 @@ DEF(TblJump2, uint16_t tblId)
     int jump = jump_table2_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }
@@ -511,6 +513,7 @@ DEF(TblJump3, uint16_t tblId)
     int jump = jump_table3_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }

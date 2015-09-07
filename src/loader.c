@@ -253,6 +253,7 @@ static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, voi
     }
 }
 
+#ifdef MOZVM_USE_JMPTBL
 static jump_table1_t *alloc_jump_table1(moz_runtime_t *r, uint16_t tblId)
 {
     unsigned size = sizeof(jump_table1_t) * (tblId + 1);
@@ -273,6 +274,7 @@ static jump_table3_t *alloc_jump_table3(moz_runtime_t *r, uint16_t tblId)
     r->C.jumps3 = (jump_table3_t *) VM_REALLOC(r->C.jumps3, size);
     return r->C.jumps3 + tblId;
 }
+#endif
 
 static int *alloc_jump_table(moz_runtime_t *r, uint16_t tblId)
 {
@@ -404,6 +406,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
                 target[target_size++] = table[i];
             }
         }
+#ifdef MOZVM_USE_JMPTBL
         if (target_size <= 1) {
             tblId = L->jmptbl1_id++;
             jump_table1_t *impl = alloc_jump_table1(L->R, tblId);
@@ -431,7 +434,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
             mozvm_loader_write_opcode(L, TblJump3);
             mozvm_loader_write16(L, tblId);
         }
-        else {
+        else
+#endif
+        {
             tblId = L->jmptbl_id++;
             int *impl = alloc_jump_table(L->R, tblId);
             memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
@@ -657,11 +662,13 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         unsigned shift = opcode_size(opcode);
         mozaddr_t *ref;
         int i, *table = NULL;
-        uint16_t tblId = 0;
         uint8_t *p;
+#ifdef MOZVM_USE_JMPTBL
+        uint16_t tblId = 0;
         jump_table1_t *t1;
         jump_table2_t *t2;
         jump_table3_t *t3;
+#endif
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
         switch (opcode) {
@@ -698,6 +705,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
                 table[i] = L->table[table[i]] - (j + shift);
             }
             break;
+#ifdef MOZVM_USE_JMPTBL
         case TblJump1:
             tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
             t1 = L->R->C.jumps1 + tblId;
@@ -720,6 +728,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
                 t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
             }
             break;
+#endif
         default:
             break;
         }
