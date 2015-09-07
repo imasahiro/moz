@@ -62,6 +62,22 @@ Value *jit_create_call_inst(const Builder &builder, Value *F, const Args&... arg
     return builder->CreateCall(F, argsRef);
 }
 
+Value *jit_get_current(IRBuilder<> &builder, Value *str, Value *pos) {
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    return pos;
+#else
+    return builder.CreateGEP(str, pos);
+#endif
+}
+
+Value *jit_consume_n(IRBuilder<> &builder, Value *pos, Value *N) {
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    return builder.CreateGEP(pos, N);
+#else
+    return builder.CreateAdd(pos, N);
+#endif
+}
+
 Value *jit_bitset_ptr(IRBuilder<> *builder, Value *runtime, BITSET_t id) {
 #if MOZVM_SMALL_BITSET_INST
 	Value *r_c_sets = jit_create_get_element_ptr(builder, runtime, builder->getInt32(0), builder->getInt32(10), builder->getInt32(0));
@@ -88,8 +104,10 @@ public:
     StructType *astType;
     StructType *symtableType;
     StructType *memoType;
+    Type *mozposType;
     StructType *runtimeType;
     FunctionType *funcType;
+
     ~JitContext() {};
     JitContext();
 };
@@ -124,13 +142,14 @@ JitContext::JitContext() {
     astType = StructType::create(context, "AstMachine");
     symtableType = StructType::create(context, "symtable_t");
     memoType = StructType::create(context, "memo_t");
-    runtimeType = jit_define_struct_type("moz_runtime_t",
-        astType->getPointerTo(), symtableType->getPointerTo(), memoType->getPointerTo(),
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
-        Type::getInt8PtrTy(context), //head
+    mozposType = Type::getInt8PtrTy(context);
 #else
-        Type::getInt64Ty(context),   //head
+    mozposType = Type::getInt64Ty(context);
 #endif
+    runtimeType = jit_define_struct_type("moz_runtime_t",
+        astType->getPointerTo(), symtableType->getPointerTo(),
+        memoType->getPointerTo(), mozposType, //memo, head
         Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //tail, input
         Type::getInt64PtrTy(context), Type::getInt64PtrTy(context), //stack, fp
         Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //nterm_entry, jit_context
@@ -138,7 +157,7 @@ JitContext::JitContext() {
     );
 
     funcType = jit_get_function_type(Type::getInt8Ty(context),
-            runtimeType->getPointerTo(), Type::getInt8PtrTy(context), Type::getInt32PtrTy(context));
+            runtimeType->getPointerTo(), Type::getInt8PtrTy(context), mozposType->getPointerTo());
 }
 
 static inline JitContext *get_context(moz_runtime_t *r)
@@ -191,7 +210,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Function::arg_iterator arg_iter=F->arg_begin();
     Value *runtime_ = arg_iter++;
     Value *str = arg_iter++;
-    Value *len = arg_iter++;
+    Value *consumed = arg_iter++;
 
     BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
     builder.SetInsertPoint(entry);
@@ -309,8 +328,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateBr(rstart);
 
                 builder.SetInsertPoint(rstart);
-                Value *pos = builder.CreateLoad(len);
-                Value *current = builder.CreateGEP(str, pos);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = jit_get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
                 FunctionType *bitsetgetType = jit_get_function_type(builder.getInt32Ty(), _ctx->bsetType->getPointerTo(), builder.getInt32Ty());
@@ -322,8 +341,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, rbody, rend);
 
                 builder.SetInsertPoint(rbody);
-                Value *newpos = builder.CreateAdd(pos, builder.getInt32(1));
-                builder.CreateStore(newpos, len);
+                Value *newpos = jit_consume_n(builder, pos, builder.getInt32(1));
+                builder.CreateStore(newpos, consumed);
                 builder.CreateBr(rstart);
 
                 builder.SetInsertPoint(rend);
