@@ -474,13 +474,17 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TPop) {
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TLeftFold) {
         int8_t shift = read8(is);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
         mozvm_loader_write8(L, shift);
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TNew) {
@@ -513,17 +517,20 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TCommit) {
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TLookup) {
         int state = read8(is);
         uint32_t memoId = read32(is);
         int skip = read24(is);
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+
         mozvm_loader_write8(L, state);
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         mozvm_loader_write16(L, memoId);
         mozvm_loader_write_addr(L, skip);
         break;
@@ -1100,23 +1107,16 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(TPush) {
             break;
         }
-        CASE_(TPop) {
-            int8_t index = *(int8_t *)(p + 1);
-            OP_PRINT("%d", index);
-            break;
-        }
-        CASE_(TLeftFold) {
-            int8_t shift = *(int8_t *)(p + 1);
-            OP_PRINT("%d", shift);
-            break;
-        }
         CASE_(TNew);
         CASE_(TCapture) {
             int8_t shift = *(int8_t *)(p + 1);
             OP_PRINT("%d", shift);
             break;
         }
-        CASE_(TTag) {
+        CASE_(TLeftFold);
+        CASE_(TPop);
+        CASE_(TTag);
+        CASE_(TCommit) {
             TAG_t tagId = *(TAG_t *)(p + 1);
             tag_t *impl = TAG_GET_IMPL(L->R, tagId);
             OP_PRINT("%p", impl);
@@ -1129,21 +1129,17 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(TStart) {
             break;
         }
-        CASE_(TCommit) {
-            int8_t index = *(int8_t *)(p + 1);
-            OP_PRINT("%d", index);
-            break;
-        }
         CASE_(TAbort) {
             asm volatile("int3");
             break;
         }
         CASE_(TLookup) {
-            int8_t index = *(int8_t *)(p + 1);
-            int8_t state = *(int8_t *)(p + 2);
-            uint16_t memoId = *(uint16_t *)(p + 3);
-            mozaddr_t skip = *(mozaddr_t *)(p + 5);
-            OP_PRINT("%d %d %d %d", state, memoId, skip, index);
+            int8_t state = *(int8_t *)(p + 1);
+            TAG_t tagId = *(TAG_t *)(p + 2);
+            uint16_t memoId = *(uint16_t *)(p + 2 + sizeof(TAG_t));
+            mozaddr_t skip = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
+            tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+            OP_PRINT("%d %d %d %p", state, memoId, skip, impl);
             break;
         }
         CASE_(TMemo) {

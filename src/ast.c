@@ -106,7 +106,7 @@ static void AstMachine_dumpLog(AstMachine *ast)
             fprintf(stderr, "[%d] %02d swap()\n", i, id);
             break;
         case TypePop:
-            fprintf(stderr, "[%d] %02d pop(%ld)\n", i, id, (long)cur->i.pos);
+            fprintf(stderr, "[%d] %02d pop(%s)\n", i, id, cur->i.tag);
             break;
         case TypePush:
             fprintf(stderr, "[%d] %02d push()\n", i, id);
@@ -161,7 +161,7 @@ void ast_log_replace(AstMachine *ast, const char *str)
     ast_log(ast, TypeReplace, (mozpos_t)str, 0);
 }
 
-void ast_log_swap(AstMachine *ast, mozpos_t pos)
+void ast_log_swap(AstMachine *ast, mozpos_t pos, const char *tag)
 {
     ast_log(ast, TypeLeftFold, pos, 0);
 }
@@ -171,16 +171,15 @@ void ast_log_push(AstMachine *ast)
     ast_log(ast, TypePush, 0, 0);
 }
 
-void ast_log_pop(AstMachine *ast, int index)
+void ast_log_pop(AstMachine *ast, const char *tag)
 {
-    intptr_t val = (intptr_t) index;
-    ast_log(ast, TypePop, (mozpos_t)val, 0);
+    ast_log(ast, TypePop, (mozpos_t)tag, 0);
 }
 
-void ast_log_link(AstMachine *ast, int index, Node *node)
+void ast_log_link(AstMachine *ast, const char *tag, Node *node)
 {
     union ast_log_index i;
-    i.idx = index;
+    i.tag = tag;
     if (node) {
         NODE_GC_RETAIN(node);
     }
@@ -211,6 +210,7 @@ void ast_rollback_tx(AstMachine *ast, long tx)
 Node *constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, mozpos_t epos, long objectSize, const char *tag, const char *value)
 {
     long len = epos - spos;
+    unsigned n = 0;
     Node *newnode = Node_new(tag,
 #ifndef MOZVM_USE_POINTER_AS_POS_REGISTER
             ast->source +
@@ -222,15 +222,16 @@ Node *constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail, mozpos_t spos, m
     }
     for (; cur <= tail; ++cur) {
         if(GetTag(cur) == TypeLink) {
-            int index = cur->i.idx;
+            const char *tag = cur->i.tag;
             int shift = cur->shift;
             Node *child = GetNode(cur);
             if(child) {
-                assert(index >= 0);
-                Node_set(newnode, index, child);
+                assert(n >= 0);
+                Node_set(newnode, n, child);
             } else {
-                fprintf(stderr, "@@ linking null child at %d\n", index);
+                fprintf(stderr, "@@ linking null child at %u(%s)\n", n, tag);
             }
+            n++;
             cur += shift;
         }
     }
@@ -245,7 +246,6 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     const char *tag = NULL;
     const char *value = NULL;
     long objectSize = 0;
-    long index = 0;
     long shift = 0;
 
     head = cur;
@@ -277,7 +277,7 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
             NODE_GC_RETAIN(tmp);
             cur->e.ref = tmp;
-            cur->i.pos = 0;
+            spos = cur->i.pos;
             SetTag(cur, TypeLink);
             tag = NULL;
             value = NULL;
@@ -289,7 +289,7 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             tmp = constructLeft(ast, head, cur, spos, epos, objectSize, tag, value);
             NODE_GC_RETAIN(tmp);
             pushed->e.ref = tmp;
-            pushed->i.idx = (int16_t)(long)cur->i.pos;
+            pushed->i.tag = cur->i.tag;
             pushed->shift = cur - pushed;
             SetTag(pushed, TypeLink);
             return tmp;
@@ -298,15 +298,8 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
             assert(GetTag(cur) == TypeLink);
             /* fallthrough */
         case TypeLink:
-            index = cur->i.idx;
             shift = cur->shift;
-            if(index == -1) {
-                cur->i.idx = objectSize;
-                objectSize++;
-            }
-            else if(index > objectSize) {
-                objectSize = index + 1;
-            }
+            objectSize++;
             cur += shift;
             break;
         }
@@ -315,7 +308,7 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     return tmp;
 }
 
-void ast_commit_tx(AstMachine *ast, int index, long tx)
+void ast_commit_tx(AstMachine *ast, const char *tag, long tx)
 {
     AstLog *cur;
     assert(ARRAY_size(ast->logs) > tx);
@@ -327,7 +320,7 @@ void ast_commit_tx(AstMachine *ast, int index, long tx)
     Node *node = ast_create_node(ast, cur, NULL);
     ast_rollback_tx(ast, tx);
     if (node) {
-        ast_log_link(ast, index, node);
+        ast_log_link(ast, tag, node);
     }
 }
 
