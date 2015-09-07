@@ -288,7 +288,7 @@ moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_
 #endif
             ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
-    PUSH(nterm_id);
+    PUSH(0/*nterm_id*/);
 #endif
     PUSH(PC);
     PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
