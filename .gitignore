@@ -5,3 +5,5 @@ GTAGS
 GSYMS
 a.out*
 *.nzc
+Release/
+Debug/
