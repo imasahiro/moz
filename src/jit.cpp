@@ -13,18 +13,21 @@
 using namespace llvm;
 
 template<class Vector, class First>
-void set_vector(const Vector& dest, const First& first) {
+void set_vector(const Vector& dest, const First& first)
+{
     dest->push_back(first);
 }
 
 template<class Vector, class First, class... Rest>
-void set_vector(const Vector& dest, const First& first, const Rest&... rest) {
+void set_vector(const Vector& dest, const First& first, const Rest&... rest)
+{
     set_vector(dest, first);
     set_vector(dest, rest...);
 }
 
 template<class... Args>
-StructType *jit_define_struct_type(const char *name, const Args&... args) {
+StructType *jit_define_struct_type(const char *name, const Args&... args)
+{
     std::vector<Type *> elements;
     set_vector(&elements, args...);
     ArrayRef<Type *> elmsRef(elements);
@@ -36,7 +39,8 @@ StructType *jit_define_struct_type(const char *name, const Args&... args) {
 }
 
 template<class Builder, class... Args>
-Value *jit_create_get_element_ptr(const Builder &builder, Value *Val, const Args&... args) {
+Value *jit_create_get_element_ptr(const Builder &builder, Value *Val, const Args&... args)
+{
     std::vector<Value *> indexs;
     set_vector(&indexs, args...);
     ArrayRef<Value *> idxsRef(indexs);
@@ -45,7 +49,8 @@ Value *jit_create_get_element_ptr(const Builder &builder, Value *Val, const Args
 }
 
 template<class Returns, class... Args>
-FunctionType *jit_get_function_type(const Returns& returntype, const Args&... args) {
+FunctionType *jit_get_function_type(const Returns& returntype, const Args&... args)
+{
     std::vector<Type *> parameters;
     set_vector(&parameters, args...);
     ArrayRef<Type *> paramsRef(parameters);
@@ -54,7 +59,8 @@ FunctionType *jit_get_function_type(const Returns& returntype, const Args&... ar
 }
 
 template<class Builder, class... Args>
-Value *jit_create_call_inst(const Builder &builder, Value *F, const Args&... args) {
+Value *jit_create_call_inst(const Builder &builder, Value *F, const Args&... args)
+{
     std::vector<Value *> arguments;
     set_vector(&arguments, args...);
     ArrayRef<Value *> argsRef(arguments);
@@ -62,7 +68,8 @@ Value *jit_create_call_inst(const Builder &builder, Value *F, const Args&... arg
     return builder->CreateCall(F, argsRef);
 }
 
-Value *jit_get_current(IRBuilder<> &builder, Value *str, Value *pos) {
+Value *jit_get_current(IRBuilder<> &builder, Value *str, Value *pos)
+{
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     return pos;
 #else
@@ -70,7 +77,8 @@ Value *jit_get_current(IRBuilder<> &builder, Value *str, Value *pos) {
 #endif
 }
 
-Value *jit_consume_n(IRBuilder<> &builder, Value *pos, Value *N) {
+Value *jit_consume_n(IRBuilder<> &builder, Value *pos, Value *N)
+{
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     return builder.CreateGEP(pos, N);
 #else
@@ -78,14 +86,16 @@ Value *jit_consume_n(IRBuilder<> &builder, Value *pos, Value *N) {
 #endif
 }
 
-Value *jit_bitset_ptr(IRBuilder<> *builder, Value *runtime, BITSET_t id) {
+Value *jit_bitset_ptr(IRBuilder<> *builder, Value *runtime, BITSET_t id)
+{
 #if MOZVM_SMALL_BITSET_INST
-	Value *r_c_sets = jit_create_get_element_ptr(builder, runtime, builder->getInt64(0), builder->getInt32(10), builder->getInt32(0));
-	Value *sets_head = builder->CreateLoad(r_c_sets);
+    Value *r_c_sets = jit_create_get_element_ptr(builder, runtime,
+            builder->getInt64(0), builder->getInt32(10), builder->getInt32(0));
+    Value *sets_head = builder->CreateLoad(r_c_sets);
     return jit_create_get_element_ptr(builder, sets_head, builder->getInt32(id));
 #else
     asm volatile("int3");
-    //bitset_t *_set = (bitset_t *)id;
+    // bitset_t *_set = (bitset_t *)id;
     return NULL;
 #endif
 }
@@ -116,51 +126,58 @@ public:
     FunctionType *Create_bitset_get(IRBuilder<> &builder, Module *M);
 };
 
-JitContext::JitContext() {
+JitContext::JitContext()
+{
     LLVMContext& context = getGlobalContext();
     IRBuilder<> builder(context);
 
+    Type *I8PtrTy = Type::getInt8PtrTy(context);
+    Type *I8PtrPtrTy = I8PtrTy->getPointerTo();
+    Type *I16Ty   = Type::getInt16Ty(context);
+    Type *I32Ty   = Type::getInt32Ty(context);
+    Type *I64Ty   = Type::getInt64Ty(context);
+    Type *I64PtrTy   = Type::getInt64PtrTy(context);
+
 #if defined(BITSET_USE_ULONG)
-    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(Type::getInt64Ty(context), (256/BITS)));
+    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(I64Ty, (256/BITS)));
 #elif defined(BITSET_USE_UINT)
-    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(Type::getInt32Ty(context), (256/BITS)));
+    bsetType = jit_define_struct_type("bitset_t", ArrayType::get(I32Ty, (256/BITS)));
 #endif
 
-	StructType *constantType = jit_define_struct_type("mozvm_constant_t",
-       bsetType->getPointerTo(),
-       Type::getInt8PtrTy(context)->getPointerTo(), Type::getInt8PtrTy(context)->getPointerTo(), //tags, strs
-       Type::getInt8PtrTy(context)->getPointerTo(), Type::getInt32Ty(context), //tables, jumps
+    StructType *constantType = jit_define_struct_type("mozvm_constant_t",
+            bsetType->getPointerTo(),
+            I8PtrPtrTy, I8PtrPtrTy, I8PtrPtrTy, I32Ty, // tags, strs, tables, jumps
 #ifdef MOZVM_USE_JMPTBL
-       Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //jumps1, jumps2, jumps3
+            I8PtrTy, I8PtrTy, I8PtrTy, // jumps1, jumps2, jumps3
 #endif
-       Type::getInt8PtrTy(context)->getPointerTo(), //nterms
-       Type::getInt16Ty(context), Type::getInt16Ty(context), Type::getInt16Ty(context), //set_size, str_size, tag_size
-       Type::getInt16Ty(context), Type::getInt16Ty(context), //table_size, nterm_size
-       Type::getInt32Ty(context), Type::getInt32Ty(context), Type::getInt32Ty(context) //inst_size, memo_size, input_size
+            I8PtrPtrTy, // nterms
+            I16Ty, I16Ty, I16Ty, // set_size, str_size, tag_size
+            I16Ty, I16Ty, // table_size, nterm_size
+            I32Ty, I32Ty, I32Ty // inst_size, memo_size, input_size
 #ifdef MOZVM_PROFILE_INST
-       , Type::getInt64PtrTy(context) //profile
+            , I64PtrTy // profile
 #endif
-    );
+            );
 
     astType = StructType::create(context, "AstMachine");
     symtableType = StructType::create(context, "symtable_t");
     memoType = StructType::create(context, "memo_t");
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
-    mozposType = Type::getInt8PtrTy(context);
+    mozposType = I8PtrTy;
 #else
-    mozposType = Type::getInt64Ty(context);
+    mozposType = I64Ty;
 #endif
     runtimeType = jit_define_struct_type("moz_runtime_t",
-        astType->getPointerTo(), symtableType->getPointerTo(),
-        memoType->getPointerTo(), mozposType, //memo, head
-        Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //tail, input
-        Type::getInt64PtrTy(context), Type::getInt64PtrTy(context), //stack, fp
-        Type::getInt8PtrTy(context), Type::getInt8PtrTy(context), //nterm_entry, jit_context
-        constantType, ArrayType::get(Type::getInt64Ty(context), 1)
-    );
+            astType->getPointerTo(), symtableType->getPointerTo(),
+            memoType->getPointerTo(), mozposType, // memo, head
+            I8PtrTy, I8PtrTy, // tail, input
+            I64PtrTy, I64PtrTy, // stack, fp
+            I8PtrTy, I8PtrTy, // nterm_entry, jit_context
+            constantType, ArrayType::get(I64Ty, 1)
+            );
 
     funcType = jit_get_function_type(Type::getInt8Ty(context),
-            runtimeType->getPointerTo(), Type::getInt8PtrTy(context), mozposType->getPointerTo());
+            runtimeType->getPointerTo(), I8PtrTy, mozposType->getPointerTo());
 
     Module *M = new Module("top", context);
     bitsetgetType = Create_bitset_get(builder, M);
@@ -168,11 +185,13 @@ JitContext::JitContext() {
     EE->finalizeObject();
 }
 
-FunctionType *JitContext::Create_bitset_get(IRBuilder<> &builder, Module *M) {
+FunctionType *JitContext::Create_bitset_get(IRBuilder<> &builder, Module *M)
+{
     LLVMContext& context = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
-    FunctionType *funcTy = jit_get_function_type(I32Ty, bsetType->getPointerTo(), I32Ty);
+    FunctionType *funcTy = jit_get_function_type(I32Ty,
+            bsetType->getPointerTo(), I32Ty);
     Function *F = Function::Create(funcTy,
             Function::ExternalLinkage,
             "bitset_get", M);
@@ -370,21 +389,25 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(RSet) {
-                BasicBlock *rstart = BasicBlock::Create(context, "repetition.start", F);
-                BasicBlock *rbody = BasicBlock::Create(context, "repitition.body", F);
-                BasicBlock *rend = BasicBlock::Create(context, "repitition.end", F);
+                BasicBlock *rcond = BasicBlock::Create(
+                        context, "repetition.cond", F);
+                BasicBlock *rbody = BasicBlock::Create(
+                        context, "repitition.body", F);
+                BasicBlock *rend  = BasicBlock::Create(
+                        context, "repitition.end",  F);
 
                 Value *set = jit_bitset_ptr(&builder, runtime_, *((BITSET_t *)(p+1)));
                 Value *firstpos = builder.CreateLoad(consumed);
-                builder.CreateBr(rstart);
+                builder.CreateBr(rcond);
 
-                builder.SetInsertPoint(rstart);
+                builder.SetInsertPoint(rcond);
                 PHINode *pos = builder.CreatePHI(_ctx->mozposType, 2);
                 pos->addIncoming(firstpos, currentBB);
                 Value *current = jit_get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *bitsetget = M->getOrInsertFunction(StringRef("bitset_get"), _ctx->bitsetgetType);
+                Value *bitsetget = M->getOrInsertFunction(
+                        StringRef("bitset_get"), _ctx->bitsetgetType);
                 Value *result = jit_create_call_inst(&builder, bitsetget, set, index);
                 Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
                 builder.CreateCondBr(cond, rbody, rend);
@@ -392,7 +415,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.SetInsertPoint(rbody);
                 Value *nextpos = jit_consume_n(builder, pos, builder.getInt32(1));
                 pos->addIncoming(nextpos, rbody);
-                builder.CreateBr(rstart);
+                builder.CreateBr(rcond);
 
                 builder.SetInsertPoint(rend);
                 builder.CreateStore(pos, consumed);
@@ -525,7 +548,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         p += shift;
     }
 
-    //builder.CreateRet(builder.getInt8(0));
+    // builder.CreateRet(builder.getInt8(0));
     M->dump();
     if(verifyFunction(*F)) {
         F->eraseFromParent();
