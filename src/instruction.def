@@ -237,15 +237,18 @@ DEF(First, JMPTBL_t tblId)
 }
 DEF(Lookup, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
-    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
+    MemoEntry_t *entry;
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     MemoPoint *mp = runtime->memo_points + memoId;
+    MOZVM_PROFILE_INC(MEMO_TOTAL_COUNT);
     if (mp->penalty) {
+        MOZVM_PROFILE_INC(MEMO_DISABLE_COUNT);
         mp->penalty--;
     }
     else
 #endif
     {
+        entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
         if (entry) {
             if (entry->failed == MEMO_ENTRY_FAILED) {
                 MEMO_DEBUG_FAIL_HIT(memoId);
@@ -335,15 +338,18 @@ DEF(TAbort)
 DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
-    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
+    MemoEntry_t *entry;
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     MemoPoint *mp = runtime->memo_points + memoId;
+    MOZVM_PROFILE_INC(MEMO_TOTAL_COUNT);
     if (mp->penalty) {
+        MOZVM_PROFILE_INC(MEMO_DISABLE_COUNT);
         mp->penalty--;
     }
     else
 #endif
     {
+        entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
         if (entry) {
             if (entry->failed == MEMO_ENTRY_FAILED) {
                 MEMO_DEBUG_T_FAIL_HIT(memoId);
