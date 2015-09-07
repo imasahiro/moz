@@ -1,9 +1,13 @@
+#ifndef MEMO_H
+#define MEMO_H
+
 #include <stdint.h>
 #include "mozvm_config.h"
 #include "node.h"
 
-#ifndef MEMO_H
-#define MEMO_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct MemoPoint {
     unsigned penalty;
@@ -36,6 +40,10 @@ MemoEntry_t *memo_get(memo_t *memo, mozpos_t pos, uint32_t memoId, uint8_t state
 
 #ifdef MOZVM_MEMORY_USE_MSGC
 void memo_trace(void *p, NodeVisitor *visitor);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* end of include guard */

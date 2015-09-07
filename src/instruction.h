@@ -2,6 +2,10 @@
 #ifndef MOZ_INSTRUCTION_H
 #define MOZ_INSTRUCTION_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum MozOpcode {
     Nop  = 0,  // Do nothing
     Fail = 1,  // Fail
@@ -147,4 +151,9 @@ static const char *opcode2str(int opcode)
     return "???";
 }
 #endif /*MOZVM_DUMP_OPCODE*/
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */

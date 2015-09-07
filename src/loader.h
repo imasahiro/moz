@@ -1,7 +1,12 @@
-#include "mozvm.h"
-#include "karray.h"
 #ifndef LOADER_H
 #define LOADER_H
+
+#include "mozvm.h"
+#include "karray.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 DEF_ARRAY_STRUCT(uint8_t);
 DEF_ARRAY_T(uint8_t);
@@ -29,4 +34,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file);
 int mozvm_loader_load_input(mozvm_loader_t *L, const char *file);
 
 void moz_loader_print_stats(mozvm_loader_t *L);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */

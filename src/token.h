@@ -1,6 +1,10 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct moz_token {
     const char *s;
     unsigned len;
@@ -52,5 +56,9 @@ static inline int token_equal_string(token_t *t, const char *s)
     }
     return 1;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */

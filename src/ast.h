@@ -4,6 +4,10 @@
 #ifndef AST_H
 #define AST_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // #define AST_LOG_UNBOX
 typedef enum AstLogType {
     // TypeNode     = 0,
@@ -19,6 +23,12 @@ typedef enum AstLogType {
 
 // #define AST_DEBUG 1
 
+union ast_log_index {
+    const char *tag;
+    // long idx;
+    mozpos_t pos;
+};
+
 typedef struct AstLog {
 #ifdef AST_DEBUG
     unsigned id;
@@ -33,11 +43,7 @@ typedef struct AstLog {
         uintptr_t val;
         Node *ref;
     } e;
-    union ast_log_index {
-        const char *tag;
-        // long idx;
-        mozpos_t pos;
-    } i;
+    union ast_log_index i;
     const char *label;
 } AstLog;
 
@@ -84,6 +90,10 @@ static inline Node *ast_get_last_linked_node(AstMachine *ast)
 Node *ast_get_parsed_node(AstMachine *ast);
 #ifdef MOZVM_MEMORY_USE_MSGC
 void ast_trace(void *p, NodeVisitor *visitor);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* end of include guard */

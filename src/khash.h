@@ -3,6 +3,10 @@
 #ifndef KHASH_H
 #define KHASH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef KHASH_USE_HASH6432SHIFT
 // This 64-bit-to-32-bit hash was copied from
 // http://www.concentric.net/~Ttwang/tech/inthash.htm .
@@ -40,6 +44,10 @@ static unsigned fnv1a(const char *p, uint32_t len)
       len -= UNROLL;
     }
     return fnv1a_string(str, len, hash);
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

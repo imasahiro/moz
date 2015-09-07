@@ -44,19 +44,20 @@ endif()
 
 set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
 set(MOZ_SRC  src/loader.c src/main.c src/vm.c src/jit.cpp)
-#set(STAT_SRC  src/stat.c)
+set(STAT_SRC  src/stat.cpp)
 
 add_library(nez SHARED ${NEZ_SRC})
 
 add_executable(moz ${MOZ_SRC})
 target_link_libraries(moz nez)
 
-#add_executable(moz_stat ${STAT_SRC})
+add_executable(moz_stat ${STAT_SRC})
 add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC})
 
 llvm_map_components_to_libnames(llvm_libs support core nativecodegen mcdisassembler mcjit)
 target_link_libraries(moz ${llvm_libs})
 target_link_libraries(moz_all ${llvm_libs})
+target_link_libraries(moz_stat ${llvm_libs})
 
 add_custom_command(OUTPUT vm_core.c vm_inst.h
     COMMAND ruby

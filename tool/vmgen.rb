@@ -41,6 +41,9 @@ open(file) {|f|
 
   out = open(vminst, "w")
   out.puts <<-TXT
+#ifndef #{vminst.upcase.gsub(".", "_").gsub("/", "_")}
+#define #{vminst.upcase.gsub(".", "_").gsub("/", "_")}
+
 #ifdef MOZVM_OPCODE_SIZE
 static unsigned opcode_size(int opcode)
 {
@@ -69,5 +72,6 @@ TXT
     return -1;
 }
 #endif /*MOZVM_OPCODE_SIZE*/
+#endif /* end of include guard */
 TXT
 }

@@ -143,8 +143,8 @@ moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
     {
         unsigned i;
         for (i = 0; i < L->R->C.nterm_size; i++) {
-            unsigned begin = (unsigned) L->R->nterm_entry[i].begin;
-            unsigned end   = (unsigned) L->R->nterm_entry[i].end;
+            uintptr_t begin = (uintptr_t) L->R->nterm_entry[i].begin;
+            uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
             L->R->nterm_entry[i].begin = inst + begin;
             L->R->nterm_entry[i].end   = inst + end;
         }
@@ -255,26 +255,29 @@ static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, voi
 
 static jump_table1_t *alloc_jump_table1(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps1 = VM_REALLOC(r->C.jumps1, sizeof(jump_table1_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table1_t) * (tblId + 1);
+    r->C.jumps1 = (jump_table1_t *) VM_REALLOC(r->C.jumps1, size);
     return r->C.jumps1 + tblId;
 }
 
 static jump_table2_t *alloc_jump_table2(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps2 = VM_REALLOC(r->C.jumps2, sizeof(jump_table2_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table2_t) * (tblId + 1);
+    r->C.jumps2 = (jump_table2_t *) VM_REALLOC(r->C.jumps2, size);
     return r->C.jumps2 + tblId;
 }
 
 static jump_table3_t *alloc_jump_table3(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps3 = VM_REALLOC(r->C.jumps3, sizeof(jump_table3_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table3_t) * (tblId + 1);
+    r->C.jumps3 = (jump_table3_t *) VM_REALLOC(r->C.jumps3, size);
     return r->C.jumps3 + tblId;
 }
 
 static int *alloc_jump_table(moz_runtime_t *r, uint16_t tblId)
 {
     unsigned size = sizeof(int) * MOZ_JMPTABLE_SIZE * (tblId + 1);
-    r->C.jumps = VM_REALLOC(r->C.jumps, size);
+    r->C.jumps = (int *) VM_REALLOC(r->C.jumps, size);
     return r->C.jumps + MOZ_JMPTABLE_SIZE * tblId;
 }
 
@@ -296,7 +299,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #endif
        ) {/* skip */}
     else {
-        mozvm_loader_write_opcode(L, opcode);
+        mozvm_loader_write_opcode(L, (enum MozOpcode)opcode);
     }
     switch (opcode) {
     CASE_(Nop);

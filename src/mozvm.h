@@ -11,6 +11,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef uint8_t moz_inst_t;
 struct moz_runtime_t;
 
@@ -129,5 +133,9 @@ static inline void moz_runtime_set_source(moz_runtime_t *r, const char *str, con
 void moz_runtime_print_stats(moz_runtime_t *r);
 moz_inst_t *moz_runtime_parse_init(moz_runtime_t *, const char *, moz_inst_t *);
 long moz_runtime_parse(moz_runtime_t *r, const char *str, const moz_inst_t *inst);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */
