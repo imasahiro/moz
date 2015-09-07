@@ -238,16 +238,28 @@ DEF(First, JMPTBL_t tblId)
 DEF(Lookup, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
-    if (entry) {
-        if (entry->failed == MEMO_ENTRY_FAILED) {
-            MEMO_DEBUG_FAIL_HIT(memoId);
-            FAIL();
-        }
-        MEMO_DEBUG_HIT(memoId, entry->consumed);
-        CONSUME_N(entry->consumed);
-        JUMP(skip);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    MemoPoint *mp = runtime->memo_points + memoId;
+    if (mp->penalty) {
+        mp->penalty--;
     }
-    MEMO_DEBUG_MISS(memoId);
+    else
+#endif
+    {
+        if (entry) {
+            if (entry->failed == MEMO_ENTRY_FAILED) {
+                MEMO_DEBUG_FAIL_HIT(memoId);
+                FAIL();
+            }
+            MEMO_DEBUG_HIT(memoId, entry->consumed);
+            CONSUME_N(entry->consumed);
+            JUMP(skip);
+        }
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+        mp->penalty += MEMO_PENALTY;
+#endif
+        MEMO_DEBUG_MISS(memoId);
+    }
 }
 DEF(Memo, uint8_t state, uint16_t memoId)
 {
@@ -324,17 +336,29 @@ DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
     AstMachine *ast = AST_MACHINE_GET();
     MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
-    if (entry) {
-        if (entry->failed == MEMO_ENTRY_FAILED) {
-            MEMO_DEBUG_T_FAIL_HIT(memoId);
-            FAIL();
-        }
-        MEMO_DEBUG_T_HIT(memoId, entry->consumed);
-        CONSUME_N(entry->consumed);
-        ast_log_link(ast, index, entry->result);
-        JUMP(skip);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    MemoPoint *mp = runtime->memo_points + memoId;
+    if (mp->penalty) {
+        mp->penalty--;
     }
-    MEMO_DEBUG_T_MISS(memoId);
+    else
+#endif
+    {
+        if (entry) {
+            if (entry->failed == MEMO_ENTRY_FAILED) {
+                MEMO_DEBUG_T_FAIL_HIT(memoId);
+                FAIL();
+            }
+            MEMO_DEBUG_T_HIT(memoId, entry->consumed);
+            CONSUME_N(entry->consumed);
+            ast_log_link(ast, index, entry->result);
+            JUMP(skip);
+        }
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+        mp->penalty += MEMO_PENALTY;
+#endif
+        MEMO_DEBUG_T_MISS(memoId);
+    }
 }
 DEF(TMemo, uint8_t state, uint16_t memoId)
 {

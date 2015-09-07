@@ -60,6 +60,9 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    r->memo_points = (MemoPoint *)VM_CALLOC(1, sizeof(MemoPoint) * memo);
+#endif
     r->head = 0;
     r->input = r->tail = NULL;
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
@@ -92,6 +95,9 @@ void moz_runtime_reset1(moz_runtime_t *r)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    memset(r->memo_points, 0, sizeof(MemoPoint) * memo);
+#endif
     r->stack = &r->stack_[0] + 0xf;
     r->fp = r->stack;
 }
@@ -114,6 +120,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    VM_FREE(r->memo_points);
+#endif
     if (r->C.jumps) {
         VM_FREE(r->C.jumps);
     }

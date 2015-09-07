@@ -49,7 +49,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print);
 static void dump_set(bitset_t *set, char *buf);
 #endif
 
-static char *load_file(const char *path, size_t *size)
+static char *load_file(const char *path, size_t *size, int align)
 {
     size_t len;
     size_t readed;
@@ -60,7 +60,7 @@ static char *load_file(const char *path, size_t *size)
     fseek(fp, 0, SEEK_END);
     len = (size_t) ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char *) VM_CALLOC(1, len + 1);
+    data = (char *) VM_CALLOC(1, len + 1 + align);
     readed = fread(data, 1, len, fp);
     assert(len == readed);
     fclose(fp);
@@ -737,7 +737,7 @@ static int checkVersion(input_stream_t *is)
 
 int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
 {
-    L->input = load_file(file, &L->input_size);
+    L->input = load_file(file, &L->input_size, 32);
     return L->input != NULL;
 }
 
@@ -749,7 +749,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     moz_inst_t *inst = NULL;
 
     is.pos = 0;
-    is.data = load_file(file, &is.end);
+    is.data = load_file(file, &is.end, 0);
     if (!checkFileType(&is)) {
         fprintf(stderr, "verify error: not bytecode file\n");
         exit(EXIT_FAILURE);

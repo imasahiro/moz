@@ -64,6 +64,9 @@ typedef struct moz_runtime_t {
     long *stack;
     long *fp;
 
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    MemoPoint *memo_points;
+#endif
 #ifdef MOZVM_ENABLE_JIT
     mozvm_nterm_entry_t *nterm_entry;
     jit_context_t *jit_context;

@@ -5,6 +5,12 @@
 #ifndef MEMO_H
 #define MEMO_H
 
+typedef struct MemoPoint {
+    unsigned penalty;
+} MemoPoint;
+
+#define MEMO_PENALTY (4)
+
 typedef struct MemoEntry {
     uintptr_t hash;
     union {
