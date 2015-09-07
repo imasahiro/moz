@@ -374,7 +374,6 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 
 #define read_uint8_t(PC)   *(PC);              PC += sizeof(uint8_t)
 #define read_int8_t(PC)    *((int8_t *)PC);    PC += sizeof(int8_t)
-#define read_int(PC)       *((int *)PC);       PC += sizeof(int)
 #define read_uint16_t(PC)  *((uint16_t *)PC);  PC += sizeof(uint16_t)
 #define read_mozaddr_t(PC) *((mozaddr_t *)PC); PC += sizeof(mozaddr_t)
 #define read_STRING_t(PC)  *((STRING_t *)PC);  PC += sizeof(STRING_t)
