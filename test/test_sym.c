@@ -9,4 +9,5 @@ int main(int argc, char const* argv[])
     assert(symtable_get_symbol(tbl, "NULL", &tmp) == 0);
     symtable_dispose(tbl);
     return 0;
+    (void)&tmp; // avoid 'unused variable'
 }
