@@ -33,6 +33,10 @@
 #include <stdlib.h>
 #include <x86intrin.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OFFSET_OF
 #define OFFSET_OF(TYPE, FIELD) ((unsigned long)&(((TYPE *)0)->FIELD))
 #endif
@@ -181,4 +185,9 @@ static inline const char *pstring_find_not_char(const char *str, const char *end
     }
     return str;
 }
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */

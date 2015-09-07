@@ -3,6 +3,10 @@
 #ifndef MOZVM_JMPTBL_T
 #define MOZVM_JMPTBL_T
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct jump_table1_t {
     bitset_t b[1];
     int jumps[2];
@@ -156,4 +160,9 @@ int main(int argc, char const* argv[])
     return 0;
 }
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */

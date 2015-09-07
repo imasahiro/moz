@@ -22,12 +22,16 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ***************************************************************************/
 
+#ifndef VM_MEMORY_H
+#define VM_MEMORY_H
+
 #include "mozvm_config.h"
 #include <stdio.h>
 #include <stdint.h>
 
-#ifndef VM_MEMORY_H
-#define VM_MEMORY_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #if defined(HAVE_GC_GC_H) && MOZVM_MEMORY_USE_BOEHM_GC
 #include <gc/gc.h>
@@ -73,6 +77,10 @@ void  mozvm_mm_snapshot(unsigned event_id);
 
 #ifndef VM_FREE
 #define VM_FREE(PTR) free(PTR)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* end of include guard */

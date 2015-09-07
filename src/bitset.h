@@ -26,6 +26,10 @@
 #ifndef BITSET_H
 #define BITSET_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define BITSET_USE_ULONG 1
 #if defined(BITSET_USE_ULONG)
 typedef unsigned long bitset_entry_t;
@@ -76,4 +80,9 @@ int main(int argc, char const* argv[])
     return 0;
 }
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */

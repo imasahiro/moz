@@ -4,8 +4,12 @@
 #ifndef AST_H
 #define AST_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // #define AST_LOG_UNBOX
-enum AstLogType {
+typedef enum AstLogType {
     // TypeNode     = 0,
     TypeTag      = 1,
     TypePop      = 2,
@@ -15,9 +19,15 @@ enum AstLogType {
     TypeNew      = 6,
     TypeLink     = 7,
     TypeCapture  = 8,
-};
+} AstLogType;
 
 // #define AST_DEBUG 1
+
+union ast_log_index {
+    const char *tag;
+    // long idx;
+    mozpos_t pos;
+};
 
 typedef struct AstLog {
 #ifdef AST_DEBUG
@@ -26,17 +36,15 @@ typedef struct AstLog {
 #ifdef AST_LOG_UNBOX
 #define TypeMask (0xfUL)
 #else
-    enum AstLogType type;
+    AstLogType type;
 #endif
     int shift;
     union ast_log_entry {
         uintptr_t val;
         Node *ref;
     } e;
-    union ast_log_index {
-        long idx;
-        mozpos_t pos;
-    } i;
+    union ast_log_index i;
+    const char *label;
 } AstLog;
 
 DEF_ARRAY_STRUCT0(AstLog, unsigned);
@@ -64,15 +72,15 @@ static inline long ast_save_tx(AstMachine *ast)
 }
 
 void ast_rollback_tx(AstMachine *ast, long tx);
-void ast_commit_tx(AstMachine *ast, int index, long tx);
+void ast_commit_tx(AstMachine *ast, const char *tag, long tx);
 void ast_log_replace(AstMachine *ast, const char *str);
 void ast_log_capture(AstMachine *ast, mozpos_t pos);
 void ast_log_new(AstMachine *ast, mozpos_t pos);
-void ast_log_pop(AstMachine *ast, int index);
+void ast_log_pop(AstMachine *ast, const char *label);
 void ast_log_push(AstMachine *ast);
-void ast_log_swap(AstMachine *ast, mozpos_t pos);
+void ast_log_swap(AstMachine *ast, mozpos_t pos, const char *tag);
 void ast_log_tag(AstMachine *ast, const char *tag);
-void ast_log_link(AstMachine *ast, int index, Node *result);
+void ast_log_link(AstMachine *ast, const char *label, Node *result);
 
 static inline Node *ast_get_last_linked_node(AstMachine *ast)
 {
@@ -82,6 +90,10 @@ static inline Node *ast_get_last_linked_node(AstMachine *ast)
 Node *ast_get_parsed_node(AstMachine *ast);
 #ifdef MOZVM_MEMORY_USE_MSGC
 void ast_trace(void *p, NodeVisitor *visitor);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* end of include guard */

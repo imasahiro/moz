@@ -4,6 +4,10 @@
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct symtable_entry_t {
     unsigned state;
     unsigned hash;
@@ -36,5 +40,9 @@ static inline long symtable_savepoint(symtable_t *tbl)
 }
 
 void symtable_rollback(symtable_t *tbl, long saved);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */

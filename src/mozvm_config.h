@@ -30,6 +30,7 @@ extern "C" {
 // #define MOZVM_MEMO_TYPE_NULL    1
 // #define MOZVM_MEMO_TYPE_HASH    1
 #define MOZVM_MEMO_TYPE_ELASTIC 1
+// #define MOZVM_USE_DYNAMIC_DEACTIVATION 1
 
 // Runtime
 #define MOZ_DEFAULT_STACK_SIZE  (1024)
@@ -55,7 +56,7 @@ extern "C" {
 #define MOZVM_USE_JMPTBL 1
 // #define MOZVM_USE_INT16_ADDR 1
 // #define MOZVM_DEBUG_NTERM       1
-#define MOZVM_ENABLE_JIT       1
+// #define MOZVM_ENABLE_JIT       1
 #define MOZVM_JIT_COUNTER_THRESHOLD 0
 #define MOZVM_USE_SSE4_2        1
 // #define MOZVM_USE_SWITCH_CASE_DISPATCH 1

@@ -52,6 +52,12 @@ extern "C" {
 
 MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
+#define MOZVM_VM_MEMO_PROFILE_EACH(F) \
+    F(MEMO_DISABLE_COUNT) \
+    F(MEMO_TOTAL_COUNT)
+
+MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_DECL);
+
 moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
 {
     moz_runtime_t *r;
@@ -60,6 +66,9 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    r->memo_points = (MemoPoint *)VM_CALLOC(1, sizeof(MemoPoint) * memo);
+#endif
     r->head = 0;
     r->input = r->tail = NULL;
     memset(&r->stack_[0], 0xaa, sizeof(long) * MOZ_DEFAULT_STACK_SIZE);
@@ -92,6 +101,9 @@ void moz_runtime_reset1(moz_runtime_t *r)
     r->ast = AstMachine_init(MOZ_AST_MACHINE_DEFAULT_LOG_SIZE, NULL);
     r->table = symtable_init();
     r->memo = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    memset(r->memo_points, 0, sizeof(MemoPoint) * memo);
+#endif
     r->stack = &r->stack_[0] + 0xf;
     r->fp = r->stack;
 }
@@ -106,6 +118,7 @@ void moz_runtime_reset2(moz_runtime_t *r)
 void moz_runtime_print_stats(moz_runtime_t *r)
 {
     MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+    MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 
 void moz_runtime_dispose(moz_runtime_t *r)
@@ -114,6 +127,9 @@ void moz_runtime_dispose(moz_runtime_t *r)
     AstMachine_dispose(r->ast);
     symtable_dispose(r->table);
     memo_dispose(r->memo);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    VM_FREE(r->memo_points);
+#endif
     if (r->C.jumps) {
         VM_FREE(r->C.jumps);
     }
@@ -272,7 +288,7 @@ moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_
 #endif
             ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
-    PUSH(nterm_id);
+    PUSH(0/*nterm_id*/);
 #endif
     PUSH(PC);
     PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
@@ -358,7 +374,6 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 
 #define read_uint8_t(PC)   *(PC);              PC += sizeof(uint8_t)
 #define read_int8_t(PC)    *((int8_t *)PC);    PC += sizeof(int8_t)
-#define read_int(PC)       *((int *)PC);       PC += sizeof(int)
 #define read_uint16_t(PC)  *((uint16_t *)PC);  PC += sizeof(uint16_t)
 #define read_mozaddr_t(PC) *((mozaddr_t *)PC); PC += sizeof(mozaddr_t)
 #define read_STRING_t(PC)  *((STRING_t *)PC);  PC += sizeof(STRING_t)

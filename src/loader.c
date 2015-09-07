@@ -49,7 +49,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print);
 static void dump_set(bitset_t *set, char *buf);
 #endif
 
-static char *load_file(const char *path, size_t *size)
+static char *load_file(const char *path, size_t *size, int align)
 {
     size_t len;
     size_t readed;
@@ -60,7 +60,7 @@ static char *load_file(const char *path, size_t *size)
     fseek(fp, 0, SEEK_END);
     len = (size_t) ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char *) VM_CALLOC(1, len + 1);
+    data = (char *) VM_CALLOC(1, len + 1 + align);
     readed = fread(data, 1, len, fp);
     assert(len == readed);
     fclose(fp);
@@ -136,16 +136,18 @@ mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
-    unsigned i;
     moz_inst_t *inst = ARRAY_n(L->buf, 0);
     VM_FREE(L->table);
     L->table = NULL;
 #ifdef MOZVM_ENABLE_JIT
-    for (i = 0; i < L->R->C.nterm_size; i++) {
-        unsigned begin = (unsigned) L->R->nterm_entry[i].begin;
-        unsigned end   = (unsigned) L->R->nterm_entry[i].end;
-        L->R->nterm_entry[i].begin = inst + begin;
-        L->R->nterm_entry[i].end   = inst + end;
+    {
+        unsigned i;
+        for (i = 0; i < L->R->C.nterm_size; i++) {
+            uintptr_t begin = (uintptr_t) L->R->nterm_entry[i].begin;
+            uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
+            L->R->nterm_entry[i].begin = inst + begin;
+            L->R->nterm_entry[i].end   = inst + end;
+        }
     }
 #endif
     return inst;
@@ -251,28 +253,33 @@ static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, voi
     }
 }
 
+#ifdef MOZVM_USE_JMPTBL
 static jump_table1_t *alloc_jump_table1(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps1 = VM_REALLOC(r->C.jumps1, sizeof(jump_table1_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table1_t) * (tblId + 1);
+    r->C.jumps1 = (jump_table1_t *) VM_REALLOC(r->C.jumps1, size);
     return r->C.jumps1 + tblId;
 }
 
 static jump_table2_t *alloc_jump_table2(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps2 = VM_REALLOC(r->C.jumps2, sizeof(jump_table2_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table2_t) * (tblId + 1);
+    r->C.jumps2 = (jump_table2_t *) VM_REALLOC(r->C.jumps2, size);
     return r->C.jumps2 + tblId;
 }
 
 static jump_table3_t *alloc_jump_table3(moz_runtime_t *r, uint16_t tblId)
 {
-    r->C.jumps3 = VM_REALLOC(r->C.jumps3, sizeof(jump_table3_t) * (tblId + 1));
+    unsigned size = sizeof(jump_table3_t) * (tblId + 1);
+    r->C.jumps3 = (jump_table3_t *) VM_REALLOC(r->C.jumps3, size);
     return r->C.jumps3 + tblId;
 }
+#endif
 
 static int *alloc_jump_table(moz_runtime_t *r, uint16_t tblId)
 {
     unsigned size = sizeof(int) * MOZ_JMPTABLE_SIZE * (tblId + 1);
-    r->C.jumps = VM_REALLOC(r->C.jumps, size);
+    r->C.jumps = (int *) VM_REALLOC(r->C.jumps, size);
     return r->C.jumps + MOZ_JMPTABLE_SIZE * tblId;
 }
 
@@ -294,7 +301,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #endif
        ) {/* skip */}
     else {
-        mozvm_loader_write_opcode(L, opcode);
+        mozvm_loader_write_opcode(L, (enum MozOpcode)opcode);
     }
     switch (opcode) {
     CASE_(Nop);
@@ -399,6 +406,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
                 target[target_size++] = table[i];
             }
         }
+#ifdef MOZVM_USE_JMPTBL
         if (target_size <= 1) {
             tblId = L->jmptbl1_id++;
             jump_table1_t *impl = alloc_jump_table1(L->R, tblId);
@@ -426,7 +434,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
             mozvm_loader_write_opcode(L, TblJump3);
             mozvm_loader_write16(L, tblId);
         }
-        else {
+        else
+#endif
+        {
             tblId = L->jmptbl_id++;
             int *impl = alloc_jump_table(L->R, tblId);
             memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
@@ -472,13 +482,17 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TPop) {
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TLeftFold) {
         int8_t shift = read8(is);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
         mozvm_loader_write8(L, shift);
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TNew) {
@@ -511,17 +525,20 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         break;
     }
     CASE_(TCommit) {
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         break;
     }
     CASE_(TLookup) {
         int state = read8(is);
         uint32_t memoId = read32(is);
         int skip = read24(is);
-        int index = read8(is);
-        mozvm_loader_write8(L, index);
+        uint16_t tagId = read16(is);
+        tag_t *impl = L->R->C.tags[tagId];
+
         mozvm_loader_write8(L, state);
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tagId, (void *)impl);
         mozvm_loader_write16(L, memoId);
         mozvm_loader_write_addr(L, skip);
         break;
@@ -537,9 +554,17 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
     CASE_(SClose) {
         break;
     }
+    CASE_(SIsDef) {
+        uint16_t tblId = read16(is);
+        uint16_t strId = read16(is);
+        tag_t *impl1 = L->R->C.tables[tblId];
+        const char *impl2 = L->R->C.strs[strId];
+        mozvm_loader_write_id(L, MOZVM_SMALL_TAG_INST, tblId, (void *)impl1);
+        mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl2);
+        break;
+    }
     CASE_(SMask)
     CASE_(SDef);
-    CASE_(SIsDef);
     CASE_(SExists);
     CASE_(SMatch);
     CASE_(SIs);
@@ -598,7 +623,10 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
-    int i = 0, j = 0, nterm = 0;
+    int i = 0, j = 0;
+#ifdef MOZVM_ENABLE_JIT
+    int nterm = 0;
+#endif
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
@@ -607,14 +635,14 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     mozvm_loader_write_opcode(L, Exit); // exit fail
     mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
-        uint8_t opcode = *peek(is);
-        L->inst_size++;
 #ifdef MOZVM_ENABLE_JIT
+        uint8_t opcode = *peek(is);
         if (opcode == Label) {
             long begin = (long)ARRAY_size(L->buf);
             L->R->nterm_entry[nterm++].begin = (moz_inst_t *)begin;
         }
 #endif
+        L->inst_size++;
         L->table[i++] = ARRAY_size(L->buf);
         mozvm_loader_load_inst(L, is);
     }
@@ -634,11 +662,13 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         unsigned shift = opcode_size(opcode);
         mozaddr_t *ref;
         int i, *table = NULL;
-        uint16_t tblId = 0;
         uint8_t *p;
+#ifdef MOZVM_USE_JMPTBL
+        uint16_t tblId = 0;
         jump_table1_t *t1;
         jump_table2_t *t2;
         jump_table3_t *t3;
+#endif
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
         switch (opcode) {
@@ -675,6 +705,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
                 table[i] = L->table[table[i]] - (j + shift);
             }
             break;
+#ifdef MOZVM_USE_JMPTBL
         case TblJump1:
             tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
             t1 = L->R->C.jumps1 + tblId;
@@ -697,6 +728,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
                 t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
             }
             break;
+#endif
         default:
             break;
         }
@@ -732,7 +764,7 @@ static int checkVersion(input_stream_t *is)
 
 int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
 {
-    L->input = load_file(file, &L->input_size);
+    L->input = load_file(file, &L->input_size, 32);
     return L->input != NULL;
 }
 
@@ -744,7 +776,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     moz_inst_t *inst = NULL;
 
     is.pos = 0;
-    is.data = load_file(file, &is.end);
+    is.data = load_file(file, &is.end, 0);
     if (!checkFileType(&is)) {
         fprintf(stderr, "verify error: not bytecode file\n");
         exit(EXIT_FAILURE);
@@ -1095,23 +1127,16 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(TPush) {
             break;
         }
-        CASE_(TPop) {
-            int8_t index = *(int8_t *)(p + 1);
-            OP_PRINT("%d", index);
-            break;
-        }
-        CASE_(TLeftFold) {
-            int8_t shift = *(int8_t *)(p + 1);
-            OP_PRINT("%d", shift);
-            break;
-        }
         CASE_(TNew);
         CASE_(TCapture) {
             int8_t shift = *(int8_t *)(p + 1);
             OP_PRINT("%d", shift);
             break;
         }
-        CASE_(TTag) {
+        CASE_(TLeftFold);
+        CASE_(TPop);
+        CASE_(TTag);
+        CASE_(TCommit) {
             TAG_t tagId = *(TAG_t *)(p + 1);
             tag_t *impl = TAG_GET_IMPL(L->R, tagId);
             OP_PRINT("%p", impl);
@@ -1124,21 +1149,17 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(TStart) {
             break;
         }
-        CASE_(TCommit) {
-            int8_t index = *(int8_t *)(p + 1);
-            OP_PRINT("%d", index);
-            break;
-        }
         CASE_(TAbort) {
             asm volatile("int3");
             break;
         }
         CASE_(TLookup) {
-            int8_t index = *(int8_t *)(p + 1);
-            int8_t state = *(int8_t *)(p + 2);
-            uint16_t memoId = *(uint16_t *)(p + 3);
-            mozaddr_t skip = *(mozaddr_t *)(p + 5);
-            OP_PRINT("%d %d %d %d", state, memoId, skip, index);
+            int8_t state = *(int8_t *)(p + 1);
+            TAG_t tagId = *(TAG_t *)(p + 2);
+            uint16_t memoId = *(uint16_t *)(p + 2 + sizeof(TAG_t));
+            mozaddr_t skip = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
+            tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+            OP_PRINT("%d %d %d %p", state, memoId, skip, impl);
             break;
         }
         CASE_(TMemo) {
@@ -1151,9 +1172,17 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         CASE_(SClose) {
             break;
         }
+        CASE_(SIsDef) {
+            TAG_t    tagId = *(TAG_t *)(p + 1);
+            STRING_t strId = *(STRING_t *)(p + 1 + sizeof(TAG_t));
+            tag_t      *impl1 = TBL_GET_IMPL(L->R, tagId);
+            const char *impl2 = STRING_GET_IMPL(L->R, strId);
+            OP_PRINT("%p %s", impl1, impl2);
+            break;
+        }
+
         CASE_(SMask);
         CASE_(SDef);
-        CASE_(SIsDef);
         CASE_(SExists);
         CASE_(SMatch);
         CASE_(SIs);

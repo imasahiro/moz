@@ -239,17 +239,32 @@ DEF(First, JMPTBL_t tblId)
 }
 DEF(Lookup, uint8_t state, uint16_t memoId, mozaddr_t skip)
 {
-    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
-    if (entry) {
-        if (entry->failed == MEMO_ENTRY_FAILED) {
-            MEMO_DEBUG_FAIL_HIT(memoId);
-            FAIL();
-        }
-        MEMO_DEBUG_HIT(memoId, entry->consumed);
-        CONSUME_N(entry->consumed);
-        JUMP(skip);
+    MemoEntry_t *entry;
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    MemoPoint *mp = runtime->memo_points + memoId;
+    MOZVM_PROFILE_INC(MEMO_TOTAL_COUNT);
+    if (mp->penalty) {
+        MOZVM_PROFILE_INC(MEMO_DISABLE_COUNT);
+        mp->penalty--;
     }
-    MEMO_DEBUG_MISS(memoId);
+    else
+#endif
+    {
+        entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
+        if (entry) {
+            if (entry->failed == MEMO_ENTRY_FAILED) {
+                MEMO_DEBUG_FAIL_HIT(memoId);
+                FAIL();
+            }
+            MEMO_DEBUG_HIT(memoId, entry->consumed);
+            CONSUME_N(entry->consumed);
+            JUMP(skip);
+        }
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+        mp->penalty += MEMO_PENALTY;
+#endif
+        MEMO_DEBUG_MISS(memoId);
+    }
 }
 DEF(Memo, uint8_t state, uint16_t memoId)
 {
@@ -274,15 +289,17 @@ DEF(TPush)
     AstMachine *ast = AST_MACHINE_GET();
     ast_log_push(ast);
 }
-DEF(TPop, int8_t index)
+DEF(TPop, TAG_t tagId)
 {
+    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_pop(ast, index);
+    ast_log_pop(ast, tag);
 }
-DEF(TLeftFold, uint8_t shift)
+DEF(TLeftFold, uint8_t shift, TAG_t tagId)
 {
+    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_swap(ast, GET_POS() + shift);
+    ast_log_swap(ast, GET_POS() + shift, tag);
 }
 DEF(TNew, uint8_t shift)
 {
@@ -311,32 +328,49 @@ DEF(TStart)
     AstMachine *ast = AST_MACHINE_GET();
     PUSH(ast_save_tx(ast));
 }
-DEF(TCommit, int8_t index)
+DEF(TCommit, TAG_t tagId)
 {
+    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
     long tx = POP();
     AstMachine *ast = AST_MACHINE_GET();
-    ast_commit_tx(ast, index, tx);
+    ast_commit_tx(ast, tag, tx);
 }
 DEF(TAbort)
 {
     /* not implemented */
     ABORT();
 }
-DEF(TLookup, int8_t index, uint8_t state, uint16_t memoId, mozaddr_t skip)
+DEF(TLookup, uint8_t state, TAG_t tagId, uint16_t memoId, mozaddr_t skip)
 {
+    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
     AstMachine *ast = AST_MACHINE_GET();
-    MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
-    if (entry) {
-        if (entry->failed == MEMO_ENTRY_FAILED) {
-            MEMO_DEBUG_T_FAIL_HIT(memoId);
-            FAIL();
-        }
-        MEMO_DEBUG_T_HIT(memoId, entry->consumed);
-        CONSUME_N(entry->consumed);
-        ast_log_link(ast, index, entry->result);
-        JUMP(skip);
+    MemoEntry_t *entry;
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    MemoPoint *mp = runtime->memo_points + memoId;
+    MOZVM_PROFILE_INC(MEMO_TOTAL_COUNT);
+    if (mp->penalty) {
+        MOZVM_PROFILE_INC(MEMO_DISABLE_COUNT);
+        mp->penalty--;
     }
-    MEMO_DEBUG_T_MISS(memoId);
+    else
+#endif
+    {
+        entry = memo_get(MEMO_GET(), GET_POS(), memoId, state);
+        if (entry) {
+            if (entry->failed == MEMO_ENTRY_FAILED) {
+                MEMO_DEBUG_T_FAIL_HIT(memoId);
+                FAIL();
+            }
+            MEMO_DEBUG_T_HIT(memoId, entry->consumed);
+            CONSUME_N(entry->consumed);
+            ast_log_link(ast, tag, entry->result);
+            JUMP(skip);
+        }
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+        mp->penalty += MEMO_PENALTY;
+#endif
+        MEMO_DEBUG_T_MISS(memoId);
+    }
 }
 DEF(TMemo, uint8_t state, uint16_t memoId)
 {
@@ -379,10 +413,17 @@ DEF(SDef, TAG_t tagId)
     token_init(&captured, (const char *)POP(), GET_CURRENT());
     symtable_add_symbol(tbl, tableName, &captured);
 }
-DEF(SIsDef)
+DEF(SIsDef, TAG_t tagId, STRING_t strId)
 {
-    /* not implemented */
-    ABORT();
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName   = TBL_GET_IMPL(runtime, tagId);
+    const char *symbol = STRING_GET_IMPL(runtime, strId);
+    token_t t;
+    t.s = symbol;
+    t.len = pstring_length(symbol);
+    if (!symtable_contains(tbl, tableName, &t)) {
+        FAIL();
+    }
 }
 DEF(SExists, TAG_t tagId)
 {
@@ -452,6 +493,7 @@ DEF(TblJump1, uint16_t tblId)
     int jump = jump_table1_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }
@@ -462,6 +504,7 @@ DEF(TblJump2, uint16_t tblId)
     int jump = jump_table2_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }
@@ -472,6 +515,7 @@ DEF(TblJump3, uint16_t tblId)
     int jump = jump_table3_jump(tbl, *GET_CURRENT());
     JUMP(jump);
 #else
+    (void)tblId;
     ABORT();
 #endif
 }
