@@ -440,19 +440,22 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
             tblId = L->jmptbl_id++;
             int *impl = alloc_jump_table(L->R, tblId);
             memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
+#ifdef MOZVM_USE_JMPTBL
             mozvm_loader_write_opcode(L, First);
-            mozvm_loader_write16(L, tblId);
-        }
-#if 0
-        fprintf(stderr, "%p [", impl);
-        for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
-            fprintf(stderr, "%d ,", impl[i]);
-            if (i % 16 == 15) {
-                fprintf(stderr, "\n");
-            }
-        }
-        fprintf(stderr, "%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
 #endif
+            mozvm_loader_write16(L, tblId);
+#if 0
+            fprintf(stderr, "tblId=%d %p\n", tblId, impl);
+            fprintf(stderr, "[\n");
+            for (i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                fprintf(stderr, "%3d ,", impl[i]);
+                if (i % 16 == 15) {
+                    fprintf(stderr, "\n");
+                }
+            }
+            fprintf(stderr, "]\n");
+#endif
+        }
         break;
     }
     CASE_(Lookup) {
@@ -563,7 +566,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         mozvm_loader_write_id(L, MOZVM_SMALL_STRING_INST, strId, (void *)impl2);
         break;
     }
-    CASE_(SMask)
+    CASE_(SMask);
     CASE_(SDef);
     CASE_(SExists);
     CASE_(SMatch);
