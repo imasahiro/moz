@@ -3,6 +3,9 @@
 #ifdef MOZVM_ENABLE_JIT
 #include "instruction.h"
 
+#include <memory>
+#include <vector>
+#include <unordered_map>
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/IR/LLVMContext.h"
@@ -13,6 +16,7 @@
 #include "llvm/ExecutionEngine/MCJIT.h"
 
 
+using namespace std;
 using namespace llvm;
 
 template<class Vector, class First>
@@ -31,7 +35,7 @@ void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 template<class... Args>
 StructType *define_struct_type(const char *name, const Args&... args)
 {
-    std::vector<Type *> elements;
+    vector<Type *> elements;
     set_vector(&elements, args...);
     ArrayRef<Type *> elmsRef(elements);
 
@@ -44,7 +48,7 @@ StructType *define_struct_type(const char *name, const Args&... args)
 template<class... Args>
 Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... args)
 {
-    std::vector<Value *> indexs;
+    vector<Value *> indexs;
     set_vector(&indexs, args...);
     ArrayRef<Value *> idxsRef(indexs);
 
@@ -54,7 +58,7 @@ Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... a
 template<class Returns, class... Args>
 FunctionType *get_function_type(const Returns& returntype, const Args&... args)
 {
-    std::vector<Type *> parameters;
+    vector<Type *> parameters;
     set_vector(&parameters, args...);
     ArrayRef<Type *> paramsRef(parameters);
 
@@ -64,7 +68,7 @@ FunctionType *get_function_type(const Returns& returntype, const Args&... args)
 template<class... Args>
 Value *create_call_inst(IRBuilder<> &builder, Value *F, const Args&... args)
 {
-    std::vector<Value *> arguments;
+    vector<Value *> arguments;
     set_vector(&arguments, args...);
     ArrayRef<Value *> argsRef(arguments);
 
@@ -94,19 +98,129 @@ Value *consume(IRBuilder<> &builder, Value *pos)
     return consume_n(builder, pos, builder.getInt64(1));
 }
 
+void stack_push(IRBuilder<> &builder, Value *sp, Value *I64Val)
+{
+    Value *top = builder.CreateLoad(sp);
+    Value *next_top = builder.CreateGEP(top, builder.getInt64(1));
+    builder.CreateStore(next_top, sp);
+    builder.CreateStore(I64Val, top);
+}
+
+Value *stack_pop(IRBuilder<> &builder, Value *sp)
+{
+    Value *top = builder.CreateLoad(sp);
+    Value *prev_top = builder.CreateGEP(top, builder.getInt64(-1));
+    builder.CreateStore(prev_top, sp);
+    return builder.CreateLoad(prev_top);
+}
+
+void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+        Value *pos, Value *next, Value *ast, Value *symtable)
+{
+    Type *I64Ty = builder.getInt64Ty();
+    Value *top = builder.CreateLoad(sp);
+
+    Value *frame  = builder.CreateLoad(fp);
+    Value *frame_ = builder.CreatePtrToInt(frame, I64Ty);
+    Value *sp_fp  = top;
+    builder.CreateStore(frame_, sp_fp);
+
+    Value *sp_pos = builder.CreateGEP(top, builder.getInt64(1));
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    Value *pos_   = builder.CreatePtrToInt(pos, I64Ty);
+    builder.CreateStore(pos_, sp_pos);
+#else
+    builder.CreateStore(pos,  sp_pos);
+#endif
+
+    Value *sp_next = builder.CreateGEP(top, builder.getInt64(2));
+    Value *next_  = builder.CreatePtrToInt(next, I64Ty);
+    builder.CreateStore(next_, sp_next);
+
+    Value *sp_ast = builder.CreateGEP(top, builder.getInt64(3));
+    builder.CreateStore(ast, sp_ast);
+
+    Value *sp_symtable = builder.CreateGEP(top, builder.getInt64(4));
+    builder.CreateStore(symtable, sp_symtable);
+
+    builder.CreateStore(top, fp);
+    Value *next_top = builder.CreateGEP(top, builder.getInt64(5));
+    builder.CreateStore(next_top, sp);
+}
+
+void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+        Value **pos, Value **next, Value **ast, Value **symtable)
+{
+    Type *I8PtrTy  = builder.getInt8PtrTy();
+    Type *I64PtrTy = builder.getInt64Ty()->getPointerTo();
+    Value *frame = builder.CreateLoad(fp);
+    builder.CreateStore(frame, sp);
+
+    Value *fp_symtable = builder.CreateGEP(frame, builder.getInt64(4));
+    *symtable = builder.CreateLoad(fp_symtable);
+
+    Value *fp_ast = builder.CreateGEP(frame, builder.getInt64(3));
+    *ast = builder.CreateLoad(fp_ast);
+
+    Value *fp_next = builder.CreateGEP(frame, builder.getInt64(2));
+    Value *next_   = builder.CreateLoad(fp_next);
+    *next = builder.CreateIntToPtr(next_, I8PtrTy);
+
+    Value *fp_pos = builder.CreateGEP(frame, builder.getInt64(1));
+    Value *pos_   = builder.CreateLoad(fp_pos);
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    *pos = builder.CreateIntToPtr(pos_, I8PtrTy);
+#else
+    *pos = pos_;
+#endif
+
+    Value *fp_fp       = frame;
+    Value *prev_frame_ = builder.CreateLoad(fp_fp);
+    Value *prev_frame  = builder.CreateIntToPtr(prev_frame_, I64PtrTy);
+    builder.CreateStore(prev_frame, fp);
+}
+
+void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+        Value **pos, Value **next, Value **ast, Value **symtable)
+{
+    Type *I8PtrPtrTy  = builder.getInt8PtrTy()->getPointerTo();
+    Value *frame = builder.CreateLoad(fp);
+
+    *symtable = builder.CreateGEP(frame, builder.getInt64(4));
+
+    *ast = builder.CreateGEP(frame, builder.getInt64(3));
+
+    Value *next_ = builder.CreateGEP(frame, builder.getInt64(2));
+    *next = builder.CreateBitCast(next_, I8PtrPtrTy);
+
+    Value *pos_ = builder.CreateGEP(frame, builder.getInt64(1));
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    *pos = builder.CreateBitCast(pos_, I8PtrPtrTy);
+#else
+    *pos = pos_;
+#endif
+}
+
 Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 {
 #if MOZVM_SMALL_BITSET_INST
     Value *r_c_sets = create_get_element_ptr(builder, runtime,
-            builder.getInt64(0), builder.getInt32(10), builder.getInt32(0));
+            builder.getInt64(0),
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            builder.getInt32(11),
+#else
+            builder.getInt32(10),
+#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
+            builder.getInt32(0));
     Value *sets_head = builder.CreateLoad(r_c_sets);
     return create_get_element_ptr(builder, sets_head, builder.getInt32(id));
 #else
     asm volatile("int3");
     // bitset_t *_set = (bitset_t *)id;
-    return NULL;
-#endif
+    return nullptr;
+#endif /*MOZVM_SMALL_BITSET_INST*/
 }
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,19 +233,30 @@ class JitContext {
 public:
     ExecutionEngine *EE;
     StructType *bsetType;
+    StructType *nodeType;
     StructType *astType;
     StructType *symtableType;
     StructType *memoType;
     Type *mozposType;
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    StructType *memopointType;
+#endif
     StructType *runtimeType;
     FunctionType *funcType;
 
     FunctionType *bitsetgetType;
+    FunctionType *astsaveType;
+    FunctionType *astrollbackType;
+    FunctionType *tblsaveType;
+    FunctionType *tblrollbackType;
 
     ~JitContext() {};
     JitContext();
 
     FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
 };
 
 JitContext::JitContext()
@@ -139,6 +264,7 @@ JitContext::JitContext()
     LLVMContext& Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
 
+    Type *VoidTy = Type::getVoidTy(Ctx);
     Type *I8Ty    = Type::getInt8Ty(Ctx);
     Type *I16Ty   = Type::getInt16Ty(Ctx);
     Type *I32Ty   = Type::getInt32Ty(Ctx);
@@ -179,13 +305,39 @@ JitContext::JitContext()
 #endif
             );
 
-    astType = StructType::create(Ctx, "AstMachine");
-    symtableType = StructType::create(Ctx, "symtable_t");
+    nodeType = StructType::create(Ctx, "Node");
+    StructType *astlogType = StructType::create(Ctx, "AstLog");
+    StructType *astlogarrayType = define_struct_type("ARRAY_AstLog_t",
+            I32Ty, // size
+            I32Ty, // capacity
+            astlogType->getPointerTo() // list
+            );
+    astType = define_struct_type("AstMachine",
+            astlogarrayType, // logs
+            nodeType->getPointerTo(), // last-linked
+            nodeType->getPointerTo(), // parsed
+            I8PtrTy // source
+            );
+
+    StructType *entryType = StructType::create(Ctx, "entry_t");
+    StructType *entryarrayType = define_struct_type("ARRAY_entry_t_t",
+            I32Ty, // size
+            I32Ty, // capacity
+            entryType->getPointerTo() // list
+            );
+    symtableType = define_struct_type("symtable_t",
+            I32Ty, // state
+            entryarrayType // table
+            );
+
     memoType = StructType::create(Ctx, "memo_t");
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     mozposType = I8PtrTy;
 #else
     mozposType = I64Ty;
+#endif
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    memopointType = StructType::create(Ctx, "MemoPoint");
 #endif
     runtimeType = define_struct_type("moz_runtime_t",
             astType->getPointerTo(),
@@ -196,6 +348,9 @@ JitContext::JitContext()
             I8PtrTy, // input
             I64PtrTy, // stack
             I64PtrTy, // fp
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            memopointType->getPointerTo(),
+#endif
             I8PtrTy, // nterm_entry
             I8PtrTy, // jit_context
             constantType,
@@ -205,9 +360,16 @@ JitContext::JitContext()
     funcType = get_function_type(I8Ty, runtimeType->getPointerTo(),
             I8PtrTy, mozposType->getPointerTo());
 
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_rollback_tx"),
+            reinterpret_cast<void *>(ast_rollback_tx));
+    astrollbackType = get_function_type(VoidTy, astType->getPointerTo(), I64Ty);
+
     Module *M = new Module("top", Ctx);
-    bitsetgetType = create_bitset_get(builder, M);
-    EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
+    bitsetgetType   = create_bitset_get(builder, M);
+    astsaveType     = create_ast_save_tx(builder, M);
+    tblsaveType     = create_symtable_savepoint(builder, M);
+    tblrollbackType = create_symtable_rollback(builder, M);
+    EE = EngineBuilder(unique_ptr<Module>(M)).create();
     EE->finalizeObject();
 }
 
@@ -219,8 +381,8 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
     Type *bsetPtrTy = bsetType->getPointerTo();
     FunctionType *funcTy = get_function_type(I32Ty, bsetPtrTy, I32Ty);
     Function *F;
-    Value *i32_0 = builder.getInt32(0);
-    Value *i64_0 = builder.getInt64(0);
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i64_0 = builder.getInt64(0);
 
     F = Function::Create(funcTy, Function::ExternalLinkage, "bitset_get", M);
 
@@ -228,8 +390,8 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
     Value *set = arg_iter++;
     Value *idx = arg_iter++;
 
-    BasicBlock *entry = BasicBlock::Create(Ctx, "entrypoint", F);
-    builder.SetInsertPoint(entry);
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
 
 
 #if defined(BITSET_USE_ULONG)
@@ -254,6 +416,85 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
 #endif
     Value *RetVal = builder.CreateZExt(NEq0, I32Ty);
     builder.CreateRet(RetVal);
+    return funcTy;
+}
+
+FunctionType *JitContext::create_ast_save_tx(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I64Ty = builder.getInt64Ty();
+    Type *astPtrTy = astType->getPointerTo();
+    FunctionType *funcTy = get_function_type(I64Ty, astPtrTy);
+    Function *F;
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i64_0 = builder.getInt64(0);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "ast_save_tx", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *ast = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *Ptr   = create_get_element_ptr(builder, ast, i64_0, i32_0, i32_0);
+    Value *Size  = builder.CreateLoad(Ptr);
+    Value *Size_ = builder.CreateZExt(Size, I64Ty);
+    builder.CreateRet(Size_);
+    return funcTy;
+}
+
+FunctionType *JitContext::create_symtable_savepoint(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I64Ty = builder.getInt64Ty();
+    Type *tblPtrTy = symtableType->getPointerTo();
+    FunctionType *funcTy = get_function_type(I64Ty, tblPtrTy);
+    Function *F;
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i32_1 = builder.getInt32(1);
+    Constant *i64_0 = builder.getInt64(0);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "symtable_savepoint", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *tbl = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *Ptr   = create_get_element_ptr(builder, tbl, i64_0, i32_1, i32_0);
+    Value *Size  = builder.CreateLoad(Ptr);
+    Value *Size_ = builder.CreateZExt(Size, I64Ty);
+    builder.CreateRet(Size_);
+    return funcTy;
+}
+
+FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I32Ty = builder.getInt32Ty();
+    Type *I64Ty = builder.getInt64Ty();
+    Type *tblPtrTy = symtableType->getPointerTo();
+    FunctionType *funcTy = get_function_type(builder.getVoidTy(), tblPtrTy, I64Ty);
+    Function *F;
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i32_1 = builder.getInt32(1);
+    Constant *i64_0 = builder.getInt64(0);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "symtable_rollback", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *tbl   = arg_iter++;
+    Value *saved = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *Ptr    = create_get_element_ptr(builder, tbl, i64_0, i32_1, i32_0);
+    Value *saved_ = builder.CreateTrunc(saved, I32Ty);
+    builder.CreateStore(saved_, Ptr);
+    builder.CreateRetVoid();
     return funcTy;
 }
 
@@ -293,10 +534,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     LLVMContext& Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
-    _ctx->EE->addModule(std::unique_ptr<Module>(M));
+    _ctx->EE->addModule(unique_ptr<Module>(M));
 
-    Value *f_bitsetget = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
-
+    Value *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
+    Value *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
+    Value *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
+    Value *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
+    Value *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
 
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
@@ -307,15 +551,70 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Value *str = arg_iter++;
     Value *consumed = arg_iter++;
 
-    BasicBlock *entry = BasicBlock::Create(Ctx, "entrypoint", F);
-    BasicBlock *currentBB = entry;
-    builder.SetInsertPoint(currentBB);
-    BasicBlock *failBB = BasicBlock::Create(Ctx, "fail", F);
+    vector<BasicBlock *> failjumpList;
+    unordered_map<moz_inst_t *, BasicBlock *> BBMap;
 
     moz_inst_t *p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
+        if(opcode == Alt || opcode == Jump) {
+            moz_inst_t *pc = p + 1;
+            mozaddr_t jump = *((mozaddr_t *)(pc));
+            moz_inst_t *dest = pc + sizeof(mozaddr_t) + jump;
+            if(BBMap.find(dest) == BBMap.end()) {
+                BasicBlock *label = BasicBlock::Create(Ctx, "jump.label");
+                BBMap[dest] = label;
+                if(opcode == Alt) {
+                    failjumpList.push_back(label);
+                }
+            }
+        }
+        p += opcode_size(opcode);
+    }
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
+    BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
+    BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
+    failjumpList.push_back(errBB);
+    BasicBlock *currentBB = entryBB;
+
+    builder.SetInsertPoint(currentBB);
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i64_0 = builder.getInt64(0);
+
+    Value *ast_  = create_get_element_ptr(builder, runtime_, i64_0, i32_0);
+    Value *ast   = builder.CreateLoad(ast_);
+    Value *tbl_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(1));
+    Value *tbl   = builder.CreateLoad(tbl_);
+    Value *head_ = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(3));
+
+    Value *sp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(6));
+    Value *fp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(7));
+
+    {
+        BlockAddress *addr = BlockAddress::get(F, errBB);
+        Value *pos = builder.CreateLoad(consumed);
+        Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+        Value *saved  = create_call_inst(builder, f_tblsave, tbl);
+        stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
+    }
+
+    p = e->begin;
+    while (p < e->end) {
+        uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
+
+        if(BBMap.find(p) != BBMap.end()) {
+            BasicBlock *newBB = BBMap[p];
+            newBB->insertInto(F);
+            if(currentBB->getTerminator() == nullptr) {
+                builder.CreateBr(newBB);
+            }
+            builder.SetInsertPoint(newBB);
+            currentBB = newBB;
+        }
+
         switch(opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop) {
@@ -323,19 +622,35 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Fail) {
-                asm volatile("int3");
+                builder.CreateBr(failBB);
                 break;
             }
             CASE_(Succ) {
-                asm volatile("int3");
+                Value *pos;
+                Value *next;
+                Value *ast_tx;
+                Value *saved;
+                stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
                 break;
             }
             CASE_(Alt) {
-                asm volatile("int3");
+                moz_inst_t *pc = p + 1;
+                mozaddr_t failjump = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = pc + sizeof(mozaddr_t) + failjump;
+
+                BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+                Value *saved  = create_call_inst(builder, f_tblsave, tbl);
+                stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
                 break;
             }
             CASE_(Jump) {
-                asm volatile("int3");
+                moz_inst_t *pc = p + 1;
+                mozaddr_t failjump = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = pc + sizeof(mozaddr_t) + failjump;
+
+                builder.CreateBr(BBMap[dest]);
                 break;
             }
             CASE_(Call) {
@@ -343,7 +658,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Ret) {
-                builder.CreateRet(builder.getInt8(0));
+                builder.CreateBr(retBB);
                 break;
             }
             CASE_(Pos) {
@@ -446,7 +761,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
                 Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpEQ(result, builder.getInt32(0));
+                Value *cond = builder.CreateICmpEQ(result, i32_0);
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
@@ -480,7 +795,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
                 Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
+                Value *cond = builder.CreateICmpNE(result, i32_0);
                 builder.CreateCondBr(cond, rbody, rend);
 
                 builder.SetInsertPoint(rbody);
@@ -619,8 +934,52 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         p += shift;
     }
 
+    failBB->insertInto(F);
     builder.SetInsertPoint(failBB);
-    //
+    {
+        BasicBlock *posback  = BasicBlock::Create(Ctx, "fail.posback",  F);
+        BasicBlock *rollback = BasicBlock::Create(Ctx, "fail.rollback", F);
+
+        Value *pos = builder.CreateLoad(consumed);
+        Value *pos_;
+        Value *next_;
+        Value *ast_tx_;
+        Value *saved_;
+        stack_pop_frame(builder, sp, fp, &pos_, &next_, &ast_tx_, &saved_);
+        Value *ifcond = builder.CreateICmpULT(pos_, pos);
+        builder.CreateCondBr(ifcond, posback, rollback);
+
+        builder.SetInsertPoint(posback);
+        Value *head = builder.CreateLoad(head_);
+        Value *selectcond = builder.CreateICmpULT(head, pos);
+        Value *newhead = builder.CreateSelect(selectcond, pos, head);
+        builder.CreateStore(newhead, head_);
+        builder.CreateStore(pos_, consumed);
+        builder.CreateBr(rollback);
+
+        builder.SetInsertPoint(rollback);
+        create_call_inst(builder, f_astrollback, ast, ast_tx_);
+        create_call_inst(builder, f_tblrollback, tbl, saved_);
+        IndirectBrInst *indirect_br = builder.CreateIndirectBr(next_, failjumpList.size());
+        vector<BasicBlock *>::iterator itr;
+        for(itr = failjumpList.begin(); itr != failjumpList.end(); itr++) {
+            indirect_br->addDestination(*itr);
+        }
+    }
+
+    retBB->insertInto(F);
+    builder.SetInsertPoint(retBB);
+    {
+        Value *pos;
+        Value *next;
+        Value *ast_tx;
+        Value *saved;
+        stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
+        builder.CreateRet(builder.getInt8(0));
+    }
+
+    errBB->insertInto(F);
+    builder.SetInsertPoint(errBB);
     builder.CreateRet(builder.getInt8(1));
 
     M->dump();
