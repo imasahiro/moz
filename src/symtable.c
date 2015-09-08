@@ -13,7 +13,11 @@ extern "C" {
     F(SYMTBL_ADD) \
     F(SYMTBL_HAS) \
     F(SYMTBL_GET) \
-    F(SYMTBL_CONTAIN) \
+    F(SYMTBL_CONTAIN)
+
+#ifdef MOZVM_PROFILE
+static uint64_t max_symtbl_size = 0;
+#endif
 
 MOZVM_SYMTBL_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
@@ -35,6 +39,9 @@ void symtable_dispose(symtable_t *tbl)
 
 void symtable_print_stats()
 {
+#ifdef MOZVM_PROFILE
+    fprintf(stderr, "%-10s %llu\n", "MAX_SYMTBL_SIZE", max_symtbl_size);
+#endif
     MOZVM_SYMTBL_PROFILE_EACH(MOZVM_PROFILE_SHOW);
 }
 
@@ -48,6 +55,11 @@ static void symtable_push(symtable_t *tbl, const char *tag, unsigned hash, token
         token_copy(&entry.sym, t);
     }
     ARRAY_add(entry_t, &tbl->table, &entry);
+#ifdef MOZVM_PROFILE
+    if (max_symtbl_size < ARRAY_size(tbl->table)) {
+        max_symtbl_size = ARRAY_size(tbl->table);
+    }
+#endif
 }
 
 void symtable_add_symbol_mask(symtable_t *tbl, const char *tableName)
