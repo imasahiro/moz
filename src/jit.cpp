@@ -347,7 +347,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *nextpos = consume_n(builder, pos, builder.getInt32(1));
+                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
                 builder.CreateStore(nextpos, consumed);
                 currentBB = succ;
                 break;
@@ -357,7 +357,23 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(OByte) {
-                asm volatile("int3");
+                BasicBlock *obody = BasicBlock::Create(context, "optional.body", F);
+                BasicBlock *oend  = BasicBlock::Create(context, "optional.end", F);
+
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *cond = builder.CreateICmpEQ(
+                        character, builder.getInt8(*(p+1)));
+                builder.CreateCondBr(cond, obody, oend);
+
+                builder.SetInsertPoint(obody);
+                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
+                builder.CreateStore(nextpos, consumed);
+                builder.CreateBr(oend);
+
+                builder.SetInsertPoint(oend);
+                currentBB = oend;
                 break;
             }
             CASE_(RByte) {
@@ -432,7 +448,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, rbody, rend);
 
                 builder.SetInsertPoint(rbody);
-                Value *nextpos = consume_n(builder, pos, builder.getInt32(1));
+                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
                 pos->addIncoming(nextpos, rbody);
                 builder.CreateBr(rcond);
 
