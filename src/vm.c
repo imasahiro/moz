@@ -52,11 +52,13 @@ extern "C" {
 
 MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #define MOZVM_VM_MEMO_PROFILE_EACH(F) \
     F(MEMO_DISABLE_COUNT) \
     F(MEMO_TOTAL_COUNT)
 
 MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_DECL);
+#endif
 
 moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
 {
@@ -118,7 +120,9 @@ void moz_runtime_reset2(moz_runtime_t *r)
 void moz_runtime_print_stats(moz_runtime_t *r)
 {
     MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_SHOW);
+#endif
 }
 
 void moz_runtime_dispose(moz_runtime_t *r)
