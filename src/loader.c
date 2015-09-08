@@ -256,23 +256,32 @@ static void mozvm_loader_write_id(mozvm_loader_t *L, int small, uint16_t id, voi
 #ifdef MOZVM_USE_JMPTBL
 static jump_table1_t *alloc_jump_table1(moz_runtime_t *r, uint16_t tblId)
 {
+    jump_table1_t *t;
     unsigned size = sizeof(jump_table1_t) * (tblId + 1);
     r->C.jumps1 = (jump_table1_t *) VM_REALLOC(r->C.jumps1, size);
-    return r->C.jumps1 + tblId;
+    t = r->C.jumps1 + tblId;
+    memset(t, 0, sizeof(*t));
+    return t;
 }
 
 static jump_table2_t *alloc_jump_table2(moz_runtime_t *r, uint16_t tblId)
 {
+    jump_table2_t *t;
     unsigned size = sizeof(jump_table2_t) * (tblId + 1);
     r->C.jumps2 = (jump_table2_t *) VM_REALLOC(r->C.jumps2, size);
-    return r->C.jumps2 + tblId;
+    t = r->C.jumps2 + tblId;
+    memset(t, 0, sizeof(*t));
+    return t;
 }
 
 static jump_table3_t *alloc_jump_table3(moz_runtime_t *r, uint16_t tblId)
 {
+    jump_table3_t *t;
     unsigned size = sizeof(jump_table3_t) * (tblId + 1);
     r->C.jumps3 = (jump_table3_t *) VM_REALLOC(r->C.jumps3, size);
-    return r->C.jumps3 + tblId;
+    t = r->C.jumps3 + tblId;
+    memset(t, 0, sizeof(*t));
+    return t;
 }
 #endif
 
