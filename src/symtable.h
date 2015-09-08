@@ -27,6 +27,7 @@ typedef struct symtable_t symtable_t;
 
 symtable_t *symtable_init();
 void symtable_dispose(symtable_t *tbl);
+void symtable_print_stats();
 
 void symtable_add_symbol_mask(symtable_t *tbl, const char *tableName);
 void symtable_add_symbol(symtable_t *tbl, const char *tableName, token_t *captured);
@@ -39,7 +40,17 @@ static inline long symtable_savepoint(symtable_t *tbl)
     return ARRAY_size(tbl->table);
 }
 
-void symtable_rollback(symtable_t *tbl, long saved);
+static inline void symtable_rollback(symtable_t *tbl, long saved)
+{
+    ARRAY_size(tbl->table) = saved;
+    // if (saved == 0) {
+    //     tbl->state = 0;
+    // }
+    // else {
+    //     entry_t *last = ARRAY_last(tbl->table);
+    //     tbl->state = last->state;
+    // }
+}
 
 #ifdef __cplusplus
 }

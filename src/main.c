@@ -141,6 +141,7 @@ int main(int argc, char *const argv[])
         moz_loader_print_stats(&L);
         NodeManager_print_stats();
         memo_print_stats();
+        symtable_print_stats();
         moz_runtime_print_stats(L.R);
     }
     moz_runtime_dispose(L.R);
