@@ -710,7 +710,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             break;
 #ifdef MOZVM_USE_JMPTBL
         case TblJump1:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
             t1 = L->R->C.jumps1 + tblId;
             t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
             for (i = 0; i < 2; i++) {
@@ -718,14 +718,14 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             }
             break;
         case TblJump2:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
             t2 = L->R->C.jumps2 + tblId;
             for (i = 0; i < 4; i++) {
                 t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
             }
             break;
         case TblJump3:
-            tblId = *(L->buf.list + j + shift - sizeof(uint16_t));
+            tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
             t3 = L->R->C.jumps3 + tblId;
             for (i = 0; i < 8; i++) {
                 t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
