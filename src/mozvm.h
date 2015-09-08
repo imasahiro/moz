@@ -19,7 +19,7 @@ typedef uint8_t moz_inst_t;
 struct moz_runtime_t;
 
 #ifdef MOZVM_ENABLE_JIT
-typedef unsigned (*moz_jit_func_t)(struct moz_runtime_t *, const char *);
+typedef uint8_t (*moz_jit_func_t)(struct moz_runtime_t *, const char *, mozpos_t *);
 
 typedef struct mozvm_nterm_entry_t {
     moz_inst_t *begin;
