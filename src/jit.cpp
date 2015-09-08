@@ -89,6 +89,11 @@ Value *consume_n(IRBuilder<> &builder, Value *pos, Value *N)
 #endif
 }
 
+Value *consume(IRBuilder<> &builder, Value *pos)
+{
+    return consume_n(builder, pos, builder.getInt64(1));
+}
+
 Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 {
 #if MOZVM_SMALL_BITSET_INST
@@ -347,7 +352,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
+                Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, consumed);
                 currentBB = succ;
                 break;
@@ -368,7 +373,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, obody, oend);
 
                 builder.SetInsertPoint(obody);
-                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
+                Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, consumed);
                 builder.CreateBr(oend);
 
@@ -413,7 +418,23 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Set) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(
+                        context, "set.succ", F);
+
+                Value *set = get_bitset_ptr(builder, runtime_, *((BITSET_t *)(p+1)));
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+                Value *result = create_call_inst(builder,
+                        bitsetgetFunc, set, index);
+                Value *cond = builder.CreateICmpEQ(result, builder.getInt32(0));
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                Value *nextpos = consume(builder, pos);
+                builder.CreateStore(nextpos, consumed);
+                currentBB = succ;
                 break;
             }
             CASE_(NSet) {
@@ -448,7 +469,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateCondBr(cond, rbody, rend);
 
                 builder.SetInsertPoint(rbody);
-                Value *nextpos = consume_n(builder, pos, builder.getInt64(1));
+                Value *nextpos = consume(builder, pos);
                 pos->addIncoming(nextpos, rbody);
                 builder.CreateBr(rcond);
 
