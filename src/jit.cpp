@@ -35,8 +35,8 @@ StructType *define_struct_type(const char *name, const Args&... args)
     set_vector(&elements, args...);
     ArrayRef<Type *> elmsRef(elements);
 
-    LLVMContext& context = getGlobalContext();
-    StructType *s_ty = StructType::create(context, name);
+    LLVMContext& Ctx = getGlobalContext();
+    StructType *s_ty = StructType::create(Ctx, name);
     s_ty->setBody(elmsRef);
     return s_ty;
 }
@@ -131,20 +131,22 @@ public:
     ~JitContext() {};
     JitContext();
 
-    FunctionType *Create_bitset_get(IRBuilder<> &builder, Module *M);
+    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
 };
 
 JitContext::JitContext()
 {
-    LLVMContext& context = getGlobalContext();
-    IRBuilder<> builder(context);
+    LLVMContext& Ctx = getGlobalContext();
+    IRBuilder<> builder(Ctx);
 
-    Type *I8PtrTy = Type::getInt8PtrTy(context);
+    Type *I8Ty    = Type::getInt8Ty(Ctx);
+    Type *I16Ty   = Type::getInt16Ty(Ctx);
+    Type *I32Ty   = Type::getInt32Ty(Ctx);
+    Type *I64Ty   = Type::getInt64Ty(Ctx);
+    Type *I8PtrTy    = I8Ty->getPointerTo();
     Type *I8PtrPtrTy = I8PtrTy->getPointerTo();
-    Type *I16Ty   = Type::getInt16Ty(context);
-    Type *I32Ty   = Type::getInt32Ty(context);
-    Type *I64Ty   = Type::getInt64Ty(context);
-    Type *I64PtrTy   = Type::getInt64PtrTy(context);
+    Type *I32PtrTy   = I32Ty->getPointerTo();
+    Type *I64PtrTy   = I64Ty->getPointerTo();
 
 #if defined(BITSET_USE_ULONG)
     bsetType = define_struct_type("bitset_t", ArrayType::get(I64Ty, (256/BITS)));
@@ -154,65 +156,81 @@ JitContext::JitContext()
 
     StructType *constantType = define_struct_type("mozvm_constant_t",
             bsetType->getPointerTo(),
-            I8PtrPtrTy, I8PtrPtrTy, I8PtrPtrTy, I32Ty, // tags, strs, tables, jumps
+            I8PtrPtrTy, // tags
+            I8PtrPtrTy, // strs
+            I8PtrPtrTy, // tables
+            I32PtrTy,   // jumps
 #ifdef MOZVM_USE_JMPTBL
-            I8PtrTy, I8PtrTy, I8PtrTy, // jumps1, jumps2, jumps3
+            I8PtrTy, // jumps1
+            I8PtrTy, // jumps2
+            I8PtrTy, // jumps3
 #endif
             I8PtrPtrTy, // nterms
-            I16Ty, I16Ty, I16Ty, // set_size, str_size, tag_size
-            I16Ty, I16Ty, // table_size, nterm_size
-            I32Ty, I32Ty, I32Ty // inst_size, memo_size, input_size
+            I16Ty, // set_size
+            I16Ty, // str_size
+            I16Ty, // tag_size
+            I16Ty, // table_size
+            I16Ty, // nterm_size
+            I32Ty, // inst_size
+            I32Ty, // memo_size
+            I32Ty  // input_size
 #ifdef MOZVM_PROFILE_INST
             , I64PtrTy // profile
 #endif
             );
 
-    astType = StructType::create(context, "AstMachine");
-    symtableType = StructType::create(context, "symtable_t");
-    memoType = StructType::create(context, "memo_t");
+    astType = StructType::create(Ctx, "AstMachine");
+    symtableType = StructType::create(Ctx, "symtable_t");
+    memoType = StructType::create(Ctx, "memo_t");
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     mozposType = I8PtrTy;
 #else
     mozposType = I64Ty;
 #endif
     runtimeType = define_struct_type("moz_runtime_t",
-            astType->getPointerTo(), symtableType->getPointerTo(),
-            memoType->getPointerTo(), mozposType, // memo, head
-            I8PtrTy, I8PtrTy, // tail, input
-            I64PtrTy, I64PtrTy, // stack, fp
-            I8PtrTy, I8PtrTy, // nterm_entry, jit_context
-            constantType, ArrayType::get(I64Ty, 1)
+            astType->getPointerTo(),
+            symtableType->getPointerTo(),
+            memoType->getPointerTo(),
+            mozposType, // head
+            I8PtrTy, // tail
+            I8PtrTy, // input
+            I64PtrTy, // stack
+            I64PtrTy, // fp
+            I8PtrTy, // nterm_entry
+            I8PtrTy, // jit_context
+            constantType,
+            ArrayType::get(I64Ty, 1)
             );
 
-    funcType = get_function_type(Type::getInt8Ty(context),
-            runtimeType->getPointerTo(), I8PtrTy, mozposType->getPointerTo());
+    funcType = get_function_type(I8Ty, runtimeType->getPointerTo(),
+            I8PtrTy, mozposType->getPointerTo());
 
-    Module *M = new Module("top", context);
-    bitsetgetType = Create_bitset_get(builder, M);
+    Module *M = new Module("top", Ctx);
+    bitsetgetType = create_bitset_get(builder, M);
     EE = EngineBuilder(std::unique_ptr<Module>(M)).create();
     EE->finalizeObject();
 }
 
-FunctionType *JitContext::Create_bitset_get(IRBuilder<> &builder, Module *M)
+FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& context = M->getContext();
+    LLVMContext& Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
-    FunctionType *funcTy = get_function_type(I32Ty,
-            bsetType->getPointerTo(), I32Ty);
-    Function *F = Function::Create(funcTy,
-            Function::ExternalLinkage,
-            "bitset_get", M);
+    Type *bsetPtrTy = bsetType->getPointerTo();
+    FunctionType *funcTy = get_function_type(I32Ty, bsetPtrTy, I32Ty);
+    Function *F;
+    Value *i32_0 = builder.getInt32(0);
+    Value *i64_0 = builder.getInt64(0);
 
-    Function::arg_iterator arg_iter=F->arg_begin();
+    F = Function::Create(funcTy, Function::ExternalLinkage, "bitset_get", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
     Value *set = arg_iter++;
     Value *idx = arg_iter++;
 
-    BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
+    BasicBlock *entry = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entry);
 
-    Value *i32_0 = builder.getInt32(0);
-    Value *i64_0 = builder.getInt64(0);
 
 #if defined(BITSET_USE_ULONG)
     Value *Mod    = builder.CreateAnd(idx, builder.getInt32(63));
@@ -272,13 +290,12 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         return e->compiled_code;
     }
 
-    LLVMContext& context = getGlobalContext();
-    IRBuilder<> builder(context);
-    Module *M = new Module("top", context);
+    LLVMContext& Ctx = getGlobalContext();
+    IRBuilder<> builder(Ctx);
+    Module *M = new Module(runtime->C.nterms[nterm], Ctx);
     _ctx->EE->addModule(std::unique_ptr<Module>(M));
 
-    Value *bitsetgetFunc = M->getOrInsertFunction(
-            StringRef("bitset_get"), _ctx->bitsetgetType);
+    Value *f_bitsetget = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
 
 
     Function *F = Function::Create(_ctx->funcType,
@@ -290,10 +307,10 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Value *str = arg_iter++;
     Value *consumed = arg_iter++;
 
-    BasicBlock *entry = BasicBlock::Create(context, "entrypoint", F);
+    BasicBlock *entry = BasicBlock::Create(Ctx, "entrypoint", F);
     BasicBlock *currentBB = entry;
     builder.SetInsertPoint(currentBB);
-    BasicBlock *failBB = BasicBlock::Create(context, "fail", F);
+    BasicBlock *failBB = BasicBlock::Create(Ctx, "fail", F);
 
     moz_inst_t *p = e->begin;
     while (p < e->end) {
@@ -342,13 +359,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Byte) {
-                BasicBlock *succ = BasicBlock::Create(context, "byte.succ", F);
+                BasicBlock *succ = BasicBlock::Create(Ctx, "byte.succ", F);
+                uint8_t ch = (uint8_t)*(p+1);
+                Constant *C = builder.getInt8(ch);
 
                 Value *pos = builder.CreateLoad(consumed);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
-                Value *cond = builder.CreateICmpNE(
-                        character, builder.getInt8(*(p+1)));
+                Value *cond = builder.CreateICmpNE(character, C);
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
@@ -362,14 +380,15 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(OByte) {
-                BasicBlock *obody = BasicBlock::Create(context, "optional.body", F);
-                BasicBlock *oend  = BasicBlock::Create(context, "optional.end", F);
+                BasicBlock *obody = BasicBlock::Create(Ctx, "obyte.body", F);
+                BasicBlock *oend  = BasicBlock::Create(Ctx, "obyte.end", F);
+                uint8_t ch = (uint8_t)*(p+1);
+                Constant *C = builder.getInt8(ch);
 
                 Value *pos = builder.CreateLoad(consumed);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
-                Value *cond = builder.CreateICmpEQ(
-                        character, builder.getInt8(*(p+1)));
+                Value *cond = builder.CreateICmpEQ(character, C);
                 builder.CreateCondBr(cond, obody, oend);
 
                 builder.SetInsertPoint(obody);
@@ -418,16 +437,15 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Set) {
-                BasicBlock *succ = BasicBlock::Create(
-                        context, "set.succ", F);
+                BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
+                BITSET_t setId = *((BITSET_t *)(p+1));
 
-                Value *set = get_bitset_ptr(builder, runtime_, *((BITSET_t *)(p+1)));
+                Value *set = get_bitset_ptr(builder, runtime_, setId);
                 Value *pos = builder.CreateLoad(consumed);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder,
-                        bitsetgetFunc, set, index);
+                Value *result = create_call_inst(builder, f_bitsetget, set, index);
                 Value *cond = builder.CreateICmpEQ(result, builder.getInt32(0));
                 builder.CreateCondBr(cond, failBB, succ);
 
@@ -446,14 +464,12 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(RSet) {
-                BasicBlock *rcond = BasicBlock::Create(
-                        context, "repetition.cond", F);
-                BasicBlock *rbody = BasicBlock::Create(
-                        context, "repitition.body", F);
-                BasicBlock *rend  = BasicBlock::Create(
-                        context, "repitition.end",  F);
+                BasicBlock *rcond = BasicBlock::Create(Ctx, "rset.cond", F);
+                BasicBlock *rbody = BasicBlock::Create(Ctx, "rset.body", F);
+                BasicBlock *rend  = BasicBlock::Create(Ctx, "rset.end",  F);
 
-                Value *set = get_bitset_ptr(builder, runtime_, *((BITSET_t *)(p+1)));
+                BITSET_t setId = *((BITSET_t *)(p+1));
+                Value *set = get_bitset_ptr(builder, runtime_, setId);
                 Value *firstpos = builder.CreateLoad(consumed);
                 builder.CreateBr(rcond);
 
@@ -463,8 +479,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder,
-                        bitsetgetFunc, set, index);
+                Value *result = create_call_inst(builder, f_bitsetget, set, index);
                 Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
                 builder.CreateCondBr(cond, rbody, rend);
 
