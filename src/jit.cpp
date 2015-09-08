@@ -272,6 +272,10 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Module *M = new Module("top", context);
     _ctx->EE->addModule(std::unique_ptr<Module>(M));
 
+    Value *bitsetgetFunc = M->getOrInsertFunction(
+            StringRef("bitset_get"), _ctx->bitsetgetType);
+
+
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
             runtime->C.nterms[nterm], M);
@@ -409,9 +413,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *current = jit_get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *bitsetget = M->getOrInsertFunction(
-                        StringRef("bitset_get"), _ctx->bitsetgetType);
-                Value *result = jit_create_call_inst(&builder, bitsetget, set, index);
+                Value *result = jit_create_call_inst(&builder,
+                        bitsetgetFunc, set, index);
                 Value *cond = builder.CreateICmpNE(result, builder.getInt32(0));
                 builder.CreateCondBr(cond, rbody, rend);
 
