@@ -114,6 +114,26 @@ Value *stack_pop(IRBuilder<> &builder, Value *sp)
     return builder.CreateLoad(prev_top);
 }
 
+void stack_push_pos(IRBuilder<> &builder, Value *sp, Value *pos)
+{
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    Value *pos_ = builder.CreatePtrToInt(pos, builder.getInt64Ty());
+    stack_push(builder, sp, pos_);
+#else
+    stack_push(builder, sp, pos);
+#endif
+}
+
+Value *stack_pop_pos(IRBuilder<> &builder, Value *sp)
+{
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    Value *pos_ = stack_pop(builder, sp);
+    return builder.CreateIntToPtr(pos_, builder.getInt8PtrTy());
+#else
+    return stack_pop(builder, sp);
+#endif
+}
+
 void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value *pos, Value *next, Value *ast, Value *symtable)
 {
@@ -662,11 +682,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Pos) {
-                asm volatile("int3");
+                Value *pos = builder.CreateLoad(consumed);
+                stack_push_pos(builder, sp, pos);
                 break;
             }
             CASE_(Back) {
-                asm volatile("int3");
+                Value *pos = stack_pop_pos(builder, sp);
+                builder.CreateStore(pos, consumed);
                 break;
             }
             CASE_(Skip) {
