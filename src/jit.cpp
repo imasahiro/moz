@@ -1,6 +1,7 @@
 #include "jit.h"
 
 #ifdef MOZVM_ENABLE_JIT
+#include "pstring.h"
 #include "instruction.h"
 
 #include <memory>
@@ -241,6 +242,27 @@ Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 #endif /*MOZVM_SMALL_BITSET_INST*/
 }
 
+Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
+{
+#if MOZVM_SMALL_STRING_INST
+    Value *r_c_strs = create_get_element_ptr(builder, runtime,
+            builder.getInt64(0),
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            builder.getInt32(11),
+#else
+            builder.getInt32(10),
+#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
+            builder.getInt32(2));
+    Value *strs_head = builder.CreateLoad(r_c_strs);
+    Value *str_head  = create_get_element_ptr(builder, strs_head, builder.getInt32(id));
+    return builder.CreateLoad(str_head);
+#else
+    asm volatile("int3");
+    // const char *_set = (const char *)id;
+    return nullptr;
+#endif /*MOZVM_SMALL_STRING_INST*/
+}
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,6 +287,8 @@ public:
     FunctionType *funcType;
 
     FunctionType *bitsetgetType;
+    FunctionType *pstrlenType;
+    FunctionType *pstrstwithType;
     FunctionType *astsaveType;
     FunctionType *astrollbackType;
     FunctionType *tblsaveType;
@@ -274,6 +298,8 @@ public:
     JitContext();
 
     FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
+    FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
+    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
     FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
     FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
     FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
@@ -386,6 +412,8 @@ JitContext::JitContext()
 
     Module *M = new Module("top", Ctx);
     bitsetgetType   = create_bitset_get(builder, M);
+    pstrlenType     = create_pstring_length(builder, M);
+    pstrstwithType  = create_pstring_startswith(builder, M);
     astsaveType     = create_ast_save_tx(builder, M);
     tblsaveType     = create_symtable_savepoint(builder, M);
     tblrollbackType = create_symtable_rollback(builder, M);
@@ -436,6 +464,100 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
 #endif
     Value *RetVal = builder.CreateZExt(NEq0, I32Ty);
     builder.CreateRet(RetVal);
+    return funcTy;
+}
+
+FunctionType *JitContext::create_pstring_length(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I32Ty = builder.getInt32Ty();
+    Type *I8PtrTy  = builder.getInt8PtrTy();
+    Type *I32PtrTy = I32Ty->getPointerTo();
+    FunctionType *funcTy = get_function_type(I32Ty, I8PtrTy);
+    Function *F;
+    unsigned *lenoffset = &(((pstring_t *)NULL)->len);
+    char *stroffset = ((pstring_t *)NULL)->str;
+    Constant *offset = builder.getInt64((long)lenoffset - (long)stroffset);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "pstring_length", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *str = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *len_ptr_ = builder.CreateGEP(str, offset);
+    Value *len_ptr  = builder.CreateBitCast(len_ptr_, I32PtrTy);
+    Value *len      = builder.CreateLoad(len_ptr);
+    builder.CreateRet(len);
+    return funcTy;
+}
+
+FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I32Ty = builder.getInt32Ty();
+    Type *I64Ty = builder.getInt64Ty();
+    Type *I8PtrTy  = builder.getInt8PtrTy();
+    FunctionType *funcTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I32Ty);
+    Function *F;
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "pstring_starts_with", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *str  = arg_iter++;
+    Value *text = arg_iter++;
+    Value *len  = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+// #ifdef __AVX2__
+// #endif
+#if defined(PSTRING_USE_STRCMP)
+    FunctionType *strncmpTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I64Ty);
+    Value *f_strncmp = M->getOrInsertFunction("strncmp", strncmpTy);
+
+    Value *len_   = builder.CreateZExt(len, I64Ty);
+    Value *result = create_call_inst(builder, f_strncmp, str, text, len_);
+    Value *cond   = builder.CreateICmpEQ(result, builder.getInt32(0));
+    Value *cond_  = builder.CreateZExt(cond, I32Ty);
+    builder.CreateRet(cond_);
+#else
+    Constant *i64_1 = builder.getInt64(1);
+    BasicBlock *wcondBB = BasicBlock::Create(Ctx, "while.cond", F);
+    BasicBlock *wbodyBB = BasicBlock::Create(Ctx, "while.body", F);
+    BasicBlock *wendBB  = BasicBlock::Create(Ctx, "while.end", F);
+    BasicBlock *wretBB  = BasicBlock::Create(Ctx, "while.return", F);
+    Value *len_ = builder.CreateZExt(len, I64Ty);
+    Value *end  = builder.CreateGEP(text, len_);
+    builder.CreateBr(wcondBB);
+
+    builder.SetInsertPoint(wcondBB);
+    PHINode *currentText = builder.CreatePHI(I8PtrTy, 2);
+    currentText->addIncoming(text, entryBB);
+    PHINode *currentStr  = builder.CreatePHI(I8PtrTy, 2);
+    currentStr->addIncoming(str, entryBB);
+    Value *whilecond = builder.CreateICmpULT(currentText, end);
+    builder.CreateCondBr(whilecond, wbodyBB, wendBB);
+
+    builder.SetInsertPoint(wbodyBB);
+    Value *text_char = builder.CreateLoad(currentText);
+    Value *str_char  = builder.CreateLoad(currentStr);
+    Value *nextText  = builder.CreateGEP(currentText, i64_1);
+    currentText->addIncoming(nextText, wbodyBB);
+    Value *nextStr   = builder.CreateGEP(currentStr, i64_1);
+    currentStr->addIncoming(nextStr, wbodyBB);
+    Value *ifcond = builder.CreateICmpEQ(str_char, text_char);
+    builder.CreateCondBr(ifcond, wcondBB, wretBB);
+
+    builder.SetInsertPoint(wendBB);
+    builder.CreateRet(builder.getInt32(1));
+
+    builder.SetInsertPoint(wretBB);
+    builder.CreateRet(builder.getInt32(0));
+#endif
     return funcTy;
 }
 
@@ -557,6 +679,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
     Value *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
+    Value *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
+    Value *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
     Value *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
     Value *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
     Value *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
@@ -795,7 +919,22 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Str) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
+                STRING_t strId = *((STRING_t *)(p+1));
+
+                Value *str = get_string_ptr(builder, runtime_, strId);
+                Value *len = create_call_inst(builder, f_pstrlen, str);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
+                Value *cond = builder.CreateICmpEQ(result, i32_0);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
+                Value *nextpos = consume_n(builder, pos, len_);
+                builder.CreateStore(nextpos, consumed);
+                currentBB = succ;
                 break;
             }
             CASE_(NStr) {
