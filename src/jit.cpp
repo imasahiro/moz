@@ -670,7 +670,24 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Skip) {
-                asm volatile("int3");
+                BasicBlock *next = BasicBlock::Create(Ctx, "skip.next", F);
+
+                Value *prev_pos_;
+                Value *next_;
+                Value *ast_tx_;
+                Value *saved_;
+                stack_peek_frame(builder, sp, fp, &prev_pos_, &next_, &ast_tx_, &saved_);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *prev_pos = builder.CreateLoad(prev_pos_);
+                Value *ifcond = builder.CreateICmpEQ(prev_pos, pos);
+                builder.CreateCondBr(ifcond, failBB, next);
+
+                builder.SetInsertPoint(next);
+                builder.CreateStore(pos, prev_pos_);
+                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+                builder.CreateStore(ast_tx, ast_tx_);
+                Value *saved = create_call_inst(builder, f_tblsave, tbl);
+                builder.CreateStore(saved, saved_);
                 break;
             }
             CASE_(Byte) {
