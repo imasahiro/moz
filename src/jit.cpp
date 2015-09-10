@@ -588,6 +588,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Value *tbl_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(1));
     Value *tbl   = builder.CreateLoad(tbl_);
     Value *head_ = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(3));
+    Value *tail_ = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(4));
+    Value *tail  = builder.CreateLoad(tail_);
 
     Value *sp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(6));
     Value *fp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(7));
@@ -737,11 +739,29 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Any) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
+
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *cond = builder.CreateICmpEQ(current, tail);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                Value *nextpos = consume(builder, pos);
+                builder.CreateStore(nextpos, consumed);
+                currentBB = succ;
                 break;
             }
             CASE_(NAny) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "nany.succ", F);
+
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *cond = builder.CreateICmpNE(current, tail);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                currentBB = succ;
                 break;
             }
             CASE_(OAny) {
