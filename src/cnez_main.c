@@ -127,13 +127,13 @@ int main(int argc, char* const argv[])
             break;
         }
         end = timer();
-        if (CNEZ_ENABLE_AST_CONSTRUCTION) {
+#ifdef CNEZ_ENABLE_AST_CONSTRUCTION
             Node *node = node = ast_get_parsed_node(ctx->ast);
             if (node && !quiet_mode) {
                 Node_print(node);
             }
             NODE_GC_RELEASE(node);
-        }
+#endif
         ParsingContext_reset(ctx, CNEZ_FLAG_TABLE_SIZE, CNEZ_MEMO_SIZE);
         fprintf(stderr, "ErapsedTime: %llu msec\n", end - start);
         if(i == 0) {
