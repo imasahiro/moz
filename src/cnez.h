@@ -15,4 +15,6 @@ typedef struct ParsingContext {
     char *input;
 } *ParsingContext;
 
+#define TAIL(CTX) ((CTX)->input + (CTX)->input_size)
+
 #endif /* end of include guard */

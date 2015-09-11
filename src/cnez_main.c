@@ -1,4 +1,6 @@
 #include <sys/time.h> // gettimeofday
+#include <unistd.h>
+#include <getopt.h>
 
 static uint64_t timer()
 {
@@ -39,8 +41,10 @@ static ParsingContext ParsingContext_init(ParsingContext ctx, unsigned flag_size
     ctx->flags_size = flag_size;
     if (ctx->flags_size) {
         ctx->flags = (int *) malloc(sizeof(int) * flag_size);
+        memset(ctx->flags, 0, sizeof(int) * flag_size);
     }
 
+    NodeManager_init();
     return ctx;
 }
 
@@ -54,13 +58,64 @@ static void ParsingContext_dispose(ParsingContext ctx)
     }
 }
 
+static void ParsingContext_reset(ParsingContext ctx, unsigned flag_size, unsigned memo_size)
+{
+    AstMachine_dispose(ctx->ast);
+    symtable_dispose(ctx->table);
+    memo_dispose(ctx->memo);
+    NodeManager_reset();
+    ctx->memo  = memo_init(MOZ_MEMO_DEFAULT_WINDOW_SIZE, memo_size);
+    ctx->ast   = AstMachine_init(128, ctx->input);
+    ctx->table = symtable_init();
+    memset(ctx->flags, 0, sizeof(int) * flag_size);
+}
+
+static void usage(const char *arg)
+{
+    fprintf(stderr, "Usage: %s [-s] [-n <loop_count>] [-q] -i <input_file>\n", arg);
+}
 
 int main(int argc, char* const argv[])
 {
     uint64_t start, end, latency;
     struct ParsingContext lctx, *ctx;
-    ctx = ParsingContext_init(&lctx, CNEZ_FLAG_TABLE_SIZE, CNEZ_MEMO_SIZE, argv[1]);
-    for (int i = 0; i < 1; i++) {
+
+    const char *input_file = NULL;
+    unsigned i, tmp, loop = 1;
+    unsigned print_stats = 0;
+    unsigned quiet_mode = 0;
+    int opt;
+
+    while ((opt = getopt(argc, argv, "qsn:i:h")) != -1) {
+        switch (opt) {
+        case 'n':
+            tmp = atoi(optarg);
+            loop = tmp > loop ? tmp : loop;
+            break;
+        case 'q':
+            quiet_mode = 1;
+            break;
+        case 's':
+            print_stats = 1;
+            break;
+        case 'i':
+            input_file = optarg;
+            break;
+        case 'h':
+        default: /* '?' */
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (input_file == NULL) {
+        fprintf(stderr, "error: please specify input file\n");
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    ctx = ParsingContext_init(&lctx, CNEZ_FLAG_TABLE_SIZE, CNEZ_MEMO_SIZE, input_file);
+    for (i = 0; i < loop; i++) {
         ctx->cur = ctx->input;
         start = timer();
         if(pFile(ctx)) {
@@ -74,8 +129,12 @@ int main(int argc, char* const argv[])
         end = timer();
         if (CNEZ_ENABLE_AST_CONSTRUCTION) {
             Node *node = node = ast_get_parsed_node(ctx->ast);
-            Node_print(node);
+            if (node && !quiet_mode) {
+                Node_print(node);
+            }
+            NODE_GC_RELEASE(node);
         }
+        ParsingContext_reset(ctx, CNEZ_FLAG_TABLE_SIZE, CNEZ_MEMO_SIZE);
         fprintf(stderr, "ErapsedTime: %llu msec\n", end - start);
         if(i == 0) {
             latency = end - start;
@@ -84,5 +143,6 @@ int main(int argc, char* const argv[])
             latency = end - start;
         }
     }
+    ParsingContext_dispose(ctx);
     return 0;
 }
