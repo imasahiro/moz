@@ -80,6 +80,7 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
 
     r->C.memo_size = memo;
 #ifdef MOZVM_ENABLE_JIT
+    r->cur = 0;
     r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, sizeof(mozvm_nterm_entry_t) * (nterm_size + 1));
     mozvm_jit_init(r);
 #endif
