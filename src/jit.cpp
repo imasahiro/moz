@@ -2,6 +2,7 @@
 
 #ifdef MOZVM_ENABLE_JIT
 #include "pstring.h"
+#include "jmptbl.h"
 #include "instruction.h"
 
 #include <memory>
@@ -19,6 +20,11 @@
 
 using namespace std;
 using namespace llvm;
+
+static inline int nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
+{
+    return e->begin <= inst && inst <= e->end;
+}
 
 template<class Vector, class First>
 void set_vector(const Vector& dest, const First& first)
@@ -234,7 +240,7 @@ Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
             builder.getInt32(0));
     Value *sets_head = builder.CreateLoad(r_c_sets);
-    return create_get_element_ptr(builder, sets_head, builder.getInt32(id));
+    return builder.CreateGEP(sets_head, builder.getInt64(id));
 #else
     asm volatile("int3");
     // bitset_t *_set = (bitset_t *)id;
@@ -254,13 +260,32 @@ Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
             builder.getInt32(2));
     Value *strs_head = builder.CreateLoad(r_c_strs);
-    Value *str_head  = create_get_element_ptr(builder, strs_head, builder.getInt32(id));
+    Value *str_head  = builder.CreateGEP(strs_head, builder.getInt64(id));
     return builder.CreateLoad(str_head);
 #else
     asm volatile("int3");
     // const char *_set = (const char *)id;
     return nullptr;
 #endif /*MOZVM_SMALL_STRING_INST*/
+}
+
+template<unsigned n>
+Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
+{
+#ifdef MOZVM_USE_JMPTBL
+    Value *r_c_jumps = create_get_element_ptr(builder, runtime,
+            builder.getInt64(0),
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            builder.getInt32(11),
+#else
+            builder.getInt32(10),
+#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
+            builder.getInt32(4 + n));
+    Value *jumps_head = builder.CreateLoad(r_c_jumps);
+    return builder.CreateGEP(jumps_head, builder.getInt64(id));
+#else
+    return nullptr;
+#endif /*MOZVM_USE_JMPTBL*/
 }
 
 
@@ -275,6 +300,11 @@ class JitContext {
 public:
     ExecutionEngine *EE;
     StructType *bsetType;
+#ifdef MOZVM_USE_JMPTBL
+    StructType *jmptbl1Type;
+    StructType *jmptbl2Type;
+    StructType *jmptbl3Type;
+#endif
     StructType *nodeType;
     StructType *astType;
     StructType *symtableType;
@@ -287,6 +317,11 @@ public:
     FunctionType *funcType;
 
     FunctionType *bitsetgetType;
+#ifdef MOZVM_USE_JMPTBL
+    // FunctionType *tbljmp1idxType;
+    FunctionType *tbljmp2idxType;
+    // FunctionType *tbljmp3idxType;
+#endif
     FunctionType *pstrlenType;
     FunctionType *pstrstwithType;
     FunctionType *astsaveType;
@@ -298,6 +333,11 @@ public:
     JitContext();
 
     FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
+#ifdef MOZVM_USE_JMPTBL
+    // FunctionType *create_jump_table1_index(IRBuilder<> &builder, Module *M);
+    FunctionType *create_jump_table2_index(IRBuilder<> &builder, Module *M);
+    // FunctionType *create_jump_table3_index(IRBuilder<> &builder, Module *M);
+#endif
     FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
     FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
     FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
@@ -325,6 +365,14 @@ JitContext::JitContext()
 #elif defined(BITSET_USE_UINT)
     bsetType = define_struct_type("bitset_t", ArrayType::get(I32Ty, (256/BITS)));
 #endif
+#ifdef MOZVM_USE_JMPTBL
+    jmptbl1Type = StructType::create(Ctx, "jump_table1_t");
+    jmptbl2Type = define_struct_type("jump_table2_t",
+            ArrayType::get(bsetType, 2),
+            ArrayType::get(I32Ty, 4)
+            );
+    jmptbl3Type = StructType::create(Ctx, "jump_table3_t");
+#endif
 
     StructType *constantType = define_struct_type("mozvm_constant_t",
             bsetType->getPointerTo(),
@@ -333,9 +381,9 @@ JitContext::JitContext()
             I8PtrPtrTy, // tables
             I32PtrTy,   // jumps
 #ifdef MOZVM_USE_JMPTBL
-            I8PtrTy, // jumps1
-            I8PtrTy, // jumps2
-            I8PtrTy, // jumps3
+            jmptbl1Type->getPointerTo(), // jumps1
+            jmptbl2Type->getPointerTo(), // jumps2
+            jmptbl3Type->getPointerTo(), // jumps3
 #endif
             I8PtrPtrTy, // nterms
             I16Ty, // set_size
@@ -412,6 +460,11 @@ JitContext::JitContext()
 
     Module *M = new Module("top", Ctx);
     bitsetgetType   = create_bitset_get(builder, M);
+#ifdef MOZVM_USE_JMPTBL
+    // tbljmp1idxType = create_jump_table1_index(builder, M);
+    tbljmp2idxType = create_jump_table2_index(builder, M);
+    // tbljmp3idxType = create_jump_table3_index(builder, M);
+#endif
     pstrlenType     = create_pstring_length(builder, M);
     pstrstwithType  = create_pstring_startswith(builder, M);
     astsaveType     = create_ast_save_tx(builder, M);
@@ -466,6 +519,43 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
     builder.CreateRet(RetVal);
     return funcTy;
 }
+
+#ifdef MOZVM_USE_JMPTBL
+FunctionType *JitContext::create_jump_table2_index(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *I8Ty  = builder.getInt8Ty();
+    Type *I32Ty = builder.getInt32Ty();
+    Type *jmptbl2PtrTy = jmptbl2Type->getPointerTo();
+    FunctionType *funcTy = get_function_type(I32Ty, jmptbl2PtrTy, I8Ty);
+    Function *F;
+    Constant *i32_0 = builder.getInt32(0);
+    Constant *i32_1 = builder.getInt32(1);
+    Constant *i64_0 = builder.getInt64(0);
+    Constant *i64_1 = builder.getInt64(1);
+
+    Constant *f_bitsetget = M->getOrInsertFunction("bitset_get", bitsetgetType);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "jump_table2_index", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *tbl = arg_iter++;
+    Value *ch  = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *ch_    = builder.CreateZExt(ch, I32Ty);
+    Value *tbl_b0 = create_get_element_ptr(builder, tbl, i64_0, i32_0, i64_0);
+    Value *idx0   = create_call_inst(builder, f_bitsetget, tbl_b0, ch_);
+    Value *tbl_b1 = create_get_element_ptr(builder, tbl, i64_0, i32_0, i64_1);
+    Value *idx1   = create_call_inst(builder, f_bitsetget, tbl_b1, ch_);
+    Value *idx1_  = builder.CreateShl(idx1, i32_1);
+    Value *idx    = builder.CreateOr(idx1_, idx0);
+    builder.CreateRet(idx);
+    return funcTy;
+}
+#endif
 
 FunctionType *JitContext::create_pstring_length(IRBuilder<> &builder, Module *M)
 {
@@ -679,6 +769,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
     Value *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
+    // Constant *f_tbljmp1idx;
+    Constant *f_tbljmp2idx;
+    // Constant *f_tbljmp3idx;
+#ifdef MOZVM_USE_JMPTBL
+    // f_tbljmp1idx  = M->getOrInsertFunction("jump_table1_index", _ctx->tbljmp1idxType);
+    f_tbljmp2idx  = M->getOrInsertFunction("jump_table2_index", _ctx->tbljmp2idxType);
+    // f_tbljmp3idx  = M->getOrInsertFunction("jump_table3_index", _ctx->tbljmp3idxType);
+#endif
     Value *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
     Value *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
     Value *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
@@ -713,6 +811,24 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 }
             }
         }
+#ifdef MOZVM_USE_JMPTBL
+        else if(opcode == TblJump2) {
+            uint16_t tblId = *((uint16_t *)(p+1));
+            moz_inst_t *jmpoffset = p + shift;
+            int *jumps = runtime->C.jumps2[tblId].jumps;
+            int i;
+            for(i = 0; i < 4; i++) {
+                moz_inst_t *dest = jmpoffset + jumps[i];
+                if(!nterm_has_inst(e, dest)) {
+                    F->eraseFromParent();
+                    return NULL;
+                }
+                if(BBMap.find(dest) == BBMap.end()) {
+                    BBMap[dest] = BasicBlock::Create(Ctx, "jump.label");
+                }
+            }
+        }
+#endif /*MOZVM_USE_JMPTBL*/
         p += opcode_size(opcode);
     }
 
@@ -720,6 +836,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
     BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
     BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
+    BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
     failjumpList.push_back(errBB);
     BasicBlock *currentBB = entryBB;
 
@@ -793,8 +910,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             }
             CASE_(Jump) {
                 moz_inst_t *pc = p + 1;
-                mozaddr_t failjump = *((mozaddr_t *)(pc));
-                moz_inst_t *dest = pc + sizeof(mozaddr_t) + failjump;
+                mozaddr_t jump = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = pc + sizeof(mozaddr_t) + jump;
 
                 builder.CreateBr(BBMap[dest]);
                 break;
@@ -1019,7 +1136,22 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(TblJump2) {
-                asm volatile("int3");
+                uint16_t tblId = *((uint16_t *)(p+1));
+                moz_inst_t *jmpoffset = p + shift;
+                int *jumps = runtime->C.jumps2[tblId].jumps;
+
+                Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *idx = create_call_inst(builder, f_tbljmp2idx, tbl, character);
+
+                SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 4);
+                for(int i = 0; i < 4; i++) {
+                    moz_inst_t *dest = jmpoffset + jumps[i];
+                    assert(nterm_has_inst(e, dest));
+                    jump->addCase(builder.getInt32(i), BBMap[dest]);
+                }
                 break;
             }
             CASE_(TblJump3) {
@@ -1179,6 +1311,10 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     errBB->insertInto(F);
     builder.SetInsertPoint(errBB);
     builder.CreateRet(builder.getInt8(1));
+
+    unreachableBB->insertInto(F);
+    builder.SetInsertPoint(unreachableBB);
+    builder.CreateUnreachale();
 
     M->dump();
     if(verifyFunction(*F)) {
