@@ -289,13 +289,6 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 }
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define MOZVM_OPCODE_SIZE 1
-#include "vm_inst.h"
-
 class JitContext {
 public:
     ExecutionEngine *EE;
@@ -607,7 +600,7 @@ FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module
 // #endif
 #if defined(PSTRING_USE_STRCMP)
     FunctionType *strncmpTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I64Ty);
-    Value *f_strncmp = M->getOrInsertFunction("strncmp", strncmpTy);
+    Constant *f_strncmp = M->getOrInsertFunction("strncmp", strncmpTy);
 
     Value *len_   = builder.CreateZExt(len, I64Ty);
     Value *result = create_call_inst(builder, f_strncmp, str, text, len_);
@@ -730,6 +723,14 @@ FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module 
     return funcTy;
 }
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MOZVM_OPCODE_SIZE 1
+#include "vm_inst.h"
+
 static inline JitContext *get_context(moz_runtime_t *r)
 {
     return reinterpret_cast<JitContext *>(r->jit_context);
@@ -768,7 +769,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
-    Value *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
+    Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
     // Constant *f_tbljmp1idx;
     Constant *f_tbljmp2idx;
     // Constant *f_tbljmp3idx;
@@ -777,12 +778,12 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     f_tbljmp2idx  = M->getOrInsertFunction("jump_table2_index", _ctx->tbljmp2idxType);
     // f_tbljmp3idx  = M->getOrInsertFunction("jump_table3_index", _ctx->tbljmp3idxType);
 #endif
-    Value *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
-    Value *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
-    Value *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
-    Value *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
-    Value *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
-    Value *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
+    Constant *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
+    Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
+    Constant *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
+    Constant *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
+    Constant *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
+    Constant *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
 
     Function *F = Function::Create(_ctx->funcType,
             Function::ExternalLinkage,
@@ -799,10 +800,10 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     moz_inst_t *p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
+        unsigned shift = opcode_size(opcode);
         if(opcode == Alt || opcode == Jump) {
-            moz_inst_t *pc = p + 1;
-            mozaddr_t jump = *((mozaddr_t *)(pc));
-            moz_inst_t *dest = pc + sizeof(mozaddr_t) + jump;
+            mozaddr_t jump = *((mozaddr_t *)(p+1));
+            moz_inst_t *dest = p + shift + jump;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = BasicBlock::Create(Ctx, "jump.label");
                 BBMap[dest] = label;
@@ -897,9 +898,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Alt) {
-                moz_inst_t *pc = p + 1;
-                mozaddr_t failjump = *((mozaddr_t *)(pc));
-                moz_inst_t *dest = pc + sizeof(mozaddr_t) + failjump;
+                mozaddr_t failjump = *((mozaddr_t *)(p+1));
+                moz_inst_t *dest = p + shift + failjump;
 
                 BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
                 Value *pos = builder.CreateLoad(consumed);
@@ -909,9 +909,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Jump) {
-                moz_inst_t *pc = p + 1;
-                mozaddr_t jump = *((mozaddr_t *)(pc));
-                moz_inst_t *dest = pc + sizeof(mozaddr_t) + jump;
+                mozaddr_t jump = *((mozaddr_t *)(p+1));
+                moz_inst_t *dest = p + shift + jump;
 
                 builder.CreateBr(BBMap[dest]);
                 break;
@@ -1314,7 +1313,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     unreachableBB->insertInto(F);
     builder.SetInsertPoint(unreachableBB);
-    builder.CreateUnreachale();
+    builder.CreateUnreachable();
 
     M->dump();
     if(verifyFunction(*F)) {
