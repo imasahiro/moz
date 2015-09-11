@@ -723,21 +723,27 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
             t1 = L->R->C.jumps1 + tblId;
             t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
             for (i = 0; i < 2; i++) {
-                t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
+                if (t1->jumps[i] != 0) {
+                    t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
+                }
             }
             break;
         case TblJump2:
             tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
             t2 = L->R->C.jumps2 + tblId;
             for (i = 0; i < 4; i++) {
-                t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
+                if (t2->jumps[i] != 0) {
+                    t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
+                }
             }
             break;
         case TblJump3:
             tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
             t3 = L->R->C.jumps3 + tblId;
             for (i = 0; i < 8; i++) {
-                t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
+                if (t3->jumps[i] != 0) {
+                    t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
+                }
             }
             break;
 #endif
