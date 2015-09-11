@@ -289,13 +289,6 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 }
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define MOZVM_OPCODE_SIZE 1
-#include "vm_inst.h"
-
 class JitContext {
 public:
     ExecutionEngine *EE;
@@ -729,6 +722,14 @@ FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module 
     builder.CreateRetVoid();
     return funcTy;
 }
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MOZVM_OPCODE_SIZE 1
+#include "vm_inst.h"
 
 static inline JitContext *get_context(moz_runtime_t *r)
 {
