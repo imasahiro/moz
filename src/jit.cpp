@@ -799,6 +799,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     moz_inst_t *p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
+        unsigned shift = opcode_size(opcode);
         if(opcode == Alt || opcode == Jump) {
             moz_inst_t *pc = p + 1;
             mozaddr_t jump = *((mozaddr_t *)(pc));
@@ -1314,7 +1315,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     unreachableBB->insertInto(F);
     builder.SetInsertPoint(unreachableBB);
-    builder.CreateUnreachale();
+    builder.CreateUnreachable();
 
     M->dump();
     if(verifyFunction(*F)) {
