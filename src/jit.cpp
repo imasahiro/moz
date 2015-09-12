@@ -234,9 +234,9 @@ Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
     Value *r_c_sets = create_get_element_ptr(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            builder.getInt32(11),
+            builder.getInt32(12),
 #else
-            builder.getInt32(10),
+            builder.getInt32(11),
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
             builder.getInt32(0));
     Value *sets_head = builder.CreateLoad(r_c_sets);
@@ -254,9 +254,9 @@ Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
     Value *r_c_strs = create_get_element_ptr(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            builder.getInt32(11),
+            builder.getInt32(12),
 #else
-            builder.getInt32(10),
+            builder.getInt32(11),
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
             builder.getInt32(2));
     Value *strs_head = builder.CreateLoad(r_c_strs);
@@ -276,9 +276,9 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
     Value *r_c_jumps = create_get_element_ptr(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            builder.getInt32(11),
+            builder.getInt32(12),
 #else
-            builder.getInt32(10),
+            builder.getInt32(11),
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
             builder.getInt32(4 + n));
     Value *jumps_head = builder.CreateLoad(r_c_jumps);
@@ -438,14 +438,15 @@ JitContext::JitContext()
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             memopointType->getPointerTo(),
 #endif
+            mozposType, // cur
             I8PtrTy, // nterm_entry
             I8PtrTy, // jit_context
             constantType,
             ArrayType::get(I64Ty, 1)
             );
 
-    funcType = get_function_type(I8Ty, runtimeType->getPointerTo(),
-            I8PtrTy, mozposType->getPointerTo());
+    funcType = get_function_type(I8Ty,
+            runtimeType->getPointerTo(), I8PtrTy, I16Ty);
 
     sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_rollback_tx"),
             reinterpret_cast<void *>(ast_rollback_tx));
@@ -755,12 +756,38 @@ void mozvm_jit_dispose(moz_runtime_t *runtime)
     runtime->jit_context = NULL;
 }
 
+uint8_t mozvm_jit_call_nterm(moz_runtime_t *runtime, const char *str, uint16_t nterm)
+{
+    mozvm_nterm_entry_t *e = runtime->nterm_entry + nterm;
+    if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
+        moz_jit_func_t func = mozvm_jit_compile(runtime, e);
+        return func(runtime, str, nterm);
+    }
+    long *SP = runtime->stack;
+    long *FP = runtime->fp;
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    const char *current = runtime->cur;
+#else
+    const char *current = str + runtime->cur;
+#endif
+    long parsed;
+    static const moz_inst_t exit[] = {
+        Exit, 0, Exit, 1
+    };
+
+    moz_runtime_parse_init(runtime, current, (moz_inst_t *)exit);
+    parsed = moz_runtime_parse(runtime, current, e->begin);
+    runtime->stack = SP;
+    runtime->fp    = FP;
+    return parsed;
+}
+
 moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 {
     JitContext *_ctx = get_context(runtime);
     uint16_t nterm = e - runtime->nterm_entry;
 
-    if(e->compiled_code) {
+    if(mozvm_nterm_is_already_compiled(e)) {
         return e->compiled_code;
     }
 
@@ -792,7 +819,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Function::arg_iterator arg_iter=F->arg_begin();
     Value *runtime_ = arg_iter++;
     Value *str = arg_iter++;
-    Value *consumed = arg_iter++;
+    Value *nterm_ = arg_iter++;
 
     vector<BasicBlock *> failjumpList;
     unordered_map<moz_inst_t *, BasicBlock *> BBMap;
@@ -855,10 +882,15 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     Value *sp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(6));
     Value *fp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(7));
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    Value *cur = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(9));
+#else
+    Value *cur = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(8));
+#endif
 
     {
         BlockAddress *addr = BlockAddress::get(F, errBB);
-        Value *pos = builder.CreateLoad(consumed);
+        Value *pos = builder.CreateLoad(cur);
         Value *ast_tx = create_call_inst(builder, f_astsave, ast);
         Value *saved  = create_call_inst(builder, f_tblsave, tbl);
         stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
@@ -902,7 +934,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 moz_inst_t *dest = p + shift + failjump;
 
                 BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *ast_tx = create_call_inst(builder, f_astsave, ast);
                 Value *saved  = create_call_inst(builder, f_tblsave, tbl);
                 stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
@@ -924,13 +956,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Pos) {
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 stack_push_pos(builder, sp, pos);
                 break;
             }
             CASE_(Back) {
                 Value *pos = stack_pop_pos(builder, sp);
-                builder.CreateStore(pos, consumed);
+                builder.CreateStore(pos, cur);
                 break;
             }
             CASE_(Skip) {
@@ -941,7 +973,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 Value *ast_tx_;
                 Value *saved_;
                 stack_peek_frame(builder, sp, fp, &prev_pos_, &next_, &ast_tx_, &saved_);
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *prev_pos = builder.CreateLoad(prev_pos_);
                 Value *ifcond = builder.CreateICmpEQ(prev_pos, pos);
                 builder.CreateCondBr(ifcond, failBB, next);
@@ -959,7 +991,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 uint8_t ch = (uint8_t)*(p+1);
                 Constant *C = builder.getInt8(ch);
 
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *cond = builder.CreateICmpNE(character, C);
@@ -967,7 +999,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 builder.SetInsertPoint(succ);
                 Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, consumed);
+                builder.CreateStore(nextpos, cur);
                 currentBB = succ;
                 break;
             }
@@ -981,7 +1013,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 uint8_t ch = (uint8_t)*(p+1);
                 Constant *C = builder.getInt8(ch);
 
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *cond = builder.CreateICmpEQ(character, C);
@@ -989,7 +1021,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 builder.SetInsertPoint(obody);
                 Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, consumed);
+                builder.CreateStore(nextpos, cur);
                 builder.CreateBr(oend);
 
                 builder.SetInsertPoint(oend);
@@ -1003,21 +1035,21 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             CASE_(Any) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
 
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *cond = builder.CreateICmpEQ(current, tail);
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
                 Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, consumed);
+                builder.CreateStore(nextpos, cur);
                 currentBB = succ;
                 break;
             }
             CASE_(NAny) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "nany.succ", F);
 
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *cond = builder.CreateICmpNE(current, tail);
                 builder.CreateCondBr(cond, failBB, succ);
@@ -1040,7 +1072,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 Value *str = get_string_ptr(builder, runtime_, strId);
                 Value *len = create_call_inst(builder, f_pstrlen, str);
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
                 Value *cond = builder.CreateICmpEQ(result, i32_0);
@@ -1049,7 +1081,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.SetInsertPoint(succ);
                 Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
                 Value *nextpos = consume_n(builder, pos, len_);
-                builder.CreateStore(nextpos, consumed);
+                builder.CreateStore(nextpos, cur);
                 currentBB = succ;
                 break;
             }
@@ -1070,7 +1102,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 BITSET_t setId = *((BITSET_t *)(p+1));
 
                 Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
@@ -1080,7 +1112,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 builder.SetInsertPoint(succ);
                 Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, consumed);
+                builder.CreateStore(nextpos, cur);
                 currentBB = succ;
                 break;
             }
@@ -1131,7 +1163,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 BITSET_t setId = *((BITSET_t *)(p+1));
                 Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *firstpos = builder.CreateLoad(consumed);
+                Value *firstpos = builder.CreateLoad(cur);
                 builder.CreateBr(rcond);
 
                 builder.SetInsertPoint(rcond);
@@ -1150,7 +1182,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateBr(rcond);
 
                 builder.SetInsertPoint(rend);
-                builder.CreateStore(pos, consumed);
+                builder.CreateStore(pos, cur);
                 currentBB = rend;
                 break;
             }
@@ -1172,7 +1204,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 int *jumps = runtime->C.jumps2[tblId].jumps;
 
                 Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
-                Value *pos = builder.CreateLoad(consumed);
+                Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
                 Value *idx = create_call_inst(builder, f_tbljmp2idx, tbl, character);
@@ -1301,7 +1333,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         BasicBlock *posback  = BasicBlock::Create(Ctx, "fail.posback",  F);
         BasicBlock *rollback = BasicBlock::Create(Ctx, "fail.rollback", F);
 
-        Value *pos = builder.CreateLoad(consumed);
+        Value *pos = builder.CreateLoad(cur);
         Value *pos_;
         Value *next_;
         Value *ast_tx_;
@@ -1315,7 +1347,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         Value *selectcond = builder.CreateICmpULT(head, pos);
         Value *newhead = builder.CreateSelect(selectcond, pos, head);
         builder.CreateStore(newhead, head_);
-        builder.CreateStore(pos_, consumed);
+        builder.CreateStore(pos_, cur);
         builder.CreateBr(rollback);
 
         builder.SetInsertPoint(rollback);

@@ -27,6 +27,10 @@
 #include "jmptbl.h"
 #endif
 
+#ifdef MOZVM_ENABLE_JIT
+#include "jit.h"
+#endif
+
 #ifndef CHAR_BIT
 #define CHAR_BIT 8
 #endif
@@ -147,6 +151,7 @@ moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
             uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
             L->R->nterm_entry[i].begin = inst + begin;
             L->R->nterm_entry[i].end   = inst + end;
+            L->R->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
         }
     }
 #endif

@@ -34,16 +34,20 @@ DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
 {
 #ifdef MOZVM_ENABLE_JIT
     mozvm_nterm_entry_t *e = runtime->nterm_entry + nterm;
-    if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
-        moz_jit_func_t func = mozvm_jit_compile(runtime, e);
-        if (func) {
-            mozpos_t consumed = GET_POS();
-            if (func(runtime, str, &consumed)) {
-                FAIL();
-            }
-            SET_POS(consumed);
-            JUMP(next);
+    moz_jit_func_t func = NULL;
+    if (mozvm_nterm_is_already_compiled(e)) {
+        func = e->compiled_code;
+    }
+    else if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
+        func = mozvm_jit_compile(runtime, e);
+    }
+    if (func) {
+        runtime->cur = GET_POS();
+        if (func(runtime, str, nterm)) {
+            FAIL();
         }
+        SET_POS(runtime->cur);
+        JUMP(next);
     }
 #endif
 
@@ -484,6 +488,9 @@ DEF(SCount)
 }
 DEF(Exit, int8_t status)
 {
+#ifdef MOZVM_ENABLE_JIT
+    runtime->cur = GET_POS();
+#endif
     return status;
 }
 DEF(TblJump1, uint16_t tblId)
