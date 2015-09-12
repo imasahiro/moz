@@ -1085,11 +1085,43 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(NSet) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "nset.succ", F);
+                BITSET_t setId = *((BITSET_t *)(p+1));
+
+                Value *set = get_bitset_ptr(builder, runtime_, setId);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+                Value *result = create_call_inst(builder, f_bitsetget, set, index);
+                Value *cond = builder.CreateICmpNE(result, i32_0);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                currentBB = succ;
                 break;
             }
             CASE_(OSet) {
-                asm volatile("int3");
+                BasicBlock *obody = BasicBlock::Create(Ctx, "oset.body", F);
+                BasicBlock *oend  = BasicBlock::Create(Ctx, "oset.end", F);
+                BITSET_t setId = *((BITSET_t *)(p+1));
+
+                Value *set = get_bitset_ptr(builder, runtime_, setId);
+                Value *pos = builder.CreateLoad(consumed);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+                Value *result = create_call_inst(builder, f_bitsetget, set, index);
+                Value *cond = builder.CreateICmpNE(result, i32_0);
+                builder.CreateCondBr(cond, obody, oend);
+
+                builder.SetInsertPoint(obody);
+                Value *nextpos = consume(builder, pos);
+                builder.CreateStore(nextpos, consumed);
+                builder.CreateBr(oend);
+
+                builder.SetInsertPoint(oend);
+                currentBB = oend;
                 break;
             }
             CASE_(RSet) {
