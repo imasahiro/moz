@@ -156,7 +156,6 @@ typedef struct GCRoot {
 } GCRoot;
 DEF_ARRAY_T_OP(GCRoot);
 
-typedef void NodePtr;
 typedef struct SubHeap SubHeap;
 typedef struct Segment Segment;
 typedef struct HeapManager HeapManager;
@@ -170,7 +169,7 @@ typedef struct BitPtr {
 typedef struct AllocationPointer {
     BitPtr bitptrs[SEGMENT_LEVEL];
     Segment *seg;
-    NodePtr *blockptr;
+    void *blockptr;
 } AllocationPointer;
 
 struct SubHeap {
@@ -861,11 +860,11 @@ static uintptr_t bitptrToIndex(uintptr_t bpidx, uintptr_t bpmask)
     return bpidx * BITS + FFS(bpmask) - 1;
 }
 
-static NodePtr *blockAddress(Segment *seg, uintptr_t idx, uintptr_t mask)
+static AllocationNode *blockAddress(Segment *seg, uintptr_t idx, uintptr_t mask)
 {
     size_t size = seg->heap_klass;
     size_t offset = bitptrToIndex(idx, mask) << size;
-    const NodePtr *ptr = seg->block;
+    const void *ptr = seg->block;
     return (AllocationNode *)((char *)ptr+offset);
 }
 
@@ -1315,7 +1314,7 @@ static void setTenureBitMapsAndCount(HeapManager *mng, SubHeap *h)
 
 static kObject *indexToAddr(Segment *seg, uintptr_t idx, uintptr_t mask)
 {
-    const NodePtr *ptr = seg->block;
+    const void *ptr = seg->block;
     size_t size = seg->heap_klass;
     size_t n = idx * BITS + FFS(mask) - 1;
     size_t offset = n << size;
@@ -1569,7 +1568,7 @@ static void RememberSet_Reftrace(HeapManager *mng, KObjectVisitor *visitor)
 #endif
 
 static void NodeManager_mark_root(HeapManager *mng, NodeVisitor *visitor);
-static void Node_reftrace(Node o, NodeVisitor *visitor);
+static void Node_reftrace(Node *o, NodeVisitor *visitor);
 
 static void bmgc_gc_mark_root(HeapManager *mng, NodeVisitor *visitor)
 {
@@ -1702,7 +1701,7 @@ static inline void bmgc_Object_free(kObject *o)
 {
     unsigned len = Node_length(o);
     if (len > MOZVM_SMALL_ARRAY_LIMIT) {
-        ARRAY_dispose(Node, &o->entry.array);
+        ARRAY_dispose(NodePtr, &o->entry.array);
     }
     do_bzero((void *)o, sizeof(kObject));
 #ifdef GCSTAT
@@ -1762,10 +1761,10 @@ static void NodeManager_mark_root(HeapManager *mng, NodeVisitor *visitor)
     }
 }
 
-static void Node_reftrace(Node o, NodeVisitor *visitor)
+static void Node_reftrace(Node *o, NodeVisitor *visitor)
 {
     unsigned len = Node_length(o);
-    Node *begin, *end;
+    Node **begin, **end;
     assert(MOZVM_SMALL_ARRAY_LIMIT == 2);
     if (len <= MOZVM_SMALL_ARRAY_LIMIT) {
         begin = o->entry.raw.ary;

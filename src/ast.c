@@ -189,6 +189,7 @@ void ast_log_link(AstMachine *ast, const char *tag, Node *node)
 
 void ast_rollback_tx(AstMachine *ast, long tx)
 {
+#ifdef MOZVM_MEMORY_USE_RCGC
     unsigned len = ARRAY_size(ast->logs);
     if (tx < len) {
         AstLog *cur = ARRAY_n(ast->logs, tx);
@@ -203,7 +204,7 @@ void ast_rollback_tx(AstMachine *ast, long tx)
             }
         }
     }
-
+#endif
     ARRAY_size(ast->logs) = tx;
 }
 
