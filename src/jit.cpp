@@ -40,15 +40,23 @@ void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 }
 
 template<class... Args>
-StructType *define_struct_type(const char *name, const Args&... args)
+void define_struct_body(StructType *s_ty, const Args&... args)
 {
     vector<Type *> elements;
     set_vector(&elements, args...);
     ArrayRef<Type *> elmsRef(elements);
 
     LLVMContext& Ctx = getGlobalContext();
-    StructType *s_ty = StructType::create(Ctx, name);
     s_ty->setBody(elmsRef);
+}
+
+template<class... Args>
+StructType *define_struct_type(const char *name, const Args&... args)
+{
+    LLVMContext& Ctx = getGlobalContext();
+    StructType *s_ty = StructType::create(Ctx, name);
+
+    define_struct_body(s_ty, args...);
     return s_ty;
 }
 
@@ -228,6 +236,22 @@ void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
 #endif
 }
 
+Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
+{
+    Value *r_nterm_entry = create_get_element_ptr(builder, runtime,
+            builder.getInt64(0),
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            builder.getInt32(10)
+#else
+            builder.getInt32(9)
+#endif
+            );
+    Value *entry_head = builder.CreateLoad(r_nterm_entry);
+    Value *callee     = create_get_element_ptr(builder, entry_head,
+            builder.getInt64(nterm), builder.getInt32(3));
+    return builder.CreateLoad(callee);
+}
+
 Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 {
 #if MOZVM_SMALL_BITSET_INST
@@ -307,7 +331,7 @@ public:
     StructType *memopointType;
 #endif
     StructType *runtimeType;
-    FunctionType *funcType;
+    FunctionType *jitfuncType;
 
     FunctionType *bitsetgetType;
 #ifdef MOZVM_USE_JMPTBL
@@ -433,6 +457,7 @@ JitContext::JitContext()
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     memopointType = StructType::create(Ctx, "MemoPoint");
 #endif
+    StructType *ntermentryType = StructType::create(Ctx, "mozvm_nterm_entry_t");
     runtimeType = define_struct_type("moz_runtime_t",
             astType->getPointerTo(),
             symtableType->getPointerTo(),
@@ -446,14 +471,21 @@ JitContext::JitContext()
             memopointType->getPointerTo(),
 #endif
             mozposType, // cur
-            I8PtrTy, // nterm_entry
+            ntermentryType->getPointerTo(), // nterm_entry
             I8PtrTy, // jit_context
             constantType,
             ArrayType::get(I64Ty, 1)
             );
 
-    funcType = get_function_type(I8Ty,
+    jitfuncType = get_function_type(I8Ty,
             runtimeType->getPointerTo(), I8PtrTy, I16Ty);
+
+    define_struct_body(ntermentryType,
+            I8PtrTy, // begin
+            I8PtrTy, // end
+            I32Ty, // call_counter
+            jitfuncType->getPointerTo() //compiled_code
+            );
 
     sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_rollback_tx"),
             reinterpret_cast<void *>(ast_rollback_tx));
@@ -846,7 +878,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Constant *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
     Constant *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
 
-    Function *F = Function::Create(_ctx->funcType,
+    Function *F = Function::Create(_ctx->jitfuncType,
             Function::ExternalLinkage,
             runtime->C.nterms[nterm], M);
 
@@ -871,6 +903,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 if(opcode == Alt) {
                     failjumpList.push_back(label);
                 }
+            }
+        }
+        else if(opcode == Call) {
+            mozaddr_t next = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
+            moz_inst_t *dest = p + shift + next;
+            if(BBMap.find(dest) == BBMap.end()) {
+                BasicBlock *label = BasicBlock::Create(Ctx, "jump.label");
+                BBMap[dest] = label;
             }
         }
 #ifdef MOZVM_USE_JMPTBL
@@ -920,6 +960,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     BasicBlock *currentBB = entryBB;
 
     builder.SetInsertPoint(currentBB);
+    Constant *i8_0  = builder.getInt8(0);
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
@@ -999,7 +1040,23 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Call) {
-                asm volatile("int3");
+                moz_inst_t *pc   = p + 1;
+                uint16_t nterm   = *((uint16_t *)(pc));
+                pc += sizeof(uint16_t);
+                mozaddr_t next   = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = p + shift + next;
+                Constant *ID = builder.getInt16(nterm);
+
+                Value *func;
+                if(mozvm_nterm_is_already_compiled(runtime->nterm_entry + nterm)) {
+                    func = M->getOrInsertFunction(runtime->C.nterms[nterm], _ctx->jitfuncType);
+                }
+                else {
+                    func = get_callee_function(builder, runtime_, nterm);
+                }
+                Value *result = create_call_inst(builder, func, runtime_, str, ID);
+                Value *cond   = builder.CreateICmpNE(result, i8_0);
+                builder.CreateCondBr(cond, failBB, BBMap[dest]);
                 break;
             }
             CASE_(Ret) {
@@ -1449,7 +1506,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         Value *ast_tx;
         Value *saved;
         stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
-        builder.CreateRet(builder.getInt8(0));
+        builder.CreateRet(i8_0);
     }
 
     errBB->insertInto(F);
