@@ -1,0 +1,5 @@
+// --option:+asis:-memo:-inline:-ast
+File = { @Call1 @Call2 }
+Call1 = { NONTERMINAL }
+Call2 = { NONTERMINAL }
+NONTERMINAL = 'a'
