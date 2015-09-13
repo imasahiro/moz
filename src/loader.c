@@ -677,9 +677,8 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
         uint8_t *p;
 #ifdef MOZVM_USE_JMPTBL
         uint16_t tblId = 0;
-        jump_table1_t *t1;
-        jump_table2_t *t2;
-        jump_table3_t *t3;
+        int *jumps = NULL;
+        int table_size = 0;
 #endif
         // fprintf(stderr, "%03d %-9s %-2d\n", j, opcode2str(opcode), shift);
 #define GET_JUMP_ADDR(BUF, IDX) ((mozaddr_t *)((BUF).list + (IDX)))
@@ -720,29 +719,26 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 #ifdef MOZVM_USE_JMPTBL
         case TblJump1:
             tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
-            t1 = L->R->C.jumps1 + tblId;
-            t1->jumps[0] = L->table[t1->jumps[0]] - (j + shift);
-            for (i = 0; i < 2; i++) {
-                if (t1->jumps[i] != 0) {
-                    t1->jumps[i] = L->table[t1->jumps[i]] - (j + shift);
-                }
-            }
-            break;
+            jumps = L->R->C.jumps1[tblId].jumps;
+            table_size = 2;
+            goto L_encode_jumps;
         case TblJump2:
             tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
-            t2 = L->R->C.jumps2 + tblId;
-            for (i = 0; i < 4; i++) {
-                if (t2->jumps[i] != 0) {
-                    t2->jumps[i] = L->table[t2->jumps[i]] - (j + shift);
-                }
-            }
-            break;
+            jumps = L->R->C.jumps2[tblId].jumps;
+            table_size = 4;
+            goto L_encode_jumps;
         case TblJump3:
             tblId = *(uint16_t *)(L->buf.list + j + shift - sizeof(uint16_t));
-            t3 = L->R->C.jumps3 + tblId;
-            for (i = 0; i < 8; i++) {
-                if (t3->jumps[i] != 0) {
-                    t3->jumps[i] = L->table[t3->jumps[i]] - (j + shift);
+            jumps = L->R->C.jumps3[tblId].jumps;
+            table_size = 8;
+L_encode_jumps:
+            for (i = 0; i < table_size; i++) {
+                if (jumps[i] != 0) {
+                    jumps[i] = L->table[jumps[i]] - (j + shift);
+                    assert(jumps[i] != INT_MAX);
+                }
+                else {
+                    jumps[i] = INT_MAX;
                 }
             }
             break;

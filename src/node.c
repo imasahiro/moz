@@ -318,7 +318,9 @@ static inline Node *node_alloc()
 static inline void node_free(Node *o)
 {
     assert(o->refc == 0);
+#ifdef DEBUG2
     memset(o, 0xa, sizeof(*o));
+#endif
     o->refc = -1;
 #ifdef MOZVM_USE_FREE_LIST
     o->tag = (const char *)free_list;
