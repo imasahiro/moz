@@ -95,7 +95,7 @@ int main(int argc, char *const argv[])
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
 #endif
     NodeManager_init();
-    head = inst = mozvm_loader_load_file(&L, syntax_file);
+    head = inst = mozvm_loader_load_file(&L, syntax_file, 1);
     assert(inst != NULL);
 
     while (loop-- > 0) {
