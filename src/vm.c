@@ -253,6 +253,15 @@ void moz_runtime_dispose(moz_runtime_t *r)
     POS    = (mozpos_t *)(FP+FP_POS);\
 } while (0)
 
+#ifdef MOZVM_USE_DIRECT_THREADING
+#error not implemented
+#else
+static const moz_inst_t bytecode_base[] = {
+    Exit, 0,
+    Exit, 1
+};
+#endif
+
 moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_inst_t *PC)
 {
     long *SP = runtime->stack;
@@ -275,29 +284,17 @@ moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_
 #define MEMO runtime->memo
 #endif
 
-    // Instruction layout
-    //   PC[0]  Exit
-    //   PC[1]  0    /*parse success*/
-    //   PC[2]  Exit
-    //   PC[3]  0    /*parse fail   */
-    //   PC[4]  ...
-#ifdef MOZVM_USE_DIRECT_THREADING
-    assert(*(void const **)PC == &&LABEL(Exit));
-#else
-    assert(*PC == Exit);
-#endif
     PUSH_FRAME(GET_POS(),
 #ifdef MOZVM_USE_DIRECT_THREADING
-            PC + sizeof(void *) + 1,
+            bytecode_base + sizeof(void *) + 1,
 #else
-            PC + 2,
+            bytecode_base + 2,
 #endif
             ast_save_tx(AST), symtable_savepoint(TBL));
 #ifdef MOZVM_DEBUG_NTERM
     PUSH(0/*nterm_id*/);
 #endif
-    PUSH(PC);
-    PC += 2 * (MOZVM_INST_HEADER_SIZE + 1);
+    PUSH(bytecode_base);
     runtime->stack = SP;
     runtime->fp    = FP;
     return PC;
@@ -307,7 +304,7 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 {
 #ifdef MOZVM_PROFILE_INST
     const moz_inst_t *BEGIN = PC;
-#define PROFILE_INST(PC) runtime->C.profile[(PC) - BEGIN]++;
+#define PROFILE_INST(PC) if (*(PC) != Exit) { runtime->C.profile[(PC) - BEGIN]++; }
 #else
 #define PROFILE_INST(PC)
 #endif

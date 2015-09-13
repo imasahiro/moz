@@ -837,11 +837,8 @@ uint8_t mozvm_jit_call_nterm(moz_runtime_t *runtime, const char *str, uint16_t n
     const char *current = str + runtime->cur;
 #endif
     long parsed;
-    static const moz_inst_t exit[] = {
-        Exit, 0, Exit, 1
-    };
 
-    moz_runtime_parse_init(runtime, current, (moz_inst_t *)exit);
+    moz_runtime_parse_init(runtime, current, NULL);
     parsed = moz_runtime_parse(runtime, current, e->begin);
     runtime->stack = SP;
     runtime->fp    = FP;

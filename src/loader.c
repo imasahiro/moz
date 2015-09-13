@@ -640,10 +640,6 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
-    mozvm_loader_write_opcode(L, Exit); // exit sccuess
-    mozvm_loader_write8(L, 0);
-    mozvm_loader_write_opcode(L, Exit); // exit fail
-    mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
         long begin = 0;
         uint8_t opcode = *peek(is);
@@ -887,7 +883,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
 
     mozvm_loader_load(L, &is);
 #ifdef MOZVM_PROFILE_INST
-    L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
+    L->R->C.profile = (long *)VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
 #endif
     inst = mozvm_loader_freeze(L);
 #ifdef LOADER_DEBUG
