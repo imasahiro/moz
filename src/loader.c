@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <limits.h>
 
-#include "mozvm_config.h"
 // #define VERBOSE_DEBUG 1
 // #define LOADER_DEBUG 2
 
+#include "loader.h"
 #if defined(VERBOSE_DEBUG) && !defined(LOADER_DEBUG)
 #define LOADER_DEBUG 2
 #endif
@@ -15,17 +15,11 @@
 #define LOADER_DEBUG 1
 #endif
 
-#include "pstring.h"
 #ifdef LOADER_DEBUG
 #define MOZVM_DUMP_OPCODE 1
 #endif
 #include "instruction.h"
-#include "karray.h"
-#include "loader.h"
-
-#ifdef MOZVM_USE_JMPTBL
-#include "jmptbl.h"
-#endif
+#include "pstring.h"
 
 #ifdef MOZVM_ENABLE_JIT
 #include "jit.h"
@@ -451,8 +445,9 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         else
 #endif
         {
+            int *impl;
             tblId = L->jmptbl_id++;
-            int *impl = alloc_jump_table(L->R, tblId);
+            impl = alloc_jump_table(L->R, tblId);
             memcpy(impl, table, sizeof(int) * MOZ_JMPTABLE_SIZE);
 #ifdef MOZVM_USE_JMPTBL
             mozvm_loader_write_opcode(L, First);
@@ -904,29 +899,6 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
             fprintf(stderr, "tbl%d %s\n", i, bc->tables[i]);
 #endif
         }
-    }
-#if 0
-#define PRINT_FIELD(O, FIELD) \
-    fprintf(stderr, "O->" #FIELD " = %d\n", (O)->FIELD)
-    PRINT_FIELD(bc, inst_size);
-    PRINT_FIELD(bc, memo_size);
-    PRINT_FIELD(bc, jumptable_size);
-    PRINT_FIELD(bc, nterm_size);
-    PRINT_FIELD(bc, set_size);
-    PRINT_FIELD(bc, str_size);
-    PRINT_FIELD(bc, tag_size);
-    PRINT_FIELD(bc, table_size);
-#endif
-    if (0) {
-        i = 0;
-        while (is.pos + i < is.end) {
-            fprintf(stderr, "%02x ", (uint8_t)(is.data[is.pos + i]));
-            if (i != 0 && i % 16 == 15) {
-                fprintf(stderr, "\n");
-            }
-            i++;
-        }
-        fprintf(stderr, "\n");
     }
 
     mozvm_loader_load(L, &is);
