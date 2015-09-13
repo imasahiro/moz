@@ -42,7 +42,9 @@ DEF(Call, uint16_t nterm MOZVM_USE_NTERM, mozaddr_t next, mozaddr_t jump)
         func = mozvm_jit_compile(runtime, e);
     }
     if (func) {
-        runtime->cur = GET_POS();
+        runtime->stack = SP;
+        runtime->fp    = FP;
+        runtime->cur   = GET_POS();
         if (func(runtime, str, nterm)) {
             FAIL();
         }

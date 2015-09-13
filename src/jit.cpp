@@ -26,6 +26,22 @@ static inline int nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
     return e->begin <= inst && inst <= e->end;
 }
 
+BasicBlock *get_jump_destination(mozvm_nterm_entry_t *e, moz_inst_t *dest, BasicBlock *failBB)
+{
+    if(!nterm_has_inst(e, dest)) {
+        if((*dest) == Fail) {
+            return failBB;
+        }
+        else {
+            return nullptr;
+        }
+    }
+    else {
+        LLVMContext& Ctx = getGlobalContext();
+        return BasicBlock::Create(Ctx, "jump.label");
+    }
+}
+
 template<class Vector, class First>
 void set_vector(const Vector& dest, const First& first)
 {
@@ -241,9 +257,9 @@ Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
     Value *r_nterm_entry = create_get_element_ptr(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            builder.getInt32(10)
+            builder.getInt32(11)
 #else
-            builder.getInt32(9)
+            builder.getInt32(10)
 #endif
             );
     Value *entry_head = builder.CreateLoad(r_nterm_entry);
@@ -272,6 +288,38 @@ Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 #endif /*MOZVM_SMALL_BITSET_INST*/
 }
 
+Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
+{
+#if MOZVM_SMALL_TAG_INST
+    return builder.getInt16(id);
+#else
+    asm volatile("int3");
+    // uint16_t _tagId = (uint16_t)(runtime->C.tags - tagId);
+    return nullptr;
+#endif /*MOZVM_SMALL_TAG_INST*/
+}
+
+Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
+{
+#if MOZVM_SMALL_TAG_INST
+    Value *r_c_tags = create_get_element_ptr(builder, runtime,
+            builder.getInt64(0),
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+            builder.getInt32(12),
+#else
+            builder.getInt32(11),
+#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
+            builder.getInt32(1));
+    Value *tags_head = builder.CreateLoad(r_c_tags);
+    Value *tag_head  = builder.CreateGEP(tags_head, builder.getInt64(id));
+    return builder.CreateLoad(tag_head);
+#else
+    asm volatile("int3");
+    // tag_t *_tag = (tag_t *)id;
+    return nullptr;
+#endif /*MOZVM_SMALL_TAG_INST*/
+}
+
 Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 {
 #if MOZVM_SMALL_STRING_INST
@@ -288,7 +336,7 @@ Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
     return builder.CreateLoad(str_head);
 #else
     asm volatile("int3");
-    // const char *_set = (const char *)id;
+    // const char *_str = (const char *)id;
     return nullptr;
 #endif /*MOZVM_SMALL_STRING_INST*/
 }
@@ -341,8 +389,18 @@ public:
 #endif
     FunctionType *pstrlenType;
     FunctionType *pstrstwithType;
+
     FunctionType *astsaveType;
     FunctionType *astrollbackType;
+    FunctionType *astcommitType;
+    FunctionType *astreplaceType;
+    FunctionType *astcaptureType;
+    FunctionType *astnewType;
+    FunctionType *astpopType;
+    FunctionType *astpushType;
+    FunctionType *astswapType;
+    FunctionType *asttagType;
+
     FunctionType *tblsaveType;
     FunctionType *tblrollbackType;
 
@@ -436,6 +494,7 @@ JitContext::JitContext()
             nodeType->getPointerTo(), // parsed
             I8PtrTy // source
             );
+    Type *astPtrTy = astType->getPointerTo();
 
     StructType *entryType = StructType::create(Ctx, "entry_t");
     StructType *entryarrayType = define_struct_type("ARRAY_entry_t_t",
@@ -459,7 +518,7 @@ JitContext::JitContext()
 #endif
     StructType *ntermentryType = StructType::create(Ctx, "mozvm_nterm_entry_t");
     runtimeType = define_struct_type("moz_runtime_t",
-            astType->getPointerTo(),
+            astPtrTy,
             symtableType->getPointerTo(),
             memoType->getPointerTo(),
             mozposType, // head
@@ -471,8 +530,8 @@ JitContext::JitContext()
             memopointType->getPointerTo(),
 #endif
             mozposType, // cur
-            ntermentryType->getPointerTo(), // nterm_entry
             I8PtrTy, // jit_context
+            ntermentryType->getPointerTo(), // nterm_entry
             constantType,
             ArrayType::get(I64Ty, 1)
             );
@@ -489,7 +548,29 @@ JitContext::JitContext()
 
     sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_rollback_tx"),
             reinterpret_cast<void *>(ast_rollback_tx));
-    astrollbackType = get_function_type(VoidTy, astType->getPointerTo(), I64Ty);
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_commit_tx"),
+            reinterpret_cast<void *>(ast_commit_tx));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_replace"),
+            reinterpret_cast<void *>(ast_log_capture));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_new"),
+            reinterpret_cast<void *>(ast_log_new));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_pop"),
+            reinterpret_cast<void *>(ast_log_pop));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_push"),
+            reinterpret_cast<void *>(ast_log_push));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_swap"),
+            reinterpret_cast<void *>(ast_log_swap));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_tag"),
+            reinterpret_cast<void *>(ast_log_tag));
+    astrollbackType = get_function_type(VoidTy, astPtrTy, I64Ty);
+    astcommitType   = get_function_type(VoidTy, astPtrTy, I16Ty, I64Ty);
+    astreplaceType  = get_function_type(VoidTy, astPtrTy, I8PtrTy);
+    astcaptureType  = get_function_type(VoidTy, astPtrTy, mozposType);
+    astnewType      = astcaptureType;
+    astpopType      = get_function_type(VoidTy, astPtrTy, I16Ty);
+    astpushType     = get_function_type(VoidTy, astPtrTy);
+    astswapType     = get_function_type(VoidTy, astPtrTy, mozposType, I16Ty);
+    asttagType      = astreplaceType;
 
     Module *M = new Module("top", Ctx);
     bitsetgetType   = create_bitset_get(builder, M);
@@ -827,7 +908,9 @@ uint8_t mozvm_jit_call_nterm(moz_runtime_t *runtime, const char *str, uint16_t n
     mozvm_nterm_entry_t *e = runtime->nterm_entry + nterm;
     if (++(e->call_counter) >  MOZVM_JIT_COUNTER_THRESHOLD) {
         moz_jit_func_t func = mozvm_jit_compile(runtime, e);
-        return func(runtime, str, nterm);
+        if(func) {
+            return func(runtime, str, nterm);
+        }
     }
     long *SP = runtime->stack;
     long *FP = runtime->fp;
@@ -870,8 +953,18 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 #endif
     Constant *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
     Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
+
     Constant *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
     Constant *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
+    Constant *f_astcommit   = M->getOrInsertFunction("ast_commit_tx", _ctx->astcommitType);
+    Constant *f_astreplace  = M->getOrInsertFunction("ast_log_replace", _ctx->astreplaceType);
+    Constant *f_astcapture  = M->getOrInsertFunction("ast_log_capture", _ctx->astcaptureType);
+    Constant *f_astnew      = M->getOrInsertFunction("ast_log_new", _ctx->astnewType);
+    Constant *f_astpop      = M->getOrInsertFunction("ast_log_pop", _ctx->astpopType);
+    Constant *f_astpush     = M->getOrInsertFunction("ast_log_push", _ctx->astpushType);
+    Constant *f_astswap     = M->getOrInsertFunction("ast_log_swap", _ctx->astswapType);
+    Constant *f_asttag      = M->getOrInsertFunction("ast_log_tag", _ctx->asttagType);
+
     Constant *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
     Constant *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
 
@@ -886,6 +979,11 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     vector<BasicBlock *> failjumpList;
     unordered_map<moz_inst_t *, BasicBlock *> BBMap;
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
+    BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
+    BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
+    BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
 
     moz_inst_t *p = e->begin;
     while (p < e->end) {
@@ -895,7 +993,11 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             mozaddr_t jump = *((mozaddr_t *)(p+1));
             moz_inst_t *dest = p + shift + jump;
             if(BBMap.find(dest) == BBMap.end()) {
-                BasicBlock *label = BasicBlock::Create(Ctx, "jump.label");
+                BasicBlock *label = get_jump_destination(e, dest, failBB);
+                if(!label) {
+                    F->eraseFromParent();
+                    return NULL;
+                }
                 BBMap[dest] = label;
                 if(opcode == Alt) {
                     failjumpList.push_back(label);
@@ -906,7 +1008,11 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             mozaddr_t next = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
             moz_inst_t *dest = p + shift + next;
             if(BBMap.find(dest) == BBMap.end()) {
-                BasicBlock *label = BasicBlock::Create(Ctx, "jump.label");
+                BasicBlock *label = get_jump_destination(e, dest, failBB);
+                if(!label) {
+                    F->eraseFromParent();
+                    return NULL;
+                }
                 BBMap[dest] = label;
             }
         }
@@ -934,13 +1040,16 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 }
             }
             for(int i = 0; i < size; i++) {
-                moz_inst_t *dest = jmpoffset + jumps[i];
-                if(!nterm_has_inst(e, dest)) {
-                    F->eraseFromParent();
-                    return NULL;
-                }
-                if(BBMap.find(dest) == BBMap.end()) {
-                    BBMap[dest] = BasicBlock::Create(Ctx, "jump.label");
+                if(jumps[i] != INT_MAX) {
+                    moz_inst_t *dest = jmpoffset + jumps[i];
+                    if(BBMap.find(dest) == BBMap.end()) {
+                        BasicBlock *label = get_jump_destination(e, dest, failBB);
+                        if(!label) {
+                            F->eraseFromParent();
+                            return NULL;
+                        }
+                        BBMap[dest] = label;
+                    }
                 }
             }
         }
@@ -948,15 +1057,9 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         p += opcode_size(opcode);
     }
 
-    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
-    BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
-    BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
-    BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
-    BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
     failjumpList.push_back(errBB);
-    BasicBlock *currentBB = entryBB;
 
-    builder.SetInsertPoint(currentBB);
+    builder.SetInsertPoint(entryBB);
     Constant *i8_0  = builder.getInt8(0);
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
@@ -985,6 +1088,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
     }
 
+    BasicBlock *currentBB = entryBB;
     p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
@@ -996,6 +1100,11 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             if(currentBB->getTerminator() == nullptr) {
                 builder.CreateBr(newBB);
             }
+            builder.SetInsertPoint(newBB);
+            currentBB = newBB;
+        }
+        else if(currentBB->getTerminator() != nullptr) {
+            BasicBlock *newBB = BasicBlock::Create(Ctx, "unreachable", F);
             builder.SetInsertPoint(newBB);
             currentBB = newBB;
         }
@@ -1089,6 +1198,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 builder.CreateStore(ast_tx, ast_tx_);
                 Value *saved = create_call_inst(builder, f_tblsave, tbl);
                 builder.CreateStore(saved, saved_);
+                currentBB = next;
                 break;
             }
             CASE_(Byte) {
@@ -1312,9 +1422,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 2);
                 for(int i = 0; i < 2; i++) {
-                    moz_inst_t *dest = jmpoffset + jumps[i];
-                    assert(nterm_has_inst(e, dest));
-                    jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    if(jumps[i] != INT_MAX) {
+                        moz_inst_t *dest = jmpoffset + jumps[i];
+                        // assert(nterm_has_inst(e, dest));
+                        jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    }
+                    else {
+                        jump->addCase(builder.getInt32(i), unreachableBB);
+                    }
                 }
                 break;
             }
@@ -1331,9 +1446,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 4);
                 for(int i = 0; i < 4; i++) {
-                    moz_inst_t *dest = jmpoffset + jumps[i];
-                    assert(nterm_has_inst(e, dest));
-                    jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    if(jumps[i] != INT_MAX) {
+                        moz_inst_t *dest = jmpoffset + jumps[i];
+                        // assert(nterm_has_inst(e, dest));
+                        jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    }
+                    else {
+                        jump->addCase(builder.getInt32(i), unreachableBB);
+                    }
                 }
                 break;
             }
@@ -1350,9 +1470,14 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
                 SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 8);
                 for(int i = 0; i < 8; i++) {
-                    moz_inst_t *dest = jmpoffset + jumps[i];
-                    assert(nterm_has_inst(e, dest));
-                    jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    if(jumps[i] != INT_MAX) {
+                        moz_inst_t *dest = jmpoffset + jumps[i];
+                        // assert(nterm_has_inst(e, dest));
+                        jump->addCase(builder.getInt32(i), BBMap[dest]);
+                    }
+                    else {
+                        jump->addCase(builder.getInt32(i), unreachableBB);
+                    }
                 }
                 break;
             }
@@ -1369,39 +1494,72 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(TPush) {
-                asm volatile("int3");
+                create_call_inst(builder, f_astpush, ast);
                 break;
             }
             CASE_(TPop) {
-                asm volatile("int3");
+                TAG_t tagId = *((TAG_t *)(p+1));
+
+                Value *_tagId = get_tag_id(builder, runtime_, tagId);
+                create_call_inst(builder, f_astpop, ast, _tagId);
                 break;
             }
             CASE_(TLeftFold) {
-                asm volatile("int3");
+                moz_inst_t *pc   = p + 1;
+                uint8_t shift    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                TAG_t tagId      = *((TAG_t *)(pc));
+                Constant *shift_ = builder.getInt64(shift);
+
+                Value *_tagId  = get_tag_id(builder, runtime_, tagId);
+                Value *pos     = builder.CreateLoad(cur);
+                Value *swappos = consume_n(builder, pos, shift_);
+                create_call_inst(builder, f_astswap, ast, swappos, _tagId);
                 break;
             }
             CASE_(TNew) {
-                asm volatile("int3");
+                uint8_t shift    = (uint8_t)*(p+1);
+                Constant *shift_ = builder.getInt64(shift);
+
+                Value *pos    = builder.CreateLoad(cur);
+                Value *newpos = consume_n(builder, pos, shift_);
+                create_call_inst(builder, f_astnew, ast, newpos);
                 break;
             }
             CASE_(TCapture) {
-                asm volatile("int3");
+                uint8_t shift    = (uint8_t)*(p+1);
+                Constant *shift_ = builder.getInt64(shift);
+
+                Value *pos        = builder.CreateLoad(cur);
+                Value *capturepos = consume_n(builder, pos, shift_);
+                create_call_inst(builder, f_astcapture, ast, capturepos);
                 break;
             }
             CASE_(TTag) {
-                asm volatile("int3");
+                TAG_t tagId = *((TAG_t *)(p+1));
+
+                Value *tag = get_tag_ptr(builder, runtime_, tagId);
+                create_call_inst(builder, f_asttag, ast, tag);
                 break;
             }
             CASE_(TReplace) {
-                asm volatile("int3");
+                STRING_t strId = *((STRING_t *)(p+1));
+
+                Value *str = get_string_ptr(builder, runtime_, strId);
+                create_call_inst(builder, f_astreplace, ast, str);
                 break;
             }
             CASE_(TStart) {
-                asm volatile("int3");
+                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+                stack_push(builder, sp, ast_tx);
                 break;
             }
             CASE_(TCommit) {
-                asm volatile("int3");
+                TAG_t tagId = *((TAG_t *)(p+1));
+
+                Value *_tagId = get_tag_id(builder, runtime_, tagId);
+                Value *tx     = stack_pop(builder, sp);
+                create_call_inst(builder, f_astcommit, ast, _tagId, tx);
                 break;
             }
             CASE_(TAbort) {

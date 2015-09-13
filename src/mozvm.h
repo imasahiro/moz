@@ -18,6 +18,12 @@ extern "C" {
 typedef uint8_t moz_inst_t;
 struct moz_runtime_t;
 
+#ifdef MOZVM_ENABLE_JIT
+typedef uint8_t (*moz_jit_func_t)(struct moz_runtime_t *, const char *, uint16_t);
+
+typedef void jit_context_t;
+#endif
+
 typedef struct mozvm_nterm_entry_t {
     moz_inst_t *begin;
     moz_inst_t *end;
@@ -26,12 +32,6 @@ typedef struct mozvm_nterm_entry_t {
     moz_jit_func_t compiled_code;
 #endif
 } mozvm_nterm_entry_t;
-
-#ifdef MOZVM_ENABLE_JIT
-typedef uint8_t (*moz_jit_func_t)(struct moz_runtime_t *, const char *, uint16_t);
-
-typedef void jit_context_t;
-#endif
 
 typedef struct mozvm_constant_t {
     bitset_t *sets;
