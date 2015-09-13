@@ -134,21 +134,19 @@ mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size)
 
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
 {
+    unsigned i;
     moz_inst_t *inst = ARRAY_n(L->buf, 0);
     VM_FREE(L->table);
     L->table = NULL;
+    for (i = 0; i < L->R->C.nterm_size; i++) {
+        uintptr_t begin = (uintptr_t) L->R->nterm_entry[i].begin;
+        uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
+        L->R->nterm_entry[i].begin = inst + begin;
+        L->R->nterm_entry[i].end   = inst + end;
 #ifdef MOZVM_ENABLE_JIT
-    {
-        unsigned i;
-        for (i = 0; i < L->R->C.nterm_size; i++) {
-            uintptr_t begin = (uintptr_t) L->R->nterm_entry[i].begin;
-            uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
-            L->R->nterm_entry[i].begin = inst + begin;
-            L->R->nterm_entry[i].end   = inst + end;
-            L->R->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
-        }
-    }
+        L->R->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
 #endif
+    }
     return inst;
 }
 
@@ -291,10 +289,11 @@ static int *alloc_jump_table(moz_runtime_t *r, uint16_t tblId)
     return r->C.jumps + MOZ_JMPTABLE_SIZE * tblId;
 }
 
-static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
+static uint16_t mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 {
     uint8_t opcode = read8(is);
     int has_jump = opcode & 0x80;
+    uint16_t nterm = 0;
     opcode = opcode & 0x7f;
 #define CASE_(OP) case OP:
     if (opcode == Nop
@@ -603,8 +602,8 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
 #ifdef MOZVM_EMIT_OP_LABEL
         mozvm_loader_write16(L, label);
 #endif
+        nterm = label;
         break;
-        (void)label;
     }
     }
 #undef CASE_
@@ -613,6 +612,7 @@ static void mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is)
         mozvm_loader_write_opcode(L, Jump);
         mozvm_loader_write_addr(L, jump);
     }
+    return nterm;
 }
 
 static long get_opcode(mozvm_loader_t *L, unsigned idx)
@@ -636,9 +636,7 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
 {
     int i = 0, j = 0;
-#ifdef MOZVM_ENABLE_JIT
-    int nterm = 0;
-#endif
+    uint16_t nterm_id = 0;
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
@@ -647,27 +645,21 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is)
     mozvm_loader_write_opcode(L, Exit); // exit fail
     mozvm_loader_write8(L, 1);
     while (is->pos < is->end) {
-#ifdef MOZVM_ENABLE_JIT
+        long begin = 0;
         uint8_t opcode = *peek(is);
+        uint16_t nterm;
         if (opcode == Label) {
-            long begin = (long)ARRAY_size(L->buf);
-            L->R->nterm_entry[nterm++].begin = (moz_inst_t *)begin;
+            begin = (long)ARRAY_size(L->buf);
         }
-#endif
         L->inst_size++;
         L->table[i++] = ARRAY_size(L->buf);
-        mozvm_loader_load_inst(L, is);
+        nterm = mozvm_loader_load_inst(L, is);
+        if (opcode == Label) {
+            nterm_id = nterm;
+            L->R->nterm_entry[nterm_id].begin = (moz_inst_t *)begin;
+        }
+        L->R->nterm_entry[nterm_id].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
     }
-#ifdef MOZVM_ENABLE_JIT
-    for (i = 0; i < nterm - 1; i++) {
-        mozvm_nterm_entry_t *e1 = L->R->nterm_entry + i;
-        mozvm_nterm_entry_t *e2 = L->R->nterm_entry + i + 1;
-        e1->end = e2->begin - 1;
-    }
-    L->R->nterm_entry[nterm - 1].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
-#endif
-
-    // fprintf(stderr, "\n");
 
     while (j < (int)ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);
@@ -749,10 +741,6 @@ L_encode_jumps:
 #undef GET_JUMP_ADDR
         j += shift;
     }
-
-#ifdef LOADER_DEBUG
-    mozvm_loader_dump(L, LOADER_DEBUG > 1);
-#endif
 
 #ifdef MOZVM_USE_DIRECT_THREADING
     j = 0;
@@ -902,6 +890,9 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file)
     L->R->C.profile = VM_CALLOC(1, sizeof(long) * ARRAY_size(L->buf));
 #endif
     inst = mozvm_loader_freeze(L);
+#ifdef LOADER_DEBUG
+    mozvm_loader_dump(L, LOADER_DEBUG > 1);
+#endif
     VM_FREE(is.data);
 
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
@@ -991,216 +982,218 @@ static char *write_char(char *p, unsigned char ch);
 static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 {
     int i = 0, j = 0;
-    while (j < (int)ARRAY_size(L->buf)) {
-        uint8_t *p = L->buf.list + j;
-        uint8_t opcode = *p;
-        unsigned shift = opcode_size(opcode);
+    uint8_t opcode = 0;
+    for (j = 0; j < L->R->C.nterm_size; j++) {
+        mozvm_nterm_entry_t *e = &L->R->nterm_entry[j];
+        moz_inst_t *p;
+        OP_PRINT("Nterm%d %s\n", j, L->R->C.nterms[j]);
+        for (p = e->begin; p < e->end; p += opcode_size(opcode), i++) {
+            opcode = *p;
 #ifdef MOZVM_PROFILE_INST
-        if (L->R->C.profile) {
-            OP_PRINT("%8ld, ", L->R->C.profile[j]);
-        }
-#endif
-
-        OP_PRINT("%ld, %04d, %s ", (long)p, i, opcode2str(opcode));
-        switch (opcode) {
-#define CASE_(OP) case OP:
-        CASE_(Nop);
-        CASE_(Fail);
-        CASE_(Succ) {
-            break;
-        }
-        CASE_(Alt);
-        CASE_(Jump) {
-            OP_PRINT("%d", *(mozaddr_t *)(p + 1));
-            break;
-        }
-        CASE_(Call) {
-#ifdef MOZVM_USE_NTERM
-            OP_PRINT("%d ", *(int16_t *)(p + 1));
-            p += sizeof(int16_t);
-#endif
-            OP_PRINT("%d ", *(mozaddr_t *)(p + 1));
-            OP_PRINT("%d", *(mozaddr_t *)(p + 1 + sizeof(mozaddr_t)));
-            break;
-        }
-        CASE_(Ret);
-        CASE_(Pos);
-        CASE_(Back);
-        CASE_(Skip) {
-            break;
-        }
-        CASE_(Byte);
-        CASE_(NByte);
-        CASE_(OByte);
-        CASE_(RByte) {
-            char buf[10] = {};
-            char *s = write_char(buf, *(p + 1));
-            s[0] = '\0';
-            OP_PRINT("%d '%s'", *(p + 1), buf);
-            break;
-        }
-        CASE_(Any);
-        CASE_(NAny);
-        CASE_(OAny);
-        CASE_(RAny) {
-            break;
-        }
-        CASE_(Str);
-        CASE_(NStr);
-        CASE_(OStr);
-        CASE_(RStr) {
-            STRING_t strId = *(STRING_t *)(p + 1);
-            const char *impl = STRING_GET_IMPL(L->R, strId);
-            OP_PRINT("'%s'", impl);
-            break;
-        }
-        CASE_(Set);
-        CASE_(NSet);
-        CASE_(OSet);
-        CASE_(RSet) {
-            BITSET_t setId = *(BITSET_t *)(p + 1);
-            bitset_t *impl = BITSET_GET_IMPL(L->R, setId);
-            char buf[1024];
-            dump_set(impl, buf);
-            OP_PRINT("%p %s", impl, buf);
-            break;
-        }
-        CASE_(Consume) {
-            int8_t shift = *(p + 1);
-            OP_PRINT("%d", shift);
-            break;
-        }
-        CASE_(First) {
-            JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
-            int *impl = JMPTBL_GET_IMPL(L->R, tblId);
-#if 1
-            OP_PRINT("%p", impl);
-#else
-            {
-                int i;
-                OP_PRINT("%p [", impl);
-                for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
-                    OP_PRINT("%d ,", impl[i]);
-                }
-                OP_PRINT("%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
+            if (L->R->C.profile) {
+                OP_PRINT("%8ld, ", L->R->C.profile[j]);
             }
 #endif
-            break;
-        }
-        CASE_(TblJump1) {
-            // uint16_t tblId = *(uint16_t *)(p + 1);
-            // jump_table1_t *t = L->R->C.jumps1 + tblId;
-            // char buf[1024];
-            // dump_set(&t->b[0], buf);
-            // OP_PRINT("%s : %d", buf, t->jumps[0]);
-            break;
-        }
-        CASE_(TblJump2) {
-            break;
-        }
-        CASE_(TblJump3) {
-            break;
-        }
-        CASE_(Lookup) {
-            int state = *(int8_t *)(p + 1);
-            uint16_t memoId = *(uint16_t *)(p + 2);
-            int skip = *(int *)(p + 4);
-            OP_PRINT("%d %d %d", state, memoId, skip);
-            break;
-        }
-        CASE_(Memo);
-        CASE_(MemoFail) {
-            int8_t state = *(int8_t *)(p + 1);
-            uint16_t memoId = *(uint16_t *)(p + 2);
-            OP_PRINT("%d %d", state, memoId);
-            break;
-        }
-        CASE_(TPush) {
-            break;
-        }
-        CASE_(TNew);
-        CASE_(TCapture) {
-            int8_t shift = *(int8_t *)(p + 1);
-            OP_PRINT("%d", shift);
-            break;
-        }
-        CASE_(TLeftFold);
-        CASE_(TPop);
-        CASE_(TTag);
-        CASE_(TCommit) {
-            TAG_t tagId = *(TAG_t *)(p + 1);
-            tag_t *impl = TAG_GET_IMPL(L->R, tagId);
-            OP_PRINT("%p", impl);
-            break;
-        }
-        CASE_(TReplace) {
-            asm volatile("int3");
-            break;
-        }
-        CASE_(TStart) {
-            break;
-        }
-        CASE_(TAbort) {
-            asm volatile("int3");
-            break;
-        }
-        CASE_(TLookup) {
-            int8_t state = *(int8_t *)(p + 1);
-            TAG_t tagId = *(TAG_t *)(p + 2);
-            uint16_t memoId = *(uint16_t *)(p + 2 + sizeof(TAG_t));
-            mozaddr_t skip = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
-            tag_t *impl = TAG_GET_IMPL(L->R, tagId);
-            OP_PRINT("%d %d %d %p", state, memoId, skip, impl);
-            break;
-        }
-        CASE_(TMemo) {
-            int state = *(int8_t *)(p + 1);
-            uint16_t memoId = *(uint16_t *)(p + 2);
-            OP_PRINT("%d %d", state, memoId);
-            break;
-        }
-        CASE_(SOpen);
-        CASE_(SClose) {
-            break;
-        }
-        CASE_(SIsDef) {
-            TAG_t    tagId = *(TAG_t *)(p + 1);
-            STRING_t strId = *(STRING_t *)(p + 1 + sizeof(TAG_t));
-            tag_t      *impl1 = TBL_GET_IMPL(L->R, tagId);
-            const char *impl2 = STRING_GET_IMPL(L->R, strId);
-            OP_PRINT("%p %s", impl1, impl2);
-            break;
-        }
 
-        CASE_(SMask);
-        CASE_(SDef);
-        CASE_(SExists);
-        CASE_(SMatch);
-        CASE_(SIs);
-        CASE_(SIsa) {
-            TAG_t tagId = *(TAG_t *)(p + 1);
-            tag_t *impl = TBL_GET_IMPL(L->R, tagId);
-            OP_PRINT("%p", impl);
-            break;
-        }
-        CASE_(SDefNum) {
-            asm volatile("int3");
-        }
-        CASE_(SCount) {
-            asm volatile("int3");
-        }
-        CASE_(Exit) {
-            // OP_PRINT("%d", *(p + 1));
-            break;
-        }
-        CASE_(Label) {
-            break;
-        }
+            OP_PRINT("%ld, %04d, %s ", (long)p, i, opcode2str(opcode));
+            switch (opcode) {
+#define CASE_(OP) case OP:
+            CASE_(Nop);
+            CASE_(Fail);
+            CASE_(Succ) {
+                break;
+            }
+            CASE_(Alt);
+            CASE_(Jump) {
+                OP_PRINT("%d", *(mozaddr_t *)(p + 1));
+                break;
+            }
+            CASE_(Call) {
+#ifdef MOZVM_USE_NTERM
+                OP_PRINT("%d ", *(int16_t *)(p + 1));
+                p += sizeof(int16_t);
+#endif
+                OP_PRINT("%d ", *(mozaddr_t *)(p + 1));
+                OP_PRINT("%d", *(mozaddr_t *)(p + 1 + sizeof(mozaddr_t)));
+                break;
+            }
+            CASE_(Ret);
+            CASE_(Pos);
+            CASE_(Back);
+            CASE_(Skip) {
+                break;
+            }
+            CASE_(Byte);
+            CASE_(NByte);
+            CASE_(OByte);
+            CASE_(RByte) {
+                char buf[10] = {};
+                char *s = write_char(buf, *(p + 1));
+                s[0] = '\0';
+                OP_PRINT("%d '%s'", *(p + 1), buf);
+                break;
+            }
+            CASE_(Any);
+            CASE_(NAny);
+            CASE_(OAny);
+            CASE_(RAny) {
+                break;
+            }
+            CASE_(Str);
+            CASE_(NStr);
+            CASE_(OStr);
+            CASE_(RStr) {
+                STRING_t strId = *(STRING_t *)(p + 1);
+                const char *impl = STRING_GET_IMPL(L->R, strId);
+                OP_PRINT("'%s'", impl);
+                break;
+            }
+            CASE_(Set);
+            CASE_(NSet);
+            CASE_(OSet);
+            CASE_(RSet) {
+                BITSET_t setId = *(BITSET_t *)(p + 1);
+                bitset_t *impl = BITSET_GET_IMPL(L->R, setId);
+                char buf[1024];
+                dump_set(impl, buf);
+                OP_PRINT("%p %s", impl, buf);
+                break;
+            }
+            CASE_(Consume) {
+                int8_t shift = *(p + 1);
+                OP_PRINT("%d", shift);
+                break;
+            }
+            CASE_(First) {
+                JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
+                int *impl = JMPTBL_GET_IMPL(L->R, tblId);
+#if 1
+                OP_PRINT("%p", impl);
+#else
+                {
+                    int i;
+                    OP_PRINT("%p [", impl);
+                    for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
+                        OP_PRINT("%d ,", impl[i]);
+                    }
+                    OP_PRINT("%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
+                }
+#endif
+                break;
+            }
+            CASE_(TblJump1) {
+                // uint16_t tblId = *(uint16_t *)(p + 1);
+                // jump_table1_t *t = L->R->C.jumps1 + tblId;
+                // char buf[1024];
+                // dump_set(&t->b[0], buf);
+                // OP_PRINT("%s : %d", buf, t->jumps[0]);
+                break;
+            }
+            CASE_(TblJump2) {
+                break;
+            }
+            CASE_(TblJump3) {
+                break;
+            }
+            CASE_(Lookup) {
+                int state = *(int8_t *)(p + 1);
+                uint16_t memoId = *(uint16_t *)(p + 2);
+                int skip = *(int *)(p + 4);
+                OP_PRINT("%d %d %d", state, memoId, skip);
+                break;
+            }
+            CASE_(Memo);
+            CASE_(MemoFail) {
+                int8_t state = *(int8_t *)(p + 1);
+                uint16_t memoId = *(uint16_t *)(p + 2);
+                OP_PRINT("%d %d", state, memoId);
+                break;
+            }
+            CASE_(TPush) {
+                break;
+            }
+            CASE_(TNew);
+            CASE_(TCapture) {
+                int8_t shift = *(int8_t *)(p + 1);
+                OP_PRINT("%d", shift);
+                break;
+            }
+            CASE_(TLeftFold);
+            CASE_(TPop);
+            CASE_(TTag);
+            CASE_(TCommit) {
+                TAG_t tagId = *(TAG_t *)(p + 1);
+                tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+                OP_PRINT("%p", impl);
+                break;
+            }
+            CASE_(TReplace) {
+                asm volatile("int3");
+                break;
+            }
+            CASE_(TStart) {
+                break;
+            }
+            CASE_(TAbort) {
+                asm volatile("int3");
+                break;
+            }
+            CASE_(TLookup) {
+                int8_t state = *(int8_t *)(p + 1);
+                TAG_t tagId = *(TAG_t *)(p + 2);
+                uint16_t memoId = *(uint16_t *)(p + 2 + sizeof(TAG_t));
+                mozaddr_t skip = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
+                tag_t *impl = TAG_GET_IMPL(L->R, tagId);
+                OP_PRINT("%d %d %d %p", state, memoId, skip, impl);
+                break;
+            }
+            CASE_(TMemo) {
+                int state = *(int8_t *)(p + 1);
+                uint16_t memoId = *(uint16_t *)(p + 2);
+                OP_PRINT("%d %d", state, memoId);
+                break;
+            }
+            CASE_(SOpen);
+            CASE_(SClose) {
+                break;
+            }
+            CASE_(SIsDef) {
+                TAG_t    tagId = *(TAG_t *)(p + 1);
+                STRING_t strId = *(STRING_t *)(p + 1 + sizeof(TAG_t));
+                tag_t      *impl1 = TBL_GET_IMPL(L->R, tagId);
+                const char *impl2 = STRING_GET_IMPL(L->R, strId);
+                OP_PRINT("%p %s", impl1, impl2);
+                break;
+            }
+
+            CASE_(SMask);
+            CASE_(SDef);
+            CASE_(SExists);
+            CASE_(SMatch);
+            CASE_(SIs);
+            CASE_(SIsa) {
+                TAG_t tagId = *(TAG_t *)(p + 1);
+                tag_t *impl = TBL_GET_IMPL(L->R, tagId);
+                OP_PRINT("%p", impl);
+                break;
+            }
+            CASE_(SDefNum) {
+                asm volatile("int3");
+            }
+            CASE_(SCount) {
+                asm volatile("int3");
+            }
+            CASE_(Exit) {
+                // OP_PRINT("%d", *(p + 1));
+                break;
+            }
+            CASE_(Label) {
+                break;
+            }
 #undef CASE_
+            }
+            OP_PRINT_END()
         }
-        OP_PRINT_END()
-        j += shift;
-        i++;
     }
 }
 #endif /* LOADER_DEBUG */

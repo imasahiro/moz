@@ -79,9 +79,10 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
     r->fp = r->stack;
 
     r->C.memo_size = memo;
+    size = sizeof(mozvm_nterm_entry_t) * (nterm_size + 1);
+    r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, size);
 #ifdef MOZVM_ENABLE_JIT
     r->cur = 0;
-    r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, sizeof(mozvm_nterm_entry_t) * (nterm_size + 1));
     mozvm_jit_init(r);
 #endif
 #ifdef MOZVM_MEMORY_USE_MSGC
@@ -155,8 +156,8 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
 #endif
 
-#ifdef MOZVM_ENABLE_JIT
     VM_FREE(r->nterm_entry);
+#ifdef MOZVM_ENABLE_JIT
     mozvm_jit_dispose(r);
 #endif
     if (r->C.set_size) {
