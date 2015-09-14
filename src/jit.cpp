@@ -115,6 +115,18 @@ Value *get_current(IRBuilder<> &builder, Value *str, Value *pos)
 #endif
 }
 
+Value *get_length(IRBuilder<> &builder, Value *startpos, Value *endpos)
+{
+#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
+    Type *I64Ty = builder.getInt64Ty();
+    Value *endpos_   = builder.CreatePtrToInt(endpos,   I64Ty);
+    Value *startpos_ = builder.CreatePtrToInt(startpos, I64Ty);
+    return builder.CreateSub(endpos_, startpos_);
+#else
+    return builder.CreateSub(endpos, startpos);
+#endif
+}
+
 Value *consume_n(IRBuilder<> &builder, Value *pos, Value *N)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
@@ -374,6 +386,7 @@ public:
     StructType *astType;
     StructType *symtableType;
     StructType *memoType;
+    StructType *memoentryType;
     Type *mozposType;
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     StructType *memopointType;
@@ -400,6 +413,12 @@ public:
     FunctionType *astpushType;
     FunctionType *astswapType;
     FunctionType *asttagType;
+    FunctionType *astlinkType;
+    FunctionType *astlastnodeType;
+
+    FunctionType *memosetType;
+    FunctionType *memofailType;
+    FunctionType *memogetType;
 
     FunctionType *tblsaveType;
     FunctionType *tblrollbackType;
@@ -417,6 +436,7 @@ public:
     FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
     FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
     FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
     FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
     FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
 };
@@ -482,6 +502,7 @@ JitContext::JitContext()
             );
 
     nodeType = StructType::create(Ctx, "Node");
+    Type *nodePtrTy = nodeType->getPointerTo();
     StructType *astlogType = StructType::create(Ctx, "AstLog");
     StructType *astlogarrayType = define_struct_type("ARRAY_AstLog_t",
             I32Ty, // size
@@ -490,8 +511,8 @@ JitContext::JitContext()
             );
     astType = define_struct_type("AstMachine",
             astlogarrayType, // logs
-            nodeType->getPointerTo(), // last-linked
-            nodeType->getPointerTo(), // parsed
+            nodePtrTy, // last-linked
+            nodePtrTy, // parsed
             I8PtrTy // source
             );
     Type *astPtrTy = astType->getPointerTo();
@@ -508,6 +529,14 @@ JitContext::JitContext()
             );
 
     memoType = StructType::create(Ctx, "memo_t");
+    Type *memoPtrTy = memoType->getPointerTo();
+    memoentryType = define_struct_type("MemoEntry_t",
+            I64Ty, // hash
+            nodePtrTy, // result(failed)
+            I32Ty, // consumed
+            I32Ty // state
+            );
+    Type *memoentryPtrTy = memoentryType->getPointerTo();
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     mozposType = I8PtrTy;
 #else
@@ -562,6 +591,8 @@ JitContext::JitContext()
             reinterpret_cast<void *>(ast_log_swap));
     sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_tag"),
             reinterpret_cast<void *>(ast_log_tag));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_link"),
+            reinterpret_cast<void *>(ast_log_link));
     astrollbackType = get_function_type(VoidTy, astPtrTy, I64Ty);
     astcommitType   = get_function_type(VoidTy, astPtrTy, I16Ty, I64Ty);
     astreplaceType  = get_function_type(VoidTy, astPtrTy, I8PtrTy);
@@ -571,6 +602,19 @@ JitContext::JitContext()
     astpushType     = get_function_type(VoidTy, astPtrTy);
     astswapType     = get_function_type(VoidTy, astPtrTy, mozposType, I16Ty);
     asttagType      = astreplaceType;
+    astlinkType     = get_function_type(VoidTy, astPtrTy, I16Ty, nodePtrTy);
+
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_set"),
+            reinterpret_cast<void *>(memo_set));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_fail"),
+            reinterpret_cast<void *>(memo_fail));
+    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_get"),
+            reinterpret_cast<void *>(memo_get));
+    memosetType  = get_function_type(I32Ty,
+            memoPtrTy, mozposType, I32Ty, nodePtrTy, I32Ty, I32Ty);
+    memofailType = get_function_type(I32Ty, memoPtrTy, mozposType, I32Ty);
+    memogetType  = get_function_type(memoentryPtrTy,
+            memoPtrTy, mozposType, I32Ty, I8Ty);
 
     Module *M = new Module("top", Ctx);
     bitsetgetType   = create_bitset_get(builder, M);
@@ -582,6 +626,7 @@ JitContext::JitContext()
     pstrlenType     = create_pstring_length(builder, M);
     pstrstwithType  = create_pstring_startswith(builder, M);
     astsaveType     = create_ast_save_tx(builder, M);
+    astlastnodeType = create_ast_get_last_linked_node(builder, M);
     tblsaveType     = create_symtable_savepoint(builder, M);
     tblrollbackType = create_symtable_rollback(builder, M);
     EE = EngineBuilder(unique_ptr<Module>(M)).create();
@@ -817,6 +862,30 @@ FunctionType *JitContext::create_ast_save_tx(IRBuilder<> &builder, Module *M)
     return funcTy;
 }
 
+FunctionType *JitContext::create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
+{
+    LLVMContext& Ctx = M->getContext();
+    Type *nodePtrTy = nodeType->getPointerTo();
+    Type *astPtrTy  = astType->getPointerTo();
+    FunctionType *funcTy = get_function_type(nodePtrTy, astPtrTy);
+    Function *F;
+    Constant *i32_1 = builder.getInt32(1);
+    Constant *i64_0 = builder.getInt64(0);
+
+    F = Function::Create(funcTy, Function::ExternalLinkage, "ast_get_last_linked_node", M);
+
+    Function::arg_iterator arg_iter = F->arg_begin();
+    Value *ast = arg_iter++;
+
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    builder.SetInsertPoint(entryBB);
+
+    Value *Ptr    = create_get_element_ptr(builder, ast, i64_0, i32_1);
+    Value *Linked = builder.CreateLoad(Ptr);
+    builder.CreateRet(Linked);
+    return funcTy;
+}
+
 FunctionType *JitContext::create_symtable_savepoint(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
@@ -942,6 +1011,9 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
+    PointerType *nodePtrTy = _ctx->nodeType->getPointerTo();
+    Constant *nullnode     = Constant::getNullValue(nodePtrTy);
+
     Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
     Constant *f_tbljmp1idx;
     Constant *f_tbljmp2idx;
@@ -964,6 +1036,15 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Constant *f_astpush     = M->getOrInsertFunction("ast_log_push", _ctx->astpushType);
     Constant *f_astswap     = M->getOrInsertFunction("ast_log_swap", _ctx->astswapType);
     Constant *f_asttag      = M->getOrInsertFunction("ast_log_tag", _ctx->asttagType);
+    Constant *f_astlink     = M->getOrInsertFunction("ast_log_link", _ctx->astlinkType);
+    Constant *f_astlastnode = M->getOrInsertFunction("ast_get_last_linked_node", _ctx->astlastnodeType);
+
+    PointerType *memoentryPtrTy = _ctx->memoentryType->getPointerTo();
+    Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
+    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
+    Constant *f_memoset         = M->getOrInsertFunction("memo_set", _ctx->memosetType);
+    Constant *f_memofail        = M->getOrInsertFunction("memo_fail", _ctx->memofailType);
+    Constant *f_memoget         = M->getOrInsertFunction("memo_get", _ctx->memogetType);
 
     Constant *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
     Constant *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
@@ -1007,6 +1088,32 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         else if(opcode == Call) {
             mozaddr_t next = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
             moz_inst_t *dest = p + shift + next;
+            if(BBMap.find(dest) == BBMap.end()) {
+                BasicBlock *label = get_jump_destination(e, dest, failBB);
+                if(!label) {
+                    F->eraseFromParent();
+                    return NULL;
+                }
+                BBMap[dest] = label;
+            }
+        }
+        else if(opcode == Lookup) {
+            moz_inst_t *pc   = p + 1 + sizeof(uint8_t) + sizeof(uint16_t);
+            mozaddr_t skip = *((mozaddr_t *)(pc));
+            moz_inst_t *dest = p + shift + skip;
+            if(BBMap.find(dest) == BBMap.end()) {
+                BasicBlock *label = get_jump_destination(e, dest, failBB);
+                if(!label) {
+                    F->eraseFromParent();
+                    return NULL;
+                }
+                BBMap[dest] = label;
+            }
+        }
+        else if(opcode == TLookup) {
+            moz_inst_t *pc   = p + 1 + sizeof(uint8_t) + sizeof(TAG_t) + sizeof(uint16_t);
+            mozaddr_t skip = *((mozaddr_t *)(pc));
+            moz_inst_t *dest = p + shift + skip;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
                 if(!label) {
@@ -1062,15 +1169,19 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     builder.SetInsertPoint(entryBB);
     Constant *i8_0  = builder.getInt8(0);
     Constant *i32_0 = builder.getInt32(0);
+    Constant *i32_1 = builder.getInt32(1);
+    Constant *i32_2 = builder.getInt32(2);
     Constant *i64_0 = builder.getInt64(0);
 
-    Value *ast_  = create_get_element_ptr(builder, runtime_, i64_0, i32_0);
-    Value *ast   = builder.CreateLoad(ast_);
-    Value *tbl_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(1));
-    Value *tbl   = builder.CreateLoad(tbl_);
-    Value *head_ = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(3));
-    Value *tail_ = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(4));
-    Value *tail  = builder.CreateLoad(tail_);
+    Value *ast_   = create_get_element_ptr(builder, runtime_, i64_0, i32_0);
+    Value *ast    = builder.CreateLoad(ast_);
+    Value *tbl_   = create_get_element_ptr(builder, runtime_, i64_0, i32_1);
+    Value *tbl    = builder.CreateLoad(tbl_);
+    Value *memo_  = create_get_element_ptr(builder, runtime_, i64_0, i32_2);
+    Value *memo   = builder.CreateLoad(memo_);
+    Value *head_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(3));
+    Value *tail_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(4));
+    Value *tail   = builder.CreateLoad(tail_);
 
     Value *sp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(6));
     Value *fp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(7));
@@ -1482,15 +1593,78 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(Lookup) {
+                BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
+                BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
+                BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
+
+                moz_inst_t *pc   = p + 1;
+                uint8_t state    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                uint16_t memoId  = *((uint16_t *)(pc));
+                pc += sizeof(uint16_t);
+                mozaddr_t skip   = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = p + shift + skip;
+                Constant *state_    = builder.getInt8(state);
+                Constant *memoId_   = builder.getInt32(memoId);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
                 asm volatile("int3");
+#endif
+                Value *pos     = builder.CreateLoad(cur);
+                Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+                Value *hitcond = builder.CreateICmpNE(entry, nullentry);
+                builder.CreateCondBr(hitcond, hit, miss);
+
+                builder.SetInsertPoint(hit);
+                Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+                Value *result   = builder.CreateLoad(result_);
+                Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
+                Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
+                builder.CreateCondBr(failcond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+                Value *consumed  = builder.CreateLoad(consumed_);
+                Value *newpos    = consume_n(builder, pos, consumed);
+                builder.CreateStore(newpos, cur);
+                builder.CreateBr(BBMap[dest]);
+
+                builder.SetInsertPoint(miss);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+#endif
+                currentBB = miss;
                 break;
             }
             CASE_(Memo) {
-                asm volatile("int3");
+                moz_inst_t *pc   = p + 1;
+                uint8_t state    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                uint16_t memoId  = *((uint16_t *)(pc));
+                Constant *state_    = builder.getInt32(state);
+                Constant *memoId_   = builder.getInt32(memoId);
+
+                Value *startpos;
+                Value *next;
+                Value *ast_tx;
+                Value *saved;
+                stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
+                Value *endpos  = builder.CreateLoad(cur);
+                Value *length  = get_length(builder, startpos, endpos);
+                Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
+                create_call_inst(builder, f_memoset,
+                        memo, startpos, memoId_, nullnode, length_, state_);
                 break;
             }
             CASE_(MemoFail) {
-                asm volatile("int3");
+                moz_inst_t *pc   = p + 1;
+                // uint8_t state    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                uint16_t memoId  = *((uint16_t *)(pc));
+                // Constant *state_    = builder.getInt8(state);
+                Constant *memoId_   = builder.getInt32(memoId);
+
+                Value *pos = builder.CreateLoad(cur);
+                create_call_inst(builder, f_memofail, memo, pos, memoId_);
+                builder.CreateBr(failBB);
                 break;
             }
             CASE_(TPush) {
@@ -1567,11 +1741,71 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(TLookup) {
+                BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
+                BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
+                BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
+
+                moz_inst_t *pc   = p + 1;
+                uint8_t state    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                TAG_t tagId = *((TAG_t *)(pc));
+                pc += sizeof(TAG_t);
+                uint16_t memoId  = *((uint16_t *)(pc));
+                pc += sizeof(uint16_t);
+                mozaddr_t skip   = *((mozaddr_t *)(pc));
+                moz_inst_t *dest = p + shift + skip;
+                Constant *state_    = builder.getInt8(state);
+                Constant *memoId_   = builder.getInt32(memoId);
+
+                Value *_tagId = get_tag_id(builder, runtime_, tagId);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
                 asm volatile("int3");
+#endif
+                Value *pos     = builder.CreateLoad(cur);
+                Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+                Value *hitcond = builder.CreateICmpNE(entry, nullentry);
+                builder.CreateCondBr(hitcond, hit, miss);
+
+                builder.SetInsertPoint(hit);
+                Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+                Value *result   = builder.CreateLoad(result_);
+                Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
+                Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
+                builder.CreateCondBr(failcond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+                Value *consumed  = builder.CreateLoad(consumed_);
+                Value *newpos    = consume_n(builder, pos, consumed);
+                builder.CreateStore(newpos, cur);
+                create_call_inst(builder, f_astlink, ast, _tagId, result);
+                builder.CreateBr(BBMap[dest]);
+
+                builder.SetInsertPoint(miss);
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+#endif
+                currentBB = miss;
                 break;
             }
             CASE_(TMemo) {
-                asm volatile("int3");
+                moz_inst_t *pc   = p + 1;
+                uint8_t state    = (uint8_t)*(pc);
+                pc += sizeof(uint8_t);
+                uint16_t memoId  = *((uint16_t *)(pc));
+                Constant *state_    = builder.getInt32(state);
+                Constant *memoId_   = builder.getInt32(memoId);
+
+                Value *startpos;
+                Value *next;
+                Value *ast_tx;
+                Value *saved;
+                stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
+                Value *endpos  = builder.CreateLoad(cur);
+                Value *length  = get_length(builder, startpos, endpos);
+                Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
+                Value *node    = create_call_inst(builder, f_astlastnode, ast);
+                create_call_inst(builder, f_memoset,
+                        memo, startpos, memoId_, node, length_, state_);
                 break;
             }
             CASE_(SOpen) {
@@ -1672,7 +1906,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     builder.SetInsertPoint(unreachableBB);
     builder.CreateUnreachable();
 
-    M->dump();
+    // M->dump();
     if(verifyFunction(*F)) {
         F->eraseFromParent();
         return NULL;
