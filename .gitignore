@@ -4,6 +4,6 @@ GRTAGS
 GTAGS
 GSYMS
 a.out*
-*.nzc
+*.ncz
 Release/
 Debug/
