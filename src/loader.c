@@ -1006,12 +1006,18 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 break;
             }
             CASE_(Call) {
+                int next;
+                int jump;
+                moz_inst_t *pc = p;
 #ifdef MOZVM_USE_NTERM
-                OP_PRINT("%d ", *(int16_t *)(p + 1));
-                p += sizeof(int16_t);
+                int nterm = *(int16_t *)(p + 1);
+                OP_PRINT("%s ", L->R->C.nterms[nterm]);
+                pc += sizeof(int16_t);
 #endif
-                OP_PRINT("%d ", *(mozaddr_t *)(p + 1));
-                OP_PRINT("%d", *(mozaddr_t *)(p + 1 + sizeof(mozaddr_t)));
+                next = *(mozaddr_t *)(pc + 1);
+                jump = *(mozaddr_t *)(pc + 1 + sizeof(mozaddr_t));
+                OP_PRINT("next=%d ", next);
+                OP_PRINT("jump=%d" , jump);
                 break;
             }
             CASE_(Ret);
