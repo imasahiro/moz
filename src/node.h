@@ -107,6 +107,9 @@ typedef void (*f_trace)(void *p, NodeVisitor *v);
 void NodeManager_add_gc_root(void *ptr, f_trace f);
 #endif
 
+#ifdef MOZVM_ENABLE_NODE_DIGEST
+void Node_digest(Node *o, const char **tag_list, unsigned char buf[32]);
+#endif
 
 void NodeManager_init();
 void NodeManager_dispose();
