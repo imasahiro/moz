@@ -334,10 +334,15 @@ DEF(TStart)
 }
 DEF(TCommit, TAG_t tagId)
 {
-    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
+    uint16_t _tagId;
+#if MOZVM_SMALL_TAG_INST
+    _tagId = tagId;
+#else
+    _tagId = (uint16_t)(runtime->C.tags - tagId);
+#endif
     long tx = POP();
     AstMachine *ast = AST_MACHINE_GET();
-    ast_commit_tx(ast, tag, tx);
+    ast_commit_tx(ast, _tagId, tx);
 }
 DEF(TAbort)
 {
@@ -346,9 +351,15 @@ DEF(TAbort)
 }
 DEF(TLookup, uint8_t state, TAG_t tagId, uint16_t memoId, mozaddr_t skip)
 {
-    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
     AstMachine *ast = AST_MACHINE_GET();
     MemoEntry_t *entry;
+    uint16_t _tagId;
+#if MOZVM_SMALL_TAG_INST
+    _tagId = tagId;
+#else
+    _tagId = (uint16_t)(runtime->C.tags - tagId);
+#endif
+
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
     MemoPoint *mp = runtime->memo_points + memoId;
     MOZVM_PROFILE_INC(MEMO_TOTAL_COUNT);
@@ -367,7 +378,7 @@ DEF(TLookup, uint8_t state, TAG_t tagId, uint16_t memoId, mozaddr_t skip)
             }
             MEMO_DEBUG_T_HIT(memoId, entry->consumed);
             CONSUME_N(entry->consumed);
-            ast_log_link(ast, tag, entry->result);
+            ast_log_link(ast, _tagId, entry->result);
             JUMP(skip);
         }
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION

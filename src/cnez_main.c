@@ -130,7 +130,7 @@ int main(int argc, char* const argv[])
 #ifdef CNEZ_ENABLE_AST_CONSTRUCTION
             Node *node = node = ast_get_parsed_node(ctx->ast);
             if (node && !quiet_mode) {
-                Node_print(node);
+                Node_print(node, L.R->C.tags);
             }
             NODE_GC_RELEASE(node);
 #endif

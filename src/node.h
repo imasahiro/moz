@@ -66,6 +66,7 @@ struct Node {
     const char *pos;
     const char *value;
     unsigned len;
+    int labelId; // FIXME(imasahiro) int -> int16_t
     union NodeEntry {
         struct node_small_array {
             unsigned size;
@@ -74,6 +75,14 @@ struct Node {
         ARRAY(NodePtr) array;
     } entry;
 };
+
+#define NODE_LABEL_UNDEF ((int)(-1))
+
+static inline const char *Node_label(Node *o, const char **tag_list)
+{
+    assert(o->labelId != NODE_LABEL_UNDEF);
+    return tag_list[o->labelId];
+}
 
 static inline unsigned Node_length(Node *o)
 {
@@ -84,9 +93,9 @@ Node *Node_new(const char *tag, const char *str, unsigned len, unsigned elm_size
 void Node_free(Node *o);
 void Node_append(Node *o, Node *n);
 Node *Node_get(Node *o, unsigned index);
-void Node_set(Node *o, unsigned index, Node *n);
+void Node_set(Node *o, unsigned index, uint16_t labelId, Node *n);
 #ifdef NODE_USE_NODE_PRINT
-void Node_print(Node *o);
+void Node_print(Node *o, const char **tag_list);
 #endif
 
 #ifdef MOZVM_MEMORY_USE_RCGC

@@ -63,7 +63,7 @@ Node *Node_get(Node *o, unsigned index)
     return NULL;
 }
 
-void Node_set(Node *o, unsigned index, Node *n)
+void Node_set(Node *o, unsigned index, uint16_t labelId, Node *n)
 {
     unsigned len;
     assert(o != n);
@@ -76,6 +76,7 @@ void Node_set(Node *o, unsigned index, Node *n)
         NODE_GC_RELEASE(v);
     }
 #endif
+    n->labelId = labelId;
     while (index >= Node_length(o)) {
         Node_append(o, NULL);
     }
@@ -141,7 +142,7 @@ static void print_indent(unsigned level)
     }
 }
 
-static void Node_print2(Node *o, unsigned level)
+static void Node_print2(Node *o, const char **tag_list, unsigned level)
 {
     unsigned i, len = Node_length(o);
 
@@ -159,7 +160,7 @@ static void Node_print2(Node *o, unsigned level)
             assert(node != o);
             print_indent(level + 1);
             if (node) {
-                Node_print2(node, level + 1);
+                Node_print2(node, tag_list, level + 1);
             }
             else {
                 fprintf(stderr, "null");
@@ -171,9 +172,9 @@ static void Node_print2(Node *o, unsigned level)
     }
 }
 
-void Node_print(Node *o)
+void Node_print(Node *o, const char **tag_list)
 {
-    Node_print2(o, 0);
+    Node_print2(o, tag_list, 0);
     fprintf(stderr, "\n");
 }
 #endif

@@ -119,7 +119,7 @@ int main(int argc, char *const argv[])
         if (node) {
             if (!quiet_mode) {
 #ifdef NODE_USE_NODE_PRINT
-                Node_print(node);
+                Node_print(node, L.R->C.tags);
 #endif
             }
             NODE_GC_RELEASE(node);

@@ -35,6 +35,18 @@ int main(int argc, char const* argv[])
     char *str = (char *)pstring_alloc(input, strlen(input));
     int i;
 
+    const char *tag_list[] = {
+#define LABEL_str 0
+        "str",
+#define LABEL_int1 1
+        "int1",
+#define LABEL_int2 2
+        "int2",
+#define LABEL_list 3
+        "list",
+#define LABEL_kv 4
+        "kv",
+    };
     for (i = 0; i < 5; i++) {
         struct tag *t = &tags[i];
         t->tag = (char *)pstring_alloc(t->txt, t->len);
@@ -52,7 +64,7 @@ int main(int argc, char const* argv[])
     /*02*/ast_log_new(ast, POS(3));
     /*03*/ast_log_tag(ast, TAG_String);
     /*04*/ast_log_capture(ast, POS(6));
-    /*05*/ast_commit_tx(ast, "str", 2);
+    /*05*/ast_commit_tx(ast, LABEL_str, 2);
     // #String[ 'key']
     key = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -63,7 +75,7 @@ int main(int argc, char const* argv[])
     /*07*/ast_log_new(ast, POS(11));
     /*08*/ast_log_tag(ast, TAG_Integer);
     /*09*/ast_log_capture(ast, POS(13));
-    /*10*/ast_commit_tx(ast, "int1", 4);
+    /*10*/ast_commit_tx(ast, LABEL_int1, 4);
     // #Integer[ '12']
     elm0 = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -73,7 +85,7 @@ int main(int argc, char const* argv[])
     /*11*/ast_log_new(ast, POS(15));
     /*12*/ast_log_tag(ast, TAG_Integer);
     /*13*/ast_log_capture(ast, POS(18));
-    /*14*/ast_commit_tx(ast, "int2", 5);
+    /*14*/ast_commit_tx(ast, LABEL_int2, 5);
     // #Integer[ '345']
     elm1 = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 0 &&
@@ -82,7 +94,7 @@ int main(int argc, char const* argv[])
 
     /*15*/ast_log_tag(ast, TAG_List);
     /*16*/ast_log_capture(ast, POS(19));
-    /*17*/ast_commit_tx(ast, "list", 3);
+    /*17*/ast_commit_tx(ast, LABEL_list, 3);
     // #List[
     //    #Integer[ '12']
     //    #Integer[ '345']
@@ -95,7 +107,7 @@ int main(int argc, char const* argv[])
 
     /*18*/ast_log_tag(ast, TAG_KeyValue);
     /*19*/ast_log_capture(ast, POS(19));
-    /*20*/ast_commit_tx(ast, "kv", 1);
+    /*20*/ast_commit_tx(ast, LABEL_kv, 1);
     kv = node = ast_get_last_linked_node(ast);
     assert(Node_length(node) == 2 &&
             node->tag == TAG_KeyValue &&
@@ -130,7 +142,7 @@ int main(int argc, char const* argv[])
     //    ]
     // ]
 #ifdef NODE_USE_NODE_PRINT
-    Node_print(node);
+    Node_print(node, tag_list);
 #endif
     // asm volatile("int3");
     NODE_GC_RELEASE(node);

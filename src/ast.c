@@ -176,10 +176,10 @@ void ast_log_pop(AstMachine *ast, const char *tag)
     ast_log(ast, TypePop, (mozpos_t)tag, 0);
 }
 
-void ast_log_link(AstMachine *ast, const char *tag, Node *node)
+void ast_log_link(AstMachine *ast, uint16_t labelId, Node *node)
 {
     union ast_log_index i;
-    i.tag = tag;
+    i.labelId = (uintptr_t)labelId;
     if (node) {
         NODE_GC_RETAIN(node);
     }
@@ -225,14 +225,14 @@ Node *constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail,
     }
     for (; cur <= tail; ++cur) {
         if(GetTag(cur) == TypeLink) {
-            const char *tag = cur->i.tag;
+            unsigned labelId = cur->i.labelId;
             int shift = cur->shift;
             Node *child = GetNode(cur);
             if(child) {
                 assert(n >= 0);
-                Node_set(newnode, n, child);
+                Node_set(newnode, n, labelId, child);
             } else {
-                fprintf(stderr, "@@ linking null child at %u(%s)\n", n, tag);
+                fprintf(stderr, "@@ linking null child at %u(%u)\n", n, labelId);
             }
             n++;
             cur += shift;
@@ -311,7 +311,7 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
     return tmp;
 }
 
-void ast_commit_tx(AstMachine *ast, const char *tag, long tx)
+void ast_commit_tx(AstMachine *ast, uint16_t labelId, long tx)
 {
     AstLog *cur;
     assert(ARRAY_size(ast->logs) > tx);
@@ -323,7 +323,7 @@ void ast_commit_tx(AstMachine *ast, const char *tag, long tx)
     Node *node = ast_create_node(ast, cur, NULL);
     ast_rollback_tx(ast, tx);
     if (node) {
-        ast_log_link(ast, tag, node);
+        ast_log_link(ast, labelId, node);
     }
 }
 
