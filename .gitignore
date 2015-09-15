@@ -5,5 +5,7 @@ GTAGS
 GSYMS
 a.out*
 *.ncz
+*.nzc
+*.moz
 Release/
 Debug/
