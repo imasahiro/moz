@@ -980,19 +980,23 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 {
     int i = 0, j = 0;
     uint8_t opcode = 0;
+    moz_inst_t *head = ARRAY_n(L->buf, 0);
     for (j = 0; j < L->R->C.nterm_size; j++) {
         mozvm_nterm_entry_t *e = &L->R->nterm_entry[j];
         moz_inst_t *p;
         OP_PRINT("Nterm%d %s\n", j, L->R->C.nterms[j]);
-        for (p = e->begin; p < e->end; p += opcode_size(opcode), i++) {
+        unsigned shift = 0;
+        int *table = NULL;
+        int table_size = 0;
+        for (p = e->begin; p < e->end; p += shift, i++) {
             opcode = *p;
+            shift = opcode_size(opcode);
 #ifdef MOZVM_PROFILE_INST
             if (L->R->C.profile) {
                 OP_PRINT("%8ld, ", L->R->C.profile[j]);
             }
 #endif
-
-            OP_PRINT("%ld, %04d, %s ", (long)p, i, opcode2str(opcode));
+            OP_PRINT("%ld, %04d, %s ", p - head, i, opcode2str(opcode));
             switch (opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop);
@@ -1002,7 +1006,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             }
             CASE_(Alt);
             CASE_(Jump) {
-                OP_PRINT("%d", *(mozaddr_t *)(p + 1));
+                OP_PRINT("%ld", p + shift - head + *(mozaddr_t *)(p + 1));
                 break;
             }
             CASE_(Call) {
@@ -1016,8 +1020,8 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 #endif
                 next = *(mozaddr_t *)(pc + 1);
                 jump = *(mozaddr_t *)(pc + 1 + sizeof(mozaddr_t));
-                OP_PRINT("next=%d ", next);
-                OP_PRINT("jump=%d" , jump);
+                OP_PRINT("next=%ld ", pc + shift - p + next);
+                OP_PRINT("jump=%ld" , pc + shift - p + jump);
                 break;
             }
             CASE_(Ret);
@@ -1068,35 +1072,50 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 break;
             }
             CASE_(First) {
-                JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
-                int *impl = JMPTBL_GET_IMPL(L->R, tblId);
-#if 1
-                OP_PRINT("%p", impl);
-#else
                 {
-                    int i;
-                    OP_PRINT("%p [", impl);
-                    for (i = 0; i < MOZ_JMPTABLE_SIZE - 1; i++) {
-                        OP_PRINT("%d ,", impl[i]);
+                    JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
+                    int *impl = JMPTBL_GET_IMPL(L->R, tblId);
+                    int target[257] = {};
+                    table = target;
+                    table_size = 0;
+                    for (i = 0; i < 257; i++) {
+                        int k;
+                        for (k = 0; k < table_size; k++) {
+                            if (impl[i] == target[k]) {
+                                break;
+                            }
+                        }
+                        if (j == table_size) {
+                            target[table_size++] = impl[i];
+                        }
                     }
-                    OP_PRINT("%d]", impl[MOZ_JMPTABLE_SIZE - 1]);
                 }
-#endif
+L_dump_table:
+                for (i = 0; i < table_size; i++) {
+                    OP_PRINT("%ld ,", p + shift + table[i] - head);
+                }
                 break;
             }
             CASE_(TblJump1) {
-                // uint16_t tblId = *(uint16_t *)(p + 1);
-                // jump_table1_t *t = L->R->C.jumps1 + tblId;
-                // char buf[1024];
-                // dump_set(&t->b[0], buf);
-                // OP_PRINT("%s : %d", buf, t->jumps[0]);
-                break;
+                uint16_t tblId = *(uint16_t *)(p + 1);
+                jump_table1_t *t = L->R->C.jumps1 + tblId;
+                table = t->jumps;
+                table_size = 2;
+                goto L_dump_table;
             }
             CASE_(TblJump2) {
-                break;
+                uint16_t tblId = *(uint16_t *)(p + 1);
+                jump_table2_t *t = L->R->C.jumps2 + tblId;
+                table = t->jumps;
+                table_size = 4;
+                goto L_dump_table;
             }
             CASE_(TblJump3) {
-                break;
+                uint16_t tblId = *(uint16_t *)(p + 1);
+                jump_table2_t *t = L->R->C.jumps2 + tblId;
+                table = t->jumps;
+                table_size = 8;
+                goto L_dump_table;
             }
             CASE_(Lookup) {
                 int state = *(int8_t *)(p + 1);
@@ -1127,7 +1146,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             CASE_(TCommit) {
                 TAG_t tagId = *(TAG_t *)(p + 1);
                 tag_t *impl = TAG_GET_IMPL(L->R, tagId);
-                OP_PRINT("%p", impl);
+                OP_PRINT("%s", impl);
                 break;
             }
             CASE_(TReplace) {
