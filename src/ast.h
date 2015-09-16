@@ -76,9 +76,9 @@ void ast_commit_tx(AstMachine *ast, uint16_t labelId, long tx);
 void ast_log_replace(AstMachine *ast, const char *str);
 void ast_log_capture(AstMachine *ast, mozpos_t pos);
 void ast_log_new(AstMachine *ast, mozpos_t pos);
-void ast_log_pop(AstMachine *ast, const char *label);
+void ast_log_pop(AstMachine *ast, uint16_t labelId);
 void ast_log_push(AstMachine *ast);
-void ast_log_swap(AstMachine *ast, mozpos_t pos, const char *tag);
+void ast_log_swap(AstMachine *ast, mozpos_t pos, uint16_t labelId);
 void ast_log_tag(AstMachine *ast, const char *tag);
 void ast_log_link(AstMachine *ast, uint16_t labelId, Node *result);
 

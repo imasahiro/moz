@@ -161,9 +161,9 @@ void ast_log_replace(AstMachine *ast, const char *str)
     ast_log(ast, TypeReplace, (mozpos_t)str, 0);
 }
 
-void ast_log_swap(AstMachine *ast, mozpos_t pos, const char *tag)
+void ast_log_swap(AstMachine *ast, mozpos_t pos, uint16_t labelId)
 {
-    ast_log(ast, TypeLeftFold, pos, 0);
+    ast_log(ast, TypeLeftFold, pos, (uintptr_t)labelId);
 }
 
 void ast_log_push(AstMachine *ast)
@@ -171,9 +171,9 @@ void ast_log_push(AstMachine *ast)
     ast_log(ast, TypePush, 0, 0);
 }
 
-void ast_log_pop(AstMachine *ast, const char *tag)
+void ast_log_pop(AstMachine *ast, uint16_t labelId)
 {
-    ast_log(ast, TypePop, (mozpos_t)tag, 0);
+    ast_log(ast, TypePop, (mozpos_t)(uintptr_t)labelId, 0);
 }
 
 void ast_log_link(AstMachine *ast, uint16_t labelId, Node *node)
@@ -279,8 +279,10 @@ static Node *ast_create_node(AstMachine *ast, AstLog *cur, AstLog *pushed)
         case TypeLeftFold:
             tmp = constructLeft(ast, head, cur, spos, epos, objSize, tag, value);
             NODE_GC_RETAIN(tmp);
+            tag = (const char *)cur->e.val;
             cur->e.ref = tmp;
             spos = cur->i.pos;
+            cur->i.pos = tag;
             SetTag(cur, TypeLink);
             tag = NULL;
             value = NULL;

@@ -295,15 +295,25 @@ DEF(TPush)
 }
 DEF(TPop, TAG_t tagId)
 {
-    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
+    uint16_t _tagId;
+#if MOZVM_SMALL_TAG_INST
+    _tagId = tagId;
+#else
+    _tagId = (uint16_t)(runtime->C.tags - tagId);
+#endif
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_pop(ast, tag);
+    ast_log_pop(ast, _tagId);
 }
 DEF(TLeftFold, uint8_t shift, TAG_t tagId)
 {
-    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
+    uint16_t _tagId;
+#if MOZVM_SMALL_TAG_INST
+    _tagId = tagId;
+#else
+    _tagId = (uint16_t)(runtime->C.tags - tagId);
+#endif
     AstMachine *ast = AST_MACHINE_GET();
-    ast_log_swap(ast, GET_POS() + shift, tag);
+    ast_log_swap(ast, GET_POS() + shift, _tagId);
 }
 DEF(TNew, uint8_t shift)
 {
