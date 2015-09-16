@@ -183,33 +183,38 @@ void Node_print(Node *o, const char **tag_list)
 #ifdef MOZVM_ENABLE_NODE_DIGEST
 #include "md5.c"
 
-static void Node_digest2(Node *o, const char **tag_list, MD5_CTX *ctx)
+static void Node_digest2(Node *o, const char **tag_list, md5_state_t *ctx)
 {
     unsigned i, len = Node_length(o);
-    MD5Update(ctx, (unsigned char *)"#", 1);
+    md5_append(ctx, (unsigned char *)"#", 1);
     if (o->tag) {
         unsigned tlen = pstring_length(o->tag);
-        MD5Update(ctx, (unsigned char *)o->tag, tlen);
+        md5_append(ctx, (unsigned char *)o->tag, tlen);
+        // fprintf(stderr, "'#%.*s'\n", tlen, o->tag);
     }
 
     for (i = 0; i < len; i++) {
         Node *node = Node_get(o, i);
-        const char *label = tag_list[node->labelId];
         assert(node != o);
         if (node) {
-            MD5Update(ctx, (unsigned char *)"$", 1);
-            MD5Update(ctx, (unsigned char *)label, pstring_length(label));
+            const char *label = Node_label(node, tag_list);
+            if (label[0] != 0) {
+                md5_append(ctx, (unsigned char *)"$", 1);
+                md5_append(ctx, (unsigned char *)label, pstring_length(label));
+                // fprintf(stderr, "'$%.*s'\n", pstring_length(label), label);
+            }
+            Node_digest2(node, tag_list, ctx);
         }
-        Node_digest2(node, tag_list, ctx);
     }
     if (len == 0) {
         if (o->value) {
             unsigned slen = pstring_length(o->value);
             assert(0 && "XXX: need to test");
-            MD5Update(ctx, (unsigned char *)o->value, slen);
+            md5_append(ctx, (unsigned char *)o->value, slen);
         }
         else {
-            MD5Update(ctx, (unsigned char *)o->pos, o->len);
+            md5_append(ctx, (unsigned char *)o->pos, o->len);
+            // fprintf(stderr, "'%.*s'\n", o->len, o->pos);
         }
     }
 }
@@ -217,18 +222,15 @@ static void Node_digest2(Node *o, const char **tag_list, MD5_CTX *ctx)
 void Node_digest(Node *o, const char **tag_list, unsigned char buf[32])
 {
     int i;
-    MD5_CTX ctx;
+    md5_state_t ctx;
     unsigned char tmp[16];
     unsigned char *p = buf;
-    MD5Init(&ctx);
+    md5_init(&ctx);
     Node_digest2(o, tag_list, &ctx);
-    MD5Final(tmp, &ctx);
+    md5_finish(&ctx, tmp);
     for (i = 0; i < 16; i++) {
         uint8_t d = tmp[i];
-        if (d < 16) {
-            *p++ = '0';
-        }
-        *p++ = (d < 0xf) ? '0' : ("0123456789abcdef"[(0xf0 & d) >> 4]);
+        *p++ = "0123456789abcdef"[(d >> 4) & 0xf];
         *p++ = "0123456789abcdef"[0xf & d];
     }
 }
