@@ -17,9 +17,30 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 using namespace std;
 using namespace llvm;
+
+struct Symbol {
+    const char *name;
+    void *func;
+};
+static const Symbol symbols[] = {
+    { ("ast_rollback_tx"), reinterpret_cast<void *>(ast_rollback_tx) },
+    { ("ast_commit_tx"),   reinterpret_cast<void *>(ast_commit_tx) },
+    { ("ast_log_replace"), reinterpret_cast<void *>(ast_log_capture) },
+    { ("ast_log_new"),     reinterpret_cast<void *>(ast_log_new) },
+    { ("ast_log_pop"),     reinterpret_cast<void *>(ast_log_pop) },
+    { ("ast_log_push"),    reinterpret_cast<void *>(ast_log_push) },
+    { ("ast_log_swap"),    reinterpret_cast<void *>(ast_log_swap) },
+    { ("ast_log_tag"),     reinterpret_cast<void *>(ast_log_tag) },
+    { ("ast_log_link"),    reinterpret_cast<void *>(ast_log_link) },
+    { ("memo_set"),        reinterpret_cast<void *>(memo_set) },
+    { ("memo_fail"),       reinterpret_cast<void *>(memo_fail) },
+    { ("memo_get"),        reinterpret_cast<void *>(memo_get) }
+};
+
 
 static inline int nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
 {
@@ -374,6 +395,19 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 
 
 class JitContext {
+private:
+    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
+#ifdef MOZVM_USE_JMPTBL
+    template<unsigned n>
+    FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
+#endif
+    FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
+    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
+
 public:
     ExecutionEngine *EE;
     StructType *bsetType;
@@ -423,22 +457,13 @@ public:
     FunctionType *tblsaveType;
     FunctionType *tblrollbackType;
 
-    ~JitContext() {};
-    JitContext();
-
-    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
 #ifdef MOZVM_USE_JMPTBL
     template<unsigned n>
     StructType *jump_table_type();
-    template<unsigned n>
-    FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
 #endif
-    FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
-    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
+
+    ~JitContext() {};
+    JitContext();
 };
 
 JitContext::JitContext()
@@ -575,24 +600,11 @@ JitContext::JitContext()
             jitfuncType->getPointerTo() //compiled_code
             );
 
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_rollback_tx"),
-            reinterpret_cast<void *>(ast_rollback_tx));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_commit_tx"),
-            reinterpret_cast<void *>(ast_commit_tx));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_replace"),
-            reinterpret_cast<void *>(ast_log_capture));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_new"),
-            reinterpret_cast<void *>(ast_log_new));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_pop"),
-            reinterpret_cast<void *>(ast_log_pop));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_push"),
-            reinterpret_cast<void *>(ast_log_push));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_swap"),
-            reinterpret_cast<void *>(ast_log_swap));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_tag"),
-            reinterpret_cast<void *>(ast_log_tag));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("ast_log_link"),
-            reinterpret_cast<void *>(ast_log_link));
+    for(int i = 0; i < ARRAY_SIZE(symbols); i++) {
+        const Symbol *sym = symbols + i;
+        sys::DynamicLibrary::AddSymbol(sym->name, sym->func);
+    }
+
     astrollbackType = get_function_type(VoidTy, astPtrTy, I64Ty);
     astcommitType   = get_function_type(VoidTy, astPtrTy, I16Ty, I64Ty);
     astreplaceType  = get_function_type(VoidTy, astPtrTy, I8PtrTy);
@@ -603,13 +615,6 @@ JitContext::JitContext()
     astswapType     = get_function_type(VoidTy, astPtrTy, mozposType, I16Ty);
     asttagType      = astreplaceType;
     astlinkType     = get_function_type(VoidTy, astPtrTy, I16Ty, nodePtrTy);
-
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_set"),
-            reinterpret_cast<void *>(memo_set));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_fail"),
-            reinterpret_cast<void *>(memo_fail));
-    sys::DynamicLibrary::AddSymbol(llvm::StringRef("memo_get"),
-            reinterpret_cast<void *>(memo_get));
     memosetType  = get_function_type(I32Ty,
             memoPtrTy, mozposType, I32Ty, nodePtrTy, I32Ty, I32Ty);
     memofailType = get_function_type(I32Ty, memoPtrTy, mozposType, I32Ty);
@@ -644,7 +649,7 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "bitset_get", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "bitset_get", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *set = arg_iter++;
@@ -715,7 +720,7 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
     Constant *f_bitsetget = M->getOrInsertFunction("bitset_get", bitsetgetType);
 
     string func_name = string("jump_table") + to_string(n) + string("_index");
-    F = Function::Create(funcTy, Function::ExternalLinkage, func_name, M);
+    F = Function::Create(funcTy, Function::InternalLinkage, func_name, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl = arg_iter++;
@@ -755,7 +760,7 @@ FunctionType *JitContext::create_pstring_length(IRBuilder<> &builder, Module *M)
     char *stroffset = ((pstring_t *)NULL)->str;
     Constant *offset = builder.getInt64((long)lenoffset - (long)stroffset);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "pstring_length", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "pstring_length", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *str = arg_iter++;
@@ -779,7 +784,7 @@ FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module
     FunctionType *funcTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I32Ty);
     Function *F;
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "pstring_starts_with", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "pstring_starts_with", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *str  = arg_iter++;
@@ -847,7 +852,7 @@ FunctionType *JitContext::create_ast_save_tx(IRBuilder<> &builder, Module *M)
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "ast_save_tx", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "ast_save_tx", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *ast = arg_iter++;
@@ -872,7 +877,7 @@ FunctionType *JitContext::create_ast_get_last_linked_node(IRBuilder<> &builder, 
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "ast_get_last_linked_node", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "ast_get_last_linked_node", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *ast = arg_iter++;
@@ -897,7 +902,7 @@ FunctionType *JitContext::create_symtable_savepoint(IRBuilder<> &builder, Module
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "symtable_savepoint", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "symtable_savepoint", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl = arg_iter++;
@@ -924,7 +929,7 @@ FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module 
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::ExternalLinkage, "symtable_rollback", M);
+    F = Function::Create(funcTy, Function::InternalLinkage, "symtable_rollback", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl   = arg_iter++;
@@ -962,6 +967,10 @@ void mozvm_jit_init(moz_runtime_t *runtime)
 
 void mozvm_jit_reset(moz_runtime_t *runtime)
 {
+    for (int i = 0; i < runtime->C.nterm_size; i++) {
+        runtime->nterm_entry[i].call_counter  = 0;
+        runtime->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
+    }
     delete get_context(runtime);
     runtime->jit_context = reinterpret_cast<void *>(new JitContext());
 }
