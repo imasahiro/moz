@@ -50,7 +50,7 @@ if(ENABLE_JIT)
     link_directories(${LLVM_LIBRARY_DIRS})
 
     llvm_map_components_to_libnames(llvm_libs
-        support core nativecodegen mcdisassembler mcjit)
+        support core nativecodegen mcdisassembler mcjit ipo)
 endif()
 
 add_library(nez SHARED ${NEZ_SRC})
