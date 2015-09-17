@@ -1342,7 +1342,18 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(NByte) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "nbyte.succ", F);
+                uint8_t ch = (uint8_t)*(p+1);
+                Constant *C = builder.getInt8(ch);
+
+                Value *pos = builder.CreateLoad(cur);
+                Value *current = get_current(builder, str, pos);
+                Value *character = builder.CreateLoad(current);
+                Value *cond = builder.CreateICmpEQ(character, C);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                currentBB = succ;
                 break;
             }
             CASE_(OByte) {
@@ -1424,7 +1435,19 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
                 break;
             }
             CASE_(NStr) {
-                asm volatile("int3");
+                BasicBlock *succ = BasicBlock::Create(Ctx, "nstr.succ", F);
+                STRING_t strId = *((STRING_t *)(p+1));
+
+                Value *str = get_string_ptr(builder, runtime_, strId);
+                Value *len = create_call_inst(builder, f_pstrlen, str);
+                Value *pos = builder.CreateLoad(cur);
+                Value *current = get_current(builder, str, pos);
+                Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
+                Value *cond = builder.CreateICmpEQ(result, i32_1);
+                builder.CreateCondBr(cond, failBB, succ);
+
+                builder.SetInsertPoint(succ);
+                currentBB = succ;
                 break;
             }
             CASE_(OStr) {
