@@ -1,7 +1,11 @@
 #include <unistd.h>
 #include <getopt.h>
+#ifdef MOZVM_ENABLE_JIT
+#undef MOZVM_ENABLE_JIT
+#endif
 #define LOADER_DEBUG 1
 #include "loader.c"
+#include "vm.c"
 
 static void usage(const char *arg)
 {

@@ -38,7 +38,7 @@ endif()
 set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
 set(MOZ_SRC  src/loader.c src/main.c src/vm.c)
 set(STAT_SRC src/stat.cpp)
-set(DUMP_SRC src/dump.c src/vm.c)
+set(DUMP_SRC src/dump.c)
 
 if(ENABLE_JIT)
     add_definitions(-DMOZVM_ENABLE_JIT=1)
