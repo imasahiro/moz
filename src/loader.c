@@ -996,7 +996,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 OP_PRINT("%8ld, ", L->R->C.profile[j]);
             }
 #endif
-            OP_PRINT("%ld, %04d, %s ", p - head, i, opcode2str(opcode));
+            OP_PRINT("%4ld %4d %s ", p - head, i, opcode2str(opcode));
             switch (opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop);

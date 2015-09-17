@@ -37,7 +37,8 @@ endif()
 
 set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
 set(MOZ_SRC  src/loader.c src/main.c src/vm.c)
-set(STAT_SRC  src/stat.cpp)
+set(STAT_SRC src/stat.cpp)
+set(DUMP_SRC src/dump.c src/vm.c)
 
 if(ENABLE_JIT)
     add_definitions(-DMOZVM_ENABLE_JIT=1)
@@ -58,8 +59,10 @@ add_library(nez SHARED ${NEZ_SRC})
 add_executable(moz ${MOZ_SRC})
 add_executable(moz_stat ${STAT_SRC})
 add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC})
+add_executable(moz_dump ${DUMP_SRC})
 
 target_link_libraries(moz nez)
+target_link_libraries(moz_dump nez)
 
 if(ENABLE_JIT)
     target_link_libraries(moz ${llvm_libs})
