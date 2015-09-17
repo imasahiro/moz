@@ -84,14 +84,24 @@ int main(int argc, char* const argv[])
     unsigned i, tmp, loop = 1;
     unsigned print_stats = 0;
     unsigned quiet_mode = 0;
+    unsigned show_digest = 0;
     int opt;
 
-    while ((opt = getopt(argc, argv, "qsn:i:h")) != -1) {
+    while ((opt = getopt(argc, argv,
+#ifdef MOZVM_ENABLE_NODE_DIGEST
+                    "d"
+#endif
+                    "qsn:i:h")) != -1) {
         switch (opt) {
         case 'n':
             tmp = atoi(optarg);
             loop = tmp > loop ? tmp : loop;
             break;
+#ifdef MOZVM_ENABLE_NODE_DIGEST
+        case 'd':
+            show_digest = 1;
+            break;
+#endif
         case 'q':
             quiet_mode = 1;
             break;
@@ -129,8 +139,17 @@ int main(int argc, char* const argv[])
         end = timer();
 #ifdef CNEZ_ENABLE_AST_CONSTRUCTION
             Node *node = node = ast_get_parsed_node(ctx->ast);
-            if (node && !quiet_mode) {
-                Node_print(node, L.R->C.tags);
+            if (node) {
+                if (!quiet_mode) {
+                    Node_print(node, global_tag_list);
+                }
+#ifdef MOZVM_ENABLE_NODE_DIGEST
+                if (show_digest) {
+                    unsigned char buf[32] = {};
+                    Node_digest(node, global_tag_list, buf);
+                    fprintf(stderr, "%.*s\n", 32, buf);
+                }
+#endif
             }
             NODE_GC_RELEASE(node);
 #endif
