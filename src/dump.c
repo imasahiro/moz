@@ -38,7 +38,6 @@ int main(int argc, char *const argv[])
     NodeManager_init();
     mozvm_loader_load_file(&L, syntax_file, 1);
     mozvm_loader_dump(&L, 1);
-    assert(inst != NULL);
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
     NodeManager_dispose();
