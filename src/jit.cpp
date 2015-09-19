@@ -1012,6 +1012,35 @@ uint8_t mozvm_jit_call_nterm(moz_runtime_t *runtime, const char *str, uint16_t n
     return parsed;
 }
 
+static int optimize(Module *M, Function *F)
+{
+    const int OptLevel  = 3;
+    const int SizeLevel = 1;
+
+    PassManager         MPM;
+    FunctionPassManager FPM(M);
+    PassManagerBuilder Builder;
+
+    FPM.add(createVerifierPass());
+    MPM.add(createDebugInfoVerifierPass());
+    Builder.OptLevel = OptLevel;
+    Builder.Inliner  = createFunctionInliningPass(OptLevel, SizeLevel);
+
+    Builder.populateFunctionPassManager(FPM);
+    Builder.populateModulePassManager(MPM);
+    // Builder.populateLTOPassManager(MPM);
+    FPM.doInitialization();
+    FPM.run(*F);
+    MPM.run(*M);
+
+    // F->dump();
+    // M->dump();
+    if(verifyFunction(*F)) {
+        return 1;
+    }
+    return 0;
+}
+
 moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 {
     JitContext *_ctx = get_context(runtime);
@@ -1844,29 +1873,7 @@ L_prepare_table:
     builder.CreateUnreachable();
 
 
-    const int OptLevel  = 3;
-    const int SizeLevel = 1;
-
-    PassManager         MPM;
-    FunctionPassManager FPM(M);
-    PassManagerBuilder Builder;
-
-    FPM.add(createVerifierPass());
-    MPM.add(createDebugInfoVerifierPass());
-    Builder.OptLevel = OptLevel;
-    Builder.Inliner  = createFunctionInliningPass(OptLevel, SizeLevel);
-
-    Builder.populateFunctionPassManager(FPM);
-    Builder.populateModulePassManager(MPM);
-    // Builder.populateLTOPassManager(MPM);
-    FPM.doInitialization();
-    FPM.run(*F);
-    MPM.run(*M);
-
-    // F->dump();
-    // M->dump();
-    if(verifyFunction(*F)) {
-        F->eraseFromParent();
+    if (optimize(M, F)) {
         return NULL;
     }
     _ctx->EE->finalizeObject();
