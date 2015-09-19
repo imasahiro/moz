@@ -32,56 +32,50 @@ struct Symbol {
     void *func;
 };
 static const Symbol symbols[] = {
-    { ("ast_rollback_tx"), reinterpret_cast<void *>(ast_rollback_tx) },
-    { ("ast_commit_tx"),   reinterpret_cast<void *>(ast_commit_tx) },
-    { ("ast_log_replace"), reinterpret_cast<void *>(ast_log_capture) },
-    { ("ast_log_new"),     reinterpret_cast<void *>(ast_log_new) },
-    { ("ast_log_pop"),     reinterpret_cast<void *>(ast_log_pop) },
-    { ("ast_log_push"),    reinterpret_cast<void *>(ast_log_push) },
-    { ("ast_log_swap"),    reinterpret_cast<void *>(ast_log_swap) },
-    { ("ast_log_tag"),     reinterpret_cast<void *>(ast_log_tag) },
-    { ("ast_log_link"),    reinterpret_cast<void *>(ast_log_link) },
-    { ("memo_set"),        reinterpret_cast<void *>(memo_set) },
-    { ("memo_fail"),       reinterpret_cast<void *>(memo_fail) },
-    { ("memo_get"),        reinterpret_cast<void *>(memo_get) }
+    { "ast_rollback_tx", reinterpret_cast<void *>(ast_rollback_tx) },
+    { "ast_commit_tx",   reinterpret_cast<void *>(ast_commit_tx) },
+    { "ast_log_replace", reinterpret_cast<void *>(ast_log_capture) },
+    { "ast_log_new",     reinterpret_cast<void *>(ast_log_new) },
+    { "ast_log_pop",     reinterpret_cast<void *>(ast_log_pop) },
+    { "ast_log_push",    reinterpret_cast<void *>(ast_log_push) },
+    { "ast_log_swap",    reinterpret_cast<void *>(ast_log_swap) },
+    { "ast_log_tag",     reinterpret_cast<void *>(ast_log_tag) },
+    { "ast_log_link",    reinterpret_cast<void *>(ast_log_link) },
+    { "memo_set",        reinterpret_cast<void *>(memo_set) },
+    { "memo_fail",       reinterpret_cast<void *>(memo_fail) },
+    { "memo_get",        reinterpret_cast<void *>(memo_get) }
 };
 
-
-static inline int nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
+static inline bool nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
 {
     return e->begin <= inst && inst <= e->end;
 }
 
 BasicBlock *get_jump_destination(mozvm_nterm_entry_t *e, moz_inst_t *dest, BasicBlock *failBB)
 {
-    if(!nterm_has_inst(e, dest)) {
-        if((*dest) == Fail) {
-            return failBB;
-        }
-        else {
-            return nullptr;
-        }
-    }
-    else {
+    if(!nterm_has_inst(e, dest) && *dest == Fail) {
+        return failBB;
+    } else {
         LLVMContext& Ctx = getGlobalContext();
         return BasicBlock::Create(Ctx, "jump.label");
     }
+    return nullptr;
 }
 
-template<class Vector, class First>
+template<typename Vector, typename First>
 void set_vector(const Vector& dest, const First& first)
 {
     dest->push_back(first);
 }
 
-template<class Vector, class First, class... Rest>
+template<typename Vector, typename First, typename... Rest>
 void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 {
     set_vector(dest, first);
     set_vector(dest, rest...);
 }
 
-template<class... Args>
+template<typename... Args>
 void define_struct_body(StructType *s_ty, const Args&... args)
 {
     vector<Type *> elements;
@@ -92,7 +86,7 @@ void define_struct_body(StructType *s_ty, const Args&... args)
     s_ty->setBody(elmsRef);
 }
 
-template<class... Args>
+template<typename... Args>
 StructType *define_struct_type(const char *name, const Args&... args)
 {
     LLVMContext& Ctx = getGlobalContext();
@@ -102,7 +96,7 @@ StructType *define_struct_type(const char *name, const Args&... args)
     return s_ty;
 }
 
-template<class... Args>
+template<typename... Args>
 Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... args)
 {
     vector<Value *> indexs;
@@ -112,7 +106,7 @@ Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... a
     return builder.CreateGEP(Val, idxsRef);
 }
 
-template<class Returns, class... Args>
+template<typename Returns, typename... Args>
 FunctionType *get_function_type(const Returns& returntype, const Args&... args)
 {
     vector<Type *> parameters;
@@ -122,7 +116,7 @@ FunctionType *get_function_type(const Returns& returntype, const Args&... args)
     return FunctionType::get(returntype, paramsRef, false);
 }
 
-template<class... Args>
+template<typename... Args>
 Value *create_call_inst(IRBuilder<> &builder, Value *F, const Args&... args)
 {
     vector<Value *> arguments;
@@ -379,7 +373,7 @@ Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 #endif /*MOZVM_SMALL_STRING_INST*/
 }
 
-template<unsigned n>
+template<unsigned N>
 Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 {
 #ifdef MOZVM_USE_JMPTBL
@@ -390,7 +384,7 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 #else
             builder.getInt32(11),
 #endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
-            builder.getInt32(4 + n));
+            builder.getInt32(4 + N));
     Value *jumps_head = builder.CreateLoad(r_c_jumps);
     return builder.CreateGEP(jumps_head, builder.getInt64(id));
 #else
