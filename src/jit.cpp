@@ -1029,7 +1029,6 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
     PointerType *nodePtrTy = _ctx->nodeType->getPointerTo();
-    Constant *nullnode     = Constant::getNullValue(nodePtrTy);
 
     Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
     Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
@@ -1229,7 +1228,7 @@ L_prepare_table:
                 break;
             }
             CASE_(Alt) {
-                mozaddr_t failjump = *((mozaddr_t *)(p+1));
+                mozaddr_t failjump = *((mozaddr_t *)(p + 1));
                 moz_inst_t *dest = p + shift + failjump;
 
                 BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
@@ -1240,22 +1239,21 @@ L_prepare_table:
                 break;
             }
             CASE_(Jump) {
-                mozaddr_t jump = *((mozaddr_t *)(p+1));
+                mozaddr_t jump = *((mozaddr_t *)(p + 1));
                 moz_inst_t *dest = p + shift + jump;
 
                 builder.CreateBr(BBMap[dest]);
                 break;
             }
             CASE_(Call) {
-                moz_inst_t *pc   = p + 1;
-                uint16_t nterm   = *((uint16_t *)(pc));
-                pc += sizeof(uint16_t);
-                mozaddr_t next   = *((mozaddr_t *)(pc));
+                uint16_t nterm   = *((uint16_t *)(p + 1));
+                mozaddr_t next   = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
                 moz_inst_t *dest = p + shift + next;
-                Constant *ID = builder.getInt16(nterm);
+                mozvm_nterm_entry_t *target = &runtime->nterm_entry[nterm];
 
+                Constant *ID = builder.getInt16(nterm);
                 Value *func;
-                if(mozvm_nterm_is_already_compiled(runtime->nterm_entry + nterm)) {
+                if(mozvm_nterm_is_already_compiled(target)) {
                     func = M->getOrInsertFunction(runtime->C.nterms[nterm], _ctx->jitfuncType);
                 }
                 else {
@@ -1305,7 +1303,7 @@ L_prepare_table:
             CASE_(Byte);
             CASE_(NByte) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "byte.succ", F);
-                uint8_t ch = *(uint8_t *)(p+1);
+                uint8_t ch = *(uint8_t *)(p + 1);
                 Constant *C = builder.getInt8(ch);
 
                 Value *pos = builder.CreateLoad(cur);
@@ -1331,7 +1329,7 @@ L_prepare_table:
             CASE_(OByte) {
                 BasicBlock *obody = BasicBlock::Create(Ctx, "obyte.body", F);
                 BasicBlock *oend  = BasicBlock::Create(Ctx, "obyte.end", F);
-                uint8_t ch = (uint8_t)*(p+1);
+                uint8_t ch = (uint8_t)*(p + 1);
                 Constant *C = builder.getInt8(ch);
 
                 Value *pos = builder.CreateLoad(cur);
@@ -1418,7 +1416,7 @@ L_prepare_table:
             CASE_(Set);
             CASE_(NSet) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
-                BITSET_t setId = *((BITSET_t *)(p+1));
+                BITSET_t setId = *((BITSET_t *)(p + 1));
 
                 Value *set = get_bitset_ptr(builder, runtime_, setId);
                 Value *pos = builder.CreateLoad(cur);
@@ -1447,7 +1445,7 @@ L_prepare_table:
             CASE_(OSet) {
                 BasicBlock *obody = BasicBlock::Create(Ctx, "oset.body", F);
                 BasicBlock *oend  = BasicBlock::Create(Ctx, "oset.end", F);
-                BITSET_t setId = *((BITSET_t *)(p+1));
+                BITSET_t setId = *((BITSET_t *)(p + 1));
 
                 Value *set = get_bitset_ptr(builder, runtime_, setId);
                 Value *pos = builder.CreateLoad(cur);
@@ -1472,7 +1470,7 @@ L_prepare_table:
                 BasicBlock *rbody = BasicBlock::Create(Ctx, "rset.body", F);
                 BasicBlock *rend  = BasicBlock::Create(Ctx, "rset.end",  F);
 
-                BITSET_t setId = *((BITSET_t *)(p+1));
+                BITSET_t setId = *((BITSET_t *)(p + 1));
                 Value *set = get_bitset_ptr(builder, runtime_, setId);
                 Value *firstpos = builder.CreateLoad(cur);
                 builder.CreateBr(rcond);
@@ -1537,17 +1535,14 @@ L_prepare_table:
                 BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
                 BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
 
-                moz_inst_t *pc   = p + 1;
-                uint8_t state    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                uint16_t memoId  = *((uint16_t *)(pc));
-                pc += sizeof(uint16_t);
-                mozaddr_t skip   = *((mozaddr_t *)(pc));
+                uint8_t state    = *(uint8_t   *)(p + 1);
+                uint16_t memoId  = *(uint16_t  *)(p + 2);
+                mozaddr_t skip   = *(mozaddr_t *)(p + 2 + sizeof(uint16_t));
                 moz_inst_t *dest = p + shift + skip;
-                Constant *state_    = builder.getInt8(state);
-                Constant *memoId_   = builder.getInt32(memoId);
+                Constant *state_  = builder.getInt8(state);
+                Constant *memoId_ = builder.getInt32(memoId);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-                asm volatile("int3");
+#error not implemented
 #endif
                 Value *pos     = builder.CreateLoad(cur);
                 Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
@@ -1575,10 +1570,8 @@ L_prepare_table:
                 break;
             }
             CASE_(Memo) {
-                moz_inst_t *pc   = p + 1;
-                uint8_t state    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                uint16_t memoId  = *((uint16_t *)(pc));
+                uint8_t  state  = *(uint8_t   *)(p + 1);
+                uint16_t memoId = *((uint16_t *)(p + 2));
                 Constant *state_    = builder.getInt32(state);
                 Constant *memoId_   = builder.getInt32(memoId);
 
@@ -1586,21 +1579,20 @@ L_prepare_table:
                 Value *next;
                 Value *ast_tx;
                 Value *saved;
+                Value *length;
                 stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
                 Value *endpos  = builder.CreateLoad(cur);
-                Value *length  = get_length(builder, startpos, endpos);
-                Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
+                length = get_length(builder, startpos, endpos);
+                length = builder.CreateTrunc(length, builder.getInt32Ty());
+                Constant *nullnode = Constant::getNullValue(nodePtrTy);
                 create_call_inst(builder, f_memoset,
-                        memo, startpos, memoId_, nullnode, length_, state_);
+                        memo, startpos, memoId_, nullnode, length, state_);
                 break;
             }
             CASE_(MemoFail) {
-                moz_inst_t *pc   = p + 1;
-                // uint8_t state    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                uint16_t memoId  = *((uint16_t *)(pc));
-                // Constant *state_    = builder.getInt8(state);
-                Constant *memoId_   = builder.getInt32(memoId);
+                // uint8_t state   = *(uint8_t   *)(p + 1);
+                uint16_t memoId = *((uint16_t *)(p + 2));
+                Constant *memoId_ = builder.getInt32(memoId);
 
                 Value *pos = builder.CreateLoad(cur);
                 create_call_inst(builder, f_memofail, memo, pos, memoId_);
@@ -1612,17 +1604,15 @@ L_prepare_table:
                 break;
             }
             CASE_(TPop) {
-                TAG_t tagId = *((TAG_t *)(p+1));
+                TAG_t tagId = *((TAG_t *)(p + 1));
 
                 Value *_tagId = get_tag_id(builder, runtime_, tagId);
                 create_call_inst(builder, f_astpop, ast, _tagId);
                 break;
             }
             CASE_(TLeftFold) {
-                moz_inst_t *pc   = p + 1;
-                uint8_t shift    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                TAG_t tagId      = *((TAG_t *)(pc));
+                uint8_t shift    = *(uint8_t *)(p + 1);
+                TAG_t tagId      = *(TAG_t   *)(p + 2);
                 Constant *shift_ = builder.getInt64(shift);
 
                 Value *_tagId  = get_tag_id(builder, runtime_, tagId);
@@ -1632,7 +1622,7 @@ L_prepare_table:
                 break;
             }
             CASE_(TNew) {
-                uint8_t shift    = (uint8_t)*(p+1);
+                uint8_t shift    = *(uint8_t *)(p + 1);
                 Constant *shift_ = builder.getInt64(shift);
 
                 Value *pos    = builder.CreateLoad(cur);
@@ -1641,7 +1631,7 @@ L_prepare_table:
                 break;
             }
             CASE_(TCapture) {
-                uint8_t shift    = (uint8_t)*(p+1);
+                uint8_t shift    = *(uint8_t *)(p + 1);
                 Constant *shift_ = builder.getInt64(shift);
 
                 Value *pos        = builder.CreateLoad(cur);
@@ -1650,14 +1640,14 @@ L_prepare_table:
                 break;
             }
             CASE_(TTag) {
-                TAG_t tagId = *((TAG_t *)(p+1));
+                TAG_t tagId = *(TAG_t *)(p + 1);
 
                 Value *tag = get_tag_ptr(builder, runtime_, tagId);
                 create_call_inst(builder, f_asttag, ast, tag);
                 break;
             }
             CASE_(TReplace) {
-                STRING_t strId = *((STRING_t *)(p+1));
+                STRING_t strId = *(STRING_t *)(p + 1);
 
                 Value *str = get_string_ptr(builder, runtime_, strId);
                 create_call_inst(builder, f_astreplace, ast, str);
@@ -1669,7 +1659,7 @@ L_prepare_table:
                 break;
             }
             CASE_(TCommit) {
-                TAG_t tagId = *((TAG_t *)(p+1));
+                TAG_t tagId = *(TAG_t *)(p + 1);
 
                 Value *_tagId = get_tag_id(builder, runtime_, tagId);
                 Value *tx     = stack_pop(builder, sp);
@@ -1686,16 +1676,13 @@ L_prepare_table:
                 BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
 
                 moz_inst_t *pc   = p + 1;
-                uint8_t state    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                TAG_t tagId = *((TAG_t *)(pc));
-                pc += sizeof(TAG_t);
-                uint16_t memoId  = *((uint16_t *)(pc));
-                pc += sizeof(uint16_t);
-                mozaddr_t skip   = *((mozaddr_t *)(pc));
+                uint8_t state = *(uint8_t *)(p + 1);
+                TAG_t   tagId = *(TAG_t   *)(p + 2);
+                uint16_t  memoId = *(uint16_t  *)(p + 2 + sizeof(TAG_t));
+                mozaddr_t skip   = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
                 moz_inst_t *dest = p + shift + skip;
-                Constant *state_    = builder.getInt8(state);
-                Constant *memoId_   = builder.getInt32(memoId);
+                Constant *state_  = builder.getInt8(state);
+                Constant *memoId_ = builder.getInt32(memoId);
 
                 Value *_tagId = get_tag_id(builder, runtime_, tagId);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
@@ -1728,12 +1715,10 @@ L_prepare_table:
                 break;
             }
             CASE_(TMemo) {
-                moz_inst_t *pc   = p + 1;
-                uint8_t state    = (uint8_t)*(pc);
-                pc += sizeof(uint8_t);
-                uint16_t memoId  = *((uint16_t *)(pc));
-                Constant *state_    = builder.getInt32(state);
-                Constant *memoId_   = builder.getInt32(memoId);
+                uint8_t state    = *(uint8_t *)(p + 1);
+                uint16_t memoId  = *(uint16_t *)(p + 2);
+                Constant *state_  = builder.getInt32(state);
+                Constant *memoId_ = builder.getInt32(memoId);
 
                 Value *startpos;
                 Value *next;
