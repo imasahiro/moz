@@ -1079,100 +1079,83 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
 
     moz_inst_t *p = e->begin;
+    int *table_jumps = NULL;
+    int  table_size  = 0;
     while (p < e->end) {
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
-        if(opcode == Alt || opcode == Jump) {
-            mozaddr_t jump = *((mozaddr_t *)(p+1));
+        switch (opcode) {
+        case Alt:
+        case Jump: {
+            mozaddr_t jump = *(mozaddr_t *)(p + 1);
             moz_inst_t *dest = p + shift + jump;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
-                if(!label) {
-                    F->eraseFromParent();
-                    return NULL;
-                }
+                assert(label != NULL);
                 BBMap[dest] = label;
                 if(opcode == Alt) {
                     failjumpList.push_back(label);
                 }
             }
+            break;
         }
-        else if(opcode == Call) {
+        case Call: {
             mozaddr_t next = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
             moz_inst_t *dest = p + shift + next;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
-                if(!label) {
-                    F->eraseFromParent();
-                    return NULL;
-                }
+                assert(label != NULL);
                 BBMap[dest] = label;
             }
+            break;
         }
-        else if(opcode == Lookup) {
-            moz_inst_t *pc   = p + 1 + sizeof(uint8_t) + sizeof(uint16_t);
+        case Lookup:
+        case TLookup: {
+            moz_inst_t *pc = p + shift - sizeof(mozaddr_t);
             mozaddr_t skip = *((mozaddr_t *)(pc));
             moz_inst_t *dest = p + shift + skip;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
-                if(!label) {
-                    F->eraseFromParent();
-                    return NULL;
-                }
+                assert(label != NULL);
                 BBMap[dest] = label;
             }
-        }
-        else if(opcode == TLookup) {
-            moz_inst_t *pc   = p + 1 + sizeof(uint8_t) + sizeof(TAG_t) + sizeof(uint16_t);
-            mozaddr_t skip = *((mozaddr_t *)(pc));
-            moz_inst_t *dest = p + shift + skip;
-            if(BBMap.find(dest) == BBMap.end()) {
-                BasicBlock *label = get_jump_destination(e, dest, failBB);
-                if(!label) {
-                    F->eraseFromParent();
-                    return NULL;
-                }
-                BBMap[dest] = label;
-            }
+            break;
         }
 #ifdef MOZVM_USE_JMPTBL
-        else if(opcode == TblJump1 || opcode == TblJump2 || opcode == TblJump3) {
-            uint16_t tblId = *((uint16_t *)(p+1));
-            moz_inst_t *jmpoffset = p + shift;
-            int *jumps;
-            int size;
-            switch(opcode) {
-                case TblJump1: {
-                    jumps = runtime->C.jumps1[tblId].jumps;
-                    size = 2;
-                    break;
-                }
-                case TblJump2: {
-                    jumps = runtime->C.jumps2[tblId].jumps;
-                    size = 4;
-                    break;
-                }
-                case TblJump3: {
-                    jumps = runtime->C.jumps3[tblId].jumps;
-                    size = 8;
-                    break;
-                }
+        case TblJump1: {
+            uint16_t tblId = *((uint16_t *)(p + 1));
+            table_jumps = runtime->C.jumps1[tblId].jumps;
+            table_size  = 2;
+            goto L_prepare_table;
+        }
+        case TblJump2: {
+            uint16_t tblId = *((uint16_t *)(p + 1));
+            table_jumps = runtime->C.jumps2[tblId].jumps;
+            table_size  = 4;
+            goto L_prepare_table;
+        }
+        case TblJump3: {
+            {
+                uint16_t tblId = *((uint16_t *)(p + 1));
+                table_jumps = runtime->C.jumps3[tblId].jumps;
+                table_size  = 8;
             }
-            for(int i = 0; i < size; i++) {
-                if(jumps[i] != INT_MAX) {
-                    moz_inst_t *dest = jmpoffset + jumps[i];
+L_prepare_table:
+            for(int i = 0; i < table_size; i++) {
+                moz_inst_t *jmpoffset = p + shift;
+                if(table_jumps[i] != INT_MAX) {
+                    moz_inst_t *dest = jmpoffset + table_jumps[i];
                     if(BBMap.find(dest) == BBMap.end()) {
                         BasicBlock *label = get_jump_destination(e, dest, failBB);
-                        if(!label) {
-                            F->eraseFromParent();
-                            return NULL;
-                        }
+                        assert(label != NULL);
                         BBMap[dest] = label;
                     }
                 }
             }
+            break;
         }
 #endif /*MOZVM_USE_JMPTBL*/
+        }
         p += opcode_size(opcode);
     }
 
