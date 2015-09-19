@@ -120,7 +120,7 @@ Value *create_call_inst(IRBuilder<> &builder, Value *F, const Args&... args)
     return builder.CreateCall(F, argsRef);
 }
 
-static Value *get_current(IRBuilder<> &builder, Value *str, Value *pos)
+static Value *GetCur(IRBuilder<> &builder, Value *str, Value *pos)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     return pos;
@@ -613,8 +613,8 @@ static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
     currentText->addIncoming(nextText, wbodyBB);
     Value *nextStr   = builder.CreateGEP(currentStr, i64_1);
     currentStr->addIncoming(nextStr, wbodyBB);
-    Value *ifcond = builder.CreateICmpEQ(str_char, text_char);
-    builder.CreateCondBr(ifcond, wcondBB, wretBB);
+    Value *cond = builder.CreateICmpEQ(str_char, text_char);
+    builder.CreateCondBr(cond, wcondBB, wretBB);
 
     builder.SetInsertPoint(wendBB);
     builder.CreateRet(builder.getInt32(1));
@@ -733,7 +733,7 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
     Constant *f = M->getOrInsertFunction(buf, FTy);
 
     Value *pos = builder.CreateLoad(cur);
-    Value *current = get_current(builder, str, pos);
+    Value *current = GetCur(builder, str, pos);
     Value *character = builder.CreateLoad(current);
     Value *idx = create_call_inst(builder, f, tbl, character);
 
@@ -885,11 +885,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     _ctx->curMod = M;
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
+    Type *memoentryPtrTy = GetType<MemoEntry_t *>();
+    Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
+    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
+
     Constant *f_bitsetget   = REGISTER_FUNC(M, bitset_get);
     Constant *f_pstrstwith  = REGISTER_FUNC(M, pstring_starts_with);
-
     Constant *f_astsave     = REGISTER_FUNC(M, ast_save_tx);
-
     Constant *f_astrollback = REGISTER_FUNC(M, ast_rollback_tx);
     Constant *f_astcommit   = REGISTER_FUNC(M, ast_commit_tx);
     Constant *f_astreplace  = REGISTER_FUNC(M, ast_log_replace);
@@ -901,14 +903,9 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Constant *f_asttag      = REGISTER_FUNC(M, ast_log_tag);
     Constant *f_astlink     = REGISTER_FUNC(M, ast_log_link);
     Constant *f_astlastnode = REGISTER_FUNC(M, ast_get_last_linked_node);
-
-    Type *memoentryPtrTy = GetType<MemoEntry_t *>();
-    Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
-    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
-    Constant *f_memoset         = REGISTER_FUNC(M, memo_set);
-    Constant *f_memofail        = REGISTER_FUNC(M, memo_fail);
-    Constant *f_memoget         = REGISTER_FUNC(M, memo_get);
-
+    Constant *f_memoset     = REGISTER_FUNC(M, memo_set);
+    Constant *f_memofail    = REGISTER_FUNC(M, memo_fail);
+    Constant *f_memoget     = REGISTER_FUNC(M, memo_get);
     Constant *f_tblsave     = REGISTER_FUNC(M, symtable_savepoint);
     Constant *f_tblrollback = REGISTER_FUNC(M, symtable_rollback);
 
@@ -1069,571 +1066,571 @@ L_prepare_table:
 
         switch(opcode) {
 #define CASE_(OP) case OP:
-            CASE_(Nop) {
-                break;
-            }
-            CASE_(Fail) {
-                builder.CreateBr(failBB);
-                break;
-            }
-            CASE_(Succ) {
-                Value *pos;
-                Value *next;
-                Value *ast_tx;
-                Value *saved;
-                stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
-                break;
-            }
-            CASE_(Alt) {
-                mozaddr_t failjump = *((mozaddr_t *)(p + 1));
-                moz_inst_t *dest = p + shift + failjump;
+        CASE_(Nop) {
+            break;
+        }
+        CASE_(Fail) {
+            builder.CreateBr(failBB);
+            break;
+        }
+        CASE_(Succ) {
+            Value *pos;
+            Value *next;
+            Value *ast_tx;
+            Value *saved;
+            stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
+            break;
+        }
+        CASE_(Alt) {
+            mozaddr_t failjump = *((mozaddr_t *)(p + 1));
+            moz_inst_t *dest = p + shift + failjump;
 
-                BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
-                Value *pos = builder.CreateLoad(cur);
-                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
-                Value *saved  = create_call_inst(builder, f_tblsave, tbl);
-                stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
-                break;
-            }
-            CASE_(Jump) {
-                mozaddr_t jump = *((mozaddr_t *)(p + 1));
-                moz_inst_t *dest = p + shift + jump;
+            BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
+            Value *pos = builder.CreateLoad(cur);
+            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+            Value *saved  = create_call_inst(builder, f_tblsave, tbl);
+            stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
+            break;
+        }
+        CASE_(Jump) {
+            mozaddr_t jump = *((mozaddr_t *)(p + 1));
+            moz_inst_t *dest = p + shift + jump;
 
-                builder.CreateBr(BBMap[dest]);
-                break;
-            }
-            CASE_(Call) {
-                uint16_t nterm   = *((uint16_t *)(p + 1));
-                mozaddr_t next   = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
-                moz_inst_t *dest = p + shift + next;
-                mozvm_nterm_entry_t *target = &runtime->nterm_entry[nterm];
+            builder.CreateBr(BBMap[dest]);
+            break;
+        }
+        CASE_(Call) {
+            uint16_t nterm   = *((uint16_t *)(p + 1));
+            mozaddr_t next   = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
+            moz_inst_t *dest = p + shift + next;
+            mozvm_nterm_entry_t *target = &runtime->nterm_entry[nterm];
 
-                Constant *ID = builder.getInt16(nterm);
-                Value *func;
-                if(mozvm_nterm_is_already_compiled(target)) {
-                    const char *nterm_name = runtime->C.nterms[nterm];
-                    func = M->getOrInsertFunction(nterm_name, FuncTy);
-                }
-                else {
-                    func = get_callee_function(builder, runtime_, nterm);
-                }
-                Value *result = create_call_inst(builder, func, runtime_, str, ID);
-                Value *cond   = builder.CreateICmpNE(result, i8_0);
-                builder.CreateCondBr(cond, failBB, BBMap[dest]);
-                break;
+            Constant *ID = builder.getInt16(nterm);
+            Value *func;
+            if(mozvm_nterm_is_already_compiled(target)) {
+                const char *nterm_name = runtime->C.nterms[nterm];
+                func = M->getOrInsertFunction(nterm_name, FuncTy);
             }
-            CASE_(Ret) {
-                builder.CreateBr(retBB);
-                break;
+            else {
+                func = get_callee_function(builder, runtime_, nterm);
             }
-            CASE_(Pos) {
-                Value *pos = builder.CreateLoad(cur);
-                stack_push_pos(builder, sp, pos);
-                break;
+            Value *result = create_call_inst(builder, func, runtime_, str, ID);
+            Value *cond   = builder.CreateICmpNE(result, i8_0);
+            builder.CreateCondBr(cond, failBB, BBMap[dest]);
+            break;
+        }
+        CASE_(Ret) {
+            builder.CreateBr(retBB);
+            break;
+        }
+        CASE_(Pos) {
+            Value *pos = builder.CreateLoad(cur);
+            stack_push_pos(builder, sp, pos);
+            break;
+        }
+        CASE_(Back) {
+            Value *pos = stack_pop_pos(builder, sp);
+            builder.CreateStore(pos, cur);
+            break;
+        }
+        CASE_(Skip) {
+            BasicBlock *next = BasicBlock::Create(Ctx, "skip.next", F);
+
+            Value *prev_pos_;
+            Value *next_;
+            Value *ast_tx_;
+            Value *saved_;
+            stack_peek_frame(builder, sp, fp, &prev_pos_, &next_, &ast_tx_, &saved_);
+            Value *pos = builder.CreateLoad(cur);
+            Value *prev_pos = builder.CreateLoad(prev_pos_);
+            Value *cond = builder.CreateICmpEQ(prev_pos, pos);
+            builder.CreateCondBr(cond, failBB, next);
+
+            builder.SetInsertPoint(next);
+            builder.CreateStore(pos, prev_pos_);
+            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+            builder.CreateStore(ast_tx, ast_tx_);
+            Value *saved = create_call_inst(builder, f_tblsave, tbl);
+            builder.CreateStore(saved, saved_);
+            currentBB = next;
+            break;
+        }
+        CASE_(Byte);
+        CASE_(NByte) {
+            BasicBlock *succ = BasicBlock::Create(Ctx, "byte.succ", F);
+            uint8_t ch = *(uint8_t *)(p + 1);
+            Constant *C = builder.getInt8(ch);
+
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *character = builder.CreateLoad(current);
+            Value *cond;
+            if (opcode == Byte) {
+                cond = builder.CreateICmpNE(character, C);
             }
-            CASE_(Back) {
-                Value *pos = stack_pop_pos(builder, sp);
-                builder.CreateStore(pos, cur);
-                break;
+            else {
+                cond = builder.CreateICmpEQ(character, C);
             }
-            CASE_(Skip) {
-                BasicBlock *next = BasicBlock::Create(Ctx, "skip.next", F);
+            builder.CreateCondBr(cond, failBB, succ);
 
-                Value *prev_pos_;
-                Value *next_;
-                Value *ast_tx_;
-                Value *saved_;
-                stack_peek_frame(builder, sp, fp, &prev_pos_, &next_, &ast_tx_, &saved_);
-                Value *pos = builder.CreateLoad(cur);
-                Value *prev_pos = builder.CreateLoad(prev_pos_);
-                Value *ifcond = builder.CreateICmpEQ(prev_pos, pos);
-                builder.CreateCondBr(ifcond, failBB, next);
-
-                builder.SetInsertPoint(next);
-                builder.CreateStore(pos, prev_pos_);
-                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
-                builder.CreateStore(ast_tx, ast_tx_);
-                Value *saved = create_call_inst(builder, f_tblsave, tbl);
-                builder.CreateStore(saved, saved_);
-                currentBB = next;
-                break;
-            }
-            CASE_(Byte);
-            CASE_(NByte) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "byte.succ", F);
-                uint8_t ch = *(uint8_t *)(p + 1);
-                Constant *C = builder.getInt8(ch);
-
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *cond;
-                if (opcode == Byte) {
-                    cond = builder.CreateICmpNE(character, C);
-                }
-                else {
-                    cond = builder.CreateICmpEQ(character, C);
-                }
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
-                if (opcode == Byte) {
-                    Value *nextpos = consume(builder, pos);
-                    builder.CreateStore(nextpos, cur);
-                }
-                currentBB = succ;
-                break;
-            }
-            CASE_(OByte) {
-                BasicBlock *obody = BasicBlock::Create(Ctx, "obyte.body", F);
-                BasicBlock *oend  = BasicBlock::Create(Ctx, "obyte.end", F);
-                uint8_t ch = (uint8_t)*(p + 1);
-                Constant *C = builder.getInt8(ch);
-
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *cond = builder.CreateICmpEQ(character, C);
-                builder.CreateCondBr(cond, obody, oend);
-
-                builder.SetInsertPoint(obody);
+            builder.SetInsertPoint(succ);
+            if (opcode == Byte) {
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
-                builder.CreateBr(oend);
-
-                builder.SetInsertPoint(oend);
-                currentBB = oend;
-                break;
             }
-            CASE_(RByte) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(Any);
-            CASE_(NAny) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
+            currentBB = succ;
+            break;
+        }
+        CASE_(OByte) {
+            BasicBlock *obody = BasicBlock::Create(Ctx, "obyte.body", F);
+            BasicBlock *oend  = BasicBlock::Create(Ctx, "obyte.end", F);
+            uint8_t ch = (uint8_t)*(p + 1);
+            Constant *C = builder.getInt8(ch);
 
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *cond;
-                if (opcode == Any) {
-                    cond = builder.CreateICmpEQ(current, tail);
-                } else {
-                    cond = builder.CreateICmpNE(current, tail);
-                }
-                builder.CreateCondBr(cond, failBB, succ);
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *character = builder.CreateLoad(current);
+            Value *cond = builder.CreateICmpEQ(character, C);
+            builder.CreateCondBr(cond, obody, oend);
 
-                builder.SetInsertPoint(succ);
-                if (opcode == Any) {
-                    Value *nextpos = consume(builder, pos);
-                    builder.CreateStore(nextpos, cur);
-                }
-                currentBB = succ;
-                break;
-            }
-            CASE_(OAny) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(RAny) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(Str);
-            CASE_(NStr) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
-                STRING_t strId = *((STRING_t *)(p + 1));
-                const char *impl = STRING_GET_IMPL(runtime, strId);
+            builder.SetInsertPoint(obody);
+            Value *nextpos = consume(builder, pos);
+            builder.CreateStore(nextpos, cur);
+            builder.CreateBr(oend);
 
-                Value *str = get_string_ptr(builder, runtime_, strId);
-                Value *len = builder.getInt32(pstring_length(impl));
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
-                Value *C = opcode == Str ? i32_0 : i32_1;
-                Value *cond = builder.CreateICmpEQ(result, C);
-                builder.CreateCondBr(cond, failBB, succ);
+            builder.SetInsertPoint(oend);
+            currentBB = oend;
+            break;
+        }
+        CASE_(RByte) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(Any);
+        CASE_(NAny) {
+            BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
 
-                builder.SetInsertPoint(succ);
-                if (opcode == Str) {
-                    Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
-                    Value *nextpos = consume_n(builder, pos, len_);
-                    builder.CreateStore(nextpos, cur);
-                }
-                currentBB = succ;
-                break;
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *cond;
+            if (opcode == Any) {
+                cond = builder.CreateICmpEQ(current, tail);
+            } else {
+                cond = builder.CreateICmpNE(current, tail);
             }
-            CASE_(OStr) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(RStr) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(Set);
-            CASE_(NSet) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
-                BITSET_t setId = *((BITSET_t *)(p + 1));
+            builder.CreateCondBr(cond, failBB, succ);
 
-                Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *C = opcode == Str ? i32_0 : i32_1;
-                Value *cond = NULL;
-                if (opcode == Set) {
-                    cond = builder.CreateICmpEQ(result, i32_0);
-                }
-                else {
-                    cond = builder.CreateICmpNE(result, i32_0);
-                }
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
-                if (opcode == Set) {
-                    Value *nextpos = consume(builder, pos);
-                    builder.CreateStore(nextpos, cur);
-                }
-                currentBB = succ;
-                break;
-            }
-            CASE_(OSet) {
-                BasicBlock *obody = BasicBlock::Create(Ctx, "oset.body", F);
-                BasicBlock *oend  = BasicBlock::Create(Ctx, "oset.end", F);
-                BITSET_t setId = *((BITSET_t *)(p + 1));
-
-                Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpNE(result, i32_0);
-                builder.CreateCondBr(cond, obody, oend);
-
-                builder.SetInsertPoint(obody);
+            builder.SetInsertPoint(succ);
+            if (opcode == Any) {
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
-                builder.CreateBr(oend);
-
-                builder.SetInsertPoint(oend);
-                currentBB = oend;
-                break;
             }
-            CASE_(RSet) {
-                BasicBlock *rcond = BasicBlock::Create(Ctx, "rset.cond", F);
-                BasicBlock *rbody = BasicBlock::Create(Ctx, "rset.body", F);
-                BasicBlock *rend  = BasicBlock::Create(Ctx, "rset.end",  F);
+            currentBB = succ;
+            break;
+        }
+        CASE_(OAny) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(RAny) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(Str);
+        CASE_(NStr) {
+            BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
+            STRING_t strId = *((STRING_t *)(p + 1));
+            const char *impl = STRING_GET_IMPL(runtime, strId);
 
-                BITSET_t setId = *((BITSET_t *)(p + 1));
-                Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *firstpos = builder.CreateLoad(cur);
-                builder.CreateBr(rcond);
+            Value *str = get_string_ptr(builder, runtime_, strId);
+            Value *len = builder.getInt32(pstring_length(impl));
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
+            Value *C = opcode == Str ? i32_0 : i32_1;
+            Value *cond = builder.CreateICmpEQ(result, C);
+            builder.CreateCondBr(cond, failBB, succ);
 
-                builder.SetInsertPoint(rcond);
-                PHINode *pos = builder.CreatePHI(GetType<mozpos_t>(), 2);
-                pos->addIncoming(firstpos, currentBB);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpNE(result, i32_0);
-                builder.CreateCondBr(cond, rbody, rend);
+            builder.SetInsertPoint(succ);
+            if (opcode == Str) {
+                Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
+                Value *nextpos = consume_n(builder, pos, len_);
+                builder.CreateStore(nextpos, cur);
+            }
+            currentBB = succ;
+            break;
+        }
+        CASE_(OStr) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(RStr) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(Set);
+        CASE_(NSet) {
+            BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
+            BITSET_t setId = *((BITSET_t *)(p + 1));
 
-                builder.SetInsertPoint(rbody);
+            Value *set = get_bitset_ptr(builder, runtime_, setId);
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *character = builder.CreateLoad(current);
+            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *C = opcode == Str ? i32_0 : i32_1;
+            Value *cond = NULL;
+            if (opcode == Set) {
+                cond = builder.CreateICmpEQ(result, i32_0);
+            }
+            else {
+                cond = builder.CreateICmpNE(result, i32_0);
+            }
+            builder.CreateCondBr(cond, failBB, succ);
+
+            builder.SetInsertPoint(succ);
+            if (opcode == Set) {
                 Value *nextpos = consume(builder, pos);
-                pos->addIncoming(nextpos, rbody);
-                builder.CreateBr(rcond);
+                builder.CreateStore(nextpos, cur);
+            }
+            currentBB = succ;
+            break;
+        }
+        CASE_(OSet) {
+            BasicBlock *obody = BasicBlock::Create(Ctx, "oset.body", F);
+            BasicBlock *oend  = BasicBlock::Create(Ctx, "oset.end", F);
+            BITSET_t setId = *((BITSET_t *)(p + 1));
 
-                builder.SetInsertPoint(rend);
-                builder.CreateStore(pos, cur);
-                currentBB = rend;
-                break;
-            }
-            CASE_(Consume) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(First) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(TblJump1) {
-                uint16_t tblId = *((uint16_t *)(p + 1));
-                moz_inst_t *offset = p + shift;
-                int *jumps = runtime->C.jumps1[tblId].jumps;
-                Value *tbl = get_jump_table<1>(builder, runtime_, tblId);
-                create_tbl_jump_inst<1>(builder, tbl, _ctx, cur, str,
-                        unreachableBB, BBMap, offset, jumps);
-                break;
-            }
-            CASE_(TblJump2) {
-                uint16_t tblId = *((uint16_t *)(p + 1));
-                moz_inst_t *offset = p + shift;
-                int *jumps = runtime->C.jumps2[tblId].jumps;
-                Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
-                create_tbl_jump_inst<2>(builder, tbl, _ctx, cur, str,
-                        unreachableBB, BBMap, offset, jumps);
-                break;
-            }
-            CASE_(TblJump3) {
-                uint16_t tblId = *((uint16_t *)(p + 1));
-                moz_inst_t *offset = p + shift;
-                int *jumps = runtime->C.jumps3[tblId].jumps;
-                Value *tbl = get_jump_table<3>(builder, runtime_, tblId);
-                create_tbl_jump_inst<3>(builder, tbl, _ctx, cur, str,
-                        unreachableBB, BBMap, offset, jumps);
-                break;
-            }
-            CASE_(Lookup) {
-                BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
-                BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
-                BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
+            Value *set = get_bitset_ptr(builder, runtime_, setId);
+            Value *pos = builder.CreateLoad(cur);
+            Value *current = GetCur(builder, str, pos);
+            Value *character = builder.CreateLoad(current);
+            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *cond = builder.CreateICmpNE(result, i32_0);
+            builder.CreateCondBr(cond, obody, oend);
 
-                uint8_t state    = *(uint8_t   *)(p + 1);
-                uint16_t memoId  = *(uint16_t  *)(p + 2);
-                mozaddr_t skip   = *(mozaddr_t *)(p + 2 + sizeof(uint16_t));
-                moz_inst_t *dest = p + shift + skip;
-                Constant *state_  = builder.getInt8(state);
-                Constant *memoId_ = builder.getInt32(memoId);
+            builder.SetInsertPoint(obody);
+            Value *nextpos = consume(builder, pos);
+            builder.CreateStore(nextpos, cur);
+            builder.CreateBr(oend);
+
+            builder.SetInsertPoint(oend);
+            currentBB = oend;
+            break;
+        }
+        CASE_(RSet) {
+            BasicBlock *rcond = BasicBlock::Create(Ctx, "rset.cond", F);
+            BasicBlock *rbody = BasicBlock::Create(Ctx, "rset.body", F);
+            BasicBlock *rend  = BasicBlock::Create(Ctx, "rset.end",  F);
+
+            BITSET_t setId = *((BITSET_t *)(p + 1));
+            Value *set = get_bitset_ptr(builder, runtime_, setId);
+            Value *firstpos = builder.CreateLoad(cur);
+            builder.CreateBr(rcond);
+
+            builder.SetInsertPoint(rcond);
+            PHINode *pos = builder.CreatePHI(GetType<mozpos_t>(), 2);
+            pos->addIncoming(firstpos, currentBB);
+            Value *current = GetCur(builder, str, pos);
+            Value *character = builder.CreateLoad(current);
+            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *cond = builder.CreateICmpNE(result, i32_0);
+            builder.CreateCondBr(cond, rbody, rend);
+
+            builder.SetInsertPoint(rbody);
+            Value *nextpos = consume(builder, pos);
+            pos->addIncoming(nextpos, rbody);
+            builder.CreateBr(rcond);
+
+            builder.SetInsertPoint(rend);
+            builder.CreateStore(pos, cur);
+            currentBB = rend;
+            break;
+        }
+        CASE_(Consume) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(First) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(TblJump1) {
+            uint16_t tblId = *((uint16_t *)(p + 1));
+            moz_inst_t *offset = p + shift;
+            int *jumps = runtime->C.jumps1[tblId].jumps;
+            Value *tbl = get_jump_table<1>(builder, runtime_, tblId);
+            create_tbl_jump_inst<1>(builder, tbl, _ctx, cur, str,
+                    unreachableBB, BBMap, offset, jumps);
+            break;
+        }
+        CASE_(TblJump2) {
+            uint16_t tblId = *((uint16_t *)(p + 1));
+            moz_inst_t *offset = p + shift;
+            int *jumps = runtime->C.jumps2[tblId].jumps;
+            Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
+            create_tbl_jump_inst<2>(builder, tbl, _ctx, cur, str,
+                    unreachableBB, BBMap, offset, jumps);
+            break;
+        }
+        CASE_(TblJump3) {
+            uint16_t tblId = *((uint16_t *)(p + 1));
+            moz_inst_t *offset = p + shift;
+            int *jumps = runtime->C.jumps3[tblId].jumps;
+            Value *tbl = get_jump_table<3>(builder, runtime_, tblId);
+            create_tbl_jump_inst<3>(builder, tbl, _ctx, cur, str,
+                    unreachableBB, BBMap, offset, jumps);
+            break;
+        }
+        CASE_(Lookup) {
+            BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
+            BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
+            BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
+
+            uint8_t state    = *(uint8_t   *)(p + 1);
+            uint16_t memoId  = *(uint16_t  *)(p + 2);
+            mozaddr_t skip   = *(mozaddr_t *)(p + 2 + sizeof(uint16_t));
+            moz_inst_t *dest = p + shift + skip;
+            Constant *state_  = builder.getInt8(state);
+            Constant *memoId_ = builder.getInt32(memoId);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #error not implemented
 #endif
-                Value *pos     = builder.CreateLoad(cur);
-                Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
-                Value *hitcond = builder.CreateICmpNE(entry, nullentry);
-                builder.CreateCondBr(hitcond, hit, miss);
+            Value *pos     = builder.CreateLoad(cur);
+            Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+            Value *hitcond = builder.CreateICmpNE(entry, nullentry);
+            builder.CreateCondBr(hitcond, hit, miss);
 
-                builder.SetInsertPoint(hit);
-                Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
-                Value *result   = builder.CreateLoad(result_);
-                Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
-                Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
-                builder.CreateCondBr(failcond, failBB, succ);
+            builder.SetInsertPoint(hit);
+            Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+            Value *result   = builder.CreateLoad(result_);
+            Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
+            Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
+            builder.CreateCondBr(failcond, failBB, succ);
 
-                builder.SetInsertPoint(succ);
-                Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
-                Value *consumed  = builder.CreateLoad(consumed_);
-                Value *newpos    = consume_n(builder, pos, consumed);
-                builder.CreateStore(newpos, cur);
-                builder.CreateBr(BBMap[dest]);
+            builder.SetInsertPoint(succ);
+            Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+            Value *consumed  = builder.CreateLoad(consumed_);
+            Value *newpos    = consume_n(builder, pos, consumed);
+            builder.CreateStore(newpos, cur);
+            builder.CreateBr(BBMap[dest]);
 
-                builder.SetInsertPoint(miss);
+            builder.SetInsertPoint(miss);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #endif
-                currentBB = miss;
-                break;
-            }
-            CASE_(Memo) {
-                uint8_t  state  = *(uint8_t   *)(p + 1);
-                uint16_t memoId = *((uint16_t *)(p + 2));
-                Constant *state_  = builder.getInt32(state);
-                Constant *memoId_ = builder.getInt32(memoId);
+            currentBB = miss;
+            break;
+        }
+        CASE_(Memo) {
+            uint8_t  state  = *(uint8_t   *)(p + 1);
+            uint16_t memoId = *((uint16_t *)(p + 2));
+            Constant *state_  = builder.getInt32(state);
+            Constant *memoId_ = builder.getInt32(memoId);
 
-                Value *startpos;
-                Value *next;
-                Value *ast_tx;
-                Value *saved;
-                Value *length;
-                stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
-                Value *endpos  = builder.CreateLoad(cur);
-                length = get_length(builder, startpos, endpos);
-                length = builder.CreateTrunc(length, builder.getInt32Ty());
+            Value *startpos;
+            Value *next;
+            Value *ast_tx;
+            Value *saved;
+            Value *length;
+            stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
+            Value *endpos  = builder.CreateLoad(cur);
+            length = get_length(builder, startpos, endpos);
+            length = builder.CreateTrunc(length, builder.getInt32Ty());
 
-                Type *nodePtrTy   = GetType<Node *>();
-                Constant *nullnode = Constant::getNullValue(nodePtrTy);
-                create_call_inst(builder, f_memoset,
-                        memo, startpos, memoId_, nullnode, length, state_);
-                break;
-            }
-            CASE_(MemoFail) {
-                // uint8_t state   = *(uint8_t   *)(p + 1);
-                uint16_t memoId = *((uint16_t *)(p + 2));
-                Constant *memoId_ = builder.getInt32(memoId);
+            Type *nodePtrTy   = GetType<Node *>();
+            Constant *nullnode = Constant::getNullValue(nodePtrTy);
+            create_call_inst(builder, f_memoset,
+                    memo, startpos, memoId_, nullnode, length, state_);
+            break;
+        }
+        CASE_(MemoFail) {
+            // uint8_t state   = *(uint8_t   *)(p + 1);
+            uint16_t memoId = *((uint16_t *)(p + 2));
+            Constant *memoId_ = builder.getInt32(memoId);
 
-                Value *pos = builder.CreateLoad(cur);
-                create_call_inst(builder, f_memofail, memo, pos, memoId_);
-                builder.CreateBr(failBB);
-                break;
-            }
-            CASE_(TPush) {
-                create_call_inst(builder, f_astpush, ast);
-                break;
-            }
-            CASE_(TPop) {
-                TAG_t tagId = *((TAG_t *)(p + 1));
+            Value *pos = builder.CreateLoad(cur);
+            create_call_inst(builder, f_memofail, memo, pos, memoId_);
+            builder.CreateBr(failBB);
+            break;
+        }
+        CASE_(TPush) {
+            create_call_inst(builder, f_astpush, ast);
+            break;
+        }
+        CASE_(TPop) {
+            TAG_t tagId = *((TAG_t *)(p + 1));
 
-                Value *_tagId = get_tag_id(builder, runtime_, tagId);
-                create_call_inst(builder, f_astpop, ast, _tagId);
-                break;
-            }
-            CASE_(TLeftFold) {
-                uint8_t shift    = *(uint8_t *)(p + 1);
-                TAG_t tagId      = *(TAG_t   *)(p + 2);
-                Constant *shift_ = builder.getInt64(shift);
+            Value *_tagId = get_tag_id(builder, runtime_, tagId);
+            create_call_inst(builder, f_astpop, ast, _tagId);
+            break;
+        }
+        CASE_(TLeftFold) {
+            uint8_t shift    = *(uint8_t *)(p + 1);
+            TAG_t tagId      = *(TAG_t   *)(p + 2);
+            Constant *shift_ = builder.getInt64(shift);
 
-                Value *_tagId  = get_tag_id(builder, runtime_, tagId);
-                Value *pos     = builder.CreateLoad(cur);
-                Value *swappos = consume_n(builder, pos, shift_);
-                create_call_inst(builder, f_astswap, ast, swappos, _tagId);
-                break;
-            }
-            CASE_(TNew) {
-                uint8_t shift    = *(uint8_t *)(p + 1);
-                Constant *shift_ = builder.getInt64(shift);
+            Value *_tagId  = get_tag_id(builder, runtime_, tagId);
+            Value *pos     = builder.CreateLoad(cur);
+            Value *swappos = consume_n(builder, pos, shift_);
+            create_call_inst(builder, f_astswap, ast, swappos, _tagId);
+            break;
+        }
+        CASE_(TNew) {
+            uint8_t shift    = *(uint8_t *)(p + 1);
+            Constant *shift_ = builder.getInt64(shift);
 
-                Value *pos    = builder.CreateLoad(cur);
-                Value *newpos = consume_n(builder, pos, shift_);
-                create_call_inst(builder, f_astnew, ast, newpos);
-                break;
-            }
-            CASE_(TCapture) {
-                uint8_t shift    = *(uint8_t *)(p + 1);
-                Constant *shift_ = builder.getInt64(shift);
+            Value *pos    = builder.CreateLoad(cur);
+            Value *newpos = consume_n(builder, pos, shift_);
+            create_call_inst(builder, f_astnew, ast, newpos);
+            break;
+        }
+        CASE_(TCapture) {
+            uint8_t shift    = *(uint8_t *)(p + 1);
+            Constant *shift_ = builder.getInt64(shift);
 
-                Value *pos        = builder.CreateLoad(cur);
-                Value *capturepos = consume_n(builder, pos, shift_);
-                create_call_inst(builder, f_astcapture, ast, capturepos);
-                break;
-            }
-            CASE_(TTag) {
-                TAG_t tagId = *(TAG_t *)(p + 1);
+            Value *pos        = builder.CreateLoad(cur);
+            Value *capturepos = consume_n(builder, pos, shift_);
+            create_call_inst(builder, f_astcapture, ast, capturepos);
+            break;
+        }
+        CASE_(TTag) {
+            TAG_t tagId = *(TAG_t *)(p + 1);
 
-                Value *tag = get_tag_ptr(builder, _ctx, runtime_, tagId);
-                create_call_inst(builder, f_asttag, ast, tag);
-                break;
-            }
-            CASE_(TReplace) {
-                STRING_t strId = *(STRING_t *)(p + 1);
+            Value *tag = get_tag_ptr(builder, _ctx, runtime_, tagId);
+            create_call_inst(builder, f_asttag, ast, tag);
+            break;
+        }
+        CASE_(TReplace) {
+            STRING_t strId = *(STRING_t *)(p + 1);
 
-                Value *str = get_string_ptr(builder, runtime_, strId);
-                create_call_inst(builder, f_astreplace, ast, str);
-                break;
-            }
-            CASE_(TStart) {
-                Value *ast_tx = create_call_inst(builder, f_astsave, ast);
-                stack_push(builder, sp, ast_tx);
-                break;
-            }
-            CASE_(TCommit) {
-                TAG_t tagId = *(TAG_t *)(p + 1);
+            Value *str = get_string_ptr(builder, runtime_, strId);
+            create_call_inst(builder, f_astreplace, ast, str);
+            break;
+        }
+        CASE_(TStart) {
+            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+            stack_push(builder, sp, ast_tx);
+            break;
+        }
+        CASE_(TCommit) {
+            TAG_t tagId = *(TAG_t *)(p + 1);
 
-                Value *_tagId = get_tag_id(builder, runtime_, tagId);
-                Value *tx     = stack_pop(builder, sp);
-                create_call_inst(builder, f_astcommit, ast, _tagId, tx);
-                break;
-            }
-            CASE_(TAbort) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(TLookup) {
-                BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
-                BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
-                BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
+            Value *_tagId = get_tag_id(builder, runtime_, tagId);
+            Value *tx     = stack_pop(builder, sp);
+            create_call_inst(builder, f_astcommit, ast, _tagId, tx);
+            break;
+        }
+        CASE_(TAbort) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(TLookup) {
+            BasicBlock *hit  = BasicBlock::Create(Ctx, "lookup.hit",  F);
+            BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
+            BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
 
-                moz_inst_t *pc   = p + 1;
-                uint8_t state = *(uint8_t *)(p + 1);
-                TAG_t   tagId = *(TAG_t   *)(p + 2);
-                uint16_t  memoId = *(uint16_t  *)(p + 2 + sizeof(TAG_t));
-                mozaddr_t skip   = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
-                moz_inst_t *dest = p + shift + skip;
-                Constant *state_  = builder.getInt8(state);
-                Constant *memoId_ = builder.getInt32(memoId);
+            moz_inst_t *pc   = p + 1;
+            uint8_t state = *(uint8_t *)(p + 1);
+            TAG_t   tagId = *(TAG_t   *)(p + 2);
+            uint16_t  memoId = *(uint16_t  *)(p + 2 + sizeof(TAG_t));
+            mozaddr_t skip   = *(mozaddr_t *)(p + 4 + sizeof(TAG_t));
+            moz_inst_t *dest = p + shift + skip;
+            Constant *state_  = builder.getInt8(state);
+            Constant *memoId_ = builder.getInt32(memoId);
 
-                Value *_tagId = get_tag_id(builder, runtime_, tagId);
+            Value *_tagId = get_tag_id(builder, runtime_, tagId);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-                asm volatile("int3");
+            asm volatile("int3");
 #endif
-                Value *pos     = builder.CreateLoad(cur);
-                Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
-                Value *hitcond = builder.CreateICmpNE(entry, nullentry);
-                builder.CreateCondBr(hitcond, hit, miss);
+            Value *pos     = builder.CreateLoad(cur);
+            Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+            Value *hitcond = builder.CreateICmpNE(entry, nullentry);
+            builder.CreateCondBr(hitcond, hit, miss);
 
-                builder.SetInsertPoint(hit);
-                Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
-                Value *result   = builder.CreateLoad(result_);
-                Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
-                Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
-                builder.CreateCondBr(failcond, failBB, succ);
+            builder.SetInsertPoint(hit);
+            Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+            Value *result   = builder.CreateLoad(result_);
+            Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
+            Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
+            builder.CreateCondBr(failcond, failBB, succ);
 
-                builder.SetInsertPoint(succ);
-                Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
-                Value *consumed  = builder.CreateLoad(consumed_);
-                Value *newpos    = consume_n(builder, pos, consumed);
-                builder.CreateStore(newpos, cur);
-                create_call_inst(builder, f_astlink, ast, _tagId, result);
-                builder.CreateBr(BBMap[dest]);
+            builder.SetInsertPoint(succ);
+            Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+            Value *consumed  = builder.CreateLoad(consumed_);
+            Value *newpos    = consume_n(builder, pos, consumed);
+            builder.CreateStore(newpos, cur);
+            create_call_inst(builder, f_astlink, ast, _tagId, result);
+            builder.CreateBr(BBMap[dest]);
 
-                builder.SetInsertPoint(miss);
+            builder.SetInsertPoint(miss);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #endif
-                currentBB = miss;
-                break;
-            }
-            CASE_(TMemo) {
-                uint8_t state    = *(uint8_t *)(p + 1);
-                uint16_t memoId  = *(uint16_t *)(p + 2);
-                Constant *state_  = builder.getInt32(state);
-                Constant *memoId_ = builder.getInt32(memoId);
+            currentBB = miss;
+            break;
+        }
+        CASE_(TMemo) {
+            uint8_t state    = *(uint8_t *)(p + 1);
+            uint16_t memoId  = *(uint16_t *)(p + 2);
+            Constant *state_  = builder.getInt32(state);
+            Constant *memoId_ = builder.getInt32(memoId);
 
-                Value *startpos;
-                Value *next;
-                Value *ast_tx;
-                Value *saved;
-                stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
-                Value *endpos  = builder.CreateLoad(cur);
-                Value *length  = get_length(builder, startpos, endpos);
-                Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
-                Value *node    = create_call_inst(builder, f_astlastnode, ast);
-                create_call_inst(builder, f_memoset,
-                        memo, startpos, memoId_, node, length_, state_);
-                break;
-            }
-            CASE_(SOpen) {
-                asm volatile("int3");
-            }
-            CASE_(SClose) {
-                asm volatile("int3");
-            }
-            CASE_(SMask) {
-                asm volatile("int3");
-            }
-            CASE_(SDef) {
-                asm volatile("int3");
-            }
-            CASE_(SIsDef) {
-                asm volatile("int3");
-            }
-            CASE_(SExists) {
-                asm volatile("int3");
-            }
-            CASE_(SMatch) {
-                asm volatile("int3");
-            }
-            CASE_(SIs) {
-                asm volatile("int3");
-            }
-            CASE_(SIsa) {
-                asm volatile("int3");
-            }
-            CASE_(SDefNum) {
-                asm volatile("int3");
-            }
-            CASE_(SCount) {
-                asm volatile("int3");
-            }
-            CASE_(Exit) {
-                asm volatile("int3");
-                break;
-            }
-            CASE_(Label) {
-                asm volatile("int3");
-                break;
-            }
+            Value *startpos;
+            Value *next;
+            Value *ast_tx;
+            Value *saved;
+            stack_pop_frame(builder, sp, fp, &startpos, &next, &ast_tx, &saved);
+            Value *endpos  = builder.CreateLoad(cur);
+            Value *length  = get_length(builder, startpos, endpos);
+            Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
+            Value *node    = create_call_inst(builder, f_astlastnode, ast);
+            create_call_inst(builder, f_memoset,
+                    memo, startpos, memoId_, node, length_, state_);
+            break;
+        }
+        CASE_(SOpen) {
+            asm volatile("int3");
+        }
+        CASE_(SClose) {
+            asm volatile("int3");
+        }
+        CASE_(SMask) {
+            asm volatile("int3");
+        }
+        CASE_(SDef) {
+            asm volatile("int3");
+        }
+        CASE_(SIsDef) {
+            asm volatile("int3");
+        }
+        CASE_(SExists) {
+            asm volatile("int3");
+        }
+        CASE_(SMatch) {
+            asm volatile("int3");
+        }
+        CASE_(SIs) {
+            asm volatile("int3");
+        }
+        CASE_(SIsa) {
+            asm volatile("int3");
+        }
+        CASE_(SDefNum) {
+            asm volatile("int3");
+        }
+        CASE_(SCount) {
+            asm volatile("int3");
+        }
+        CASE_(Exit) {
+            asm volatile("int3");
+            break;
+        }
+        CASE_(Label) {
+            asm volatile("int3");
+            break;
+        }
 #undef CASE_
         }
         p += shift;
@@ -1651,8 +1648,8 @@ L_prepare_table:
         Value *ast_tx_;
         Value *saved_;
         stack_pop_frame(builder, sp, fp, &pos_, &next_, &ast_tx_, &saved_);
-        Value *ifcond = builder.CreateICmpULT(pos_, pos);
-        builder.CreateCondBr(ifcond, posback, rollback);
+        Value *cond = builder.CreateICmpULT(pos_, pos);
+        builder.CreateCondBr(cond, posback, rollback);
 
         builder.SetInsertPoint(posback);
         Value *head = builder.CreateLoad(head_);
