@@ -76,24 +76,24 @@ void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 }
 
 template<typename... Args>
-void define_struct_body(StructType *s_ty, const Args&... args)
+void define_struct_body(StructType *STy, const Args&... args)
 {
     vector<Type *> elements;
     set_vector(&elements, args...);
     ArrayRef<Type *> elmsRef(elements);
 
     LLVMContext& Ctx = getGlobalContext();
-    s_ty->setBody(elmsRef);
+    STy->setBody(elmsRef);
 }
 
 template<typename... Args>
 StructType *define_struct_type(const char *name, const Args&... args)
 {
     LLVMContext& Ctx = getGlobalContext();
-    StructType *s_ty = StructType::create(Ctx, name);
+    StructType *STy = StructType::create(Ctx, name);
 
-    define_struct_body(s_ty, args...);
-    return s_ty;
+    define_struct_body(STy, args...);
+    return STy;
 }
 
 template<typename... Args>
@@ -126,7 +126,7 @@ Value *create_call_inst(IRBuilder<> &builder, Value *F, const Args&... args)
     return builder.CreateCall(F, argsRef);
 }
 
-Value *get_current(IRBuilder<> &builder, Value *str, Value *pos)
+static Value *get_current(IRBuilder<> &builder, Value *str, Value *pos)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     return pos;
@@ -135,7 +135,7 @@ Value *get_current(IRBuilder<> &builder, Value *str, Value *pos)
 #endif
 }
 
-Value *get_length(IRBuilder<> &builder, Value *startpos, Value *endpos)
+static Value *get_length(IRBuilder<> &builder, Value *startpos, Value *endpos)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     Type *I64Ty = builder.getInt64Ty();
@@ -147,7 +147,7 @@ Value *get_length(IRBuilder<> &builder, Value *startpos, Value *endpos)
 #endif
 }
 
-Value *consume_n(IRBuilder<> &builder, Value *pos, Value *N)
+static Value *consume_n(IRBuilder<> &builder, Value *pos, Value *N)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     return builder.CreateGEP(pos, N);
@@ -156,12 +156,12 @@ Value *consume_n(IRBuilder<> &builder, Value *pos, Value *N)
 #endif
 }
 
-Value *consume(IRBuilder<> &builder, Value *pos)
+static Value *consume(IRBuilder<> &builder, Value *pos)
 {
     return consume_n(builder, pos, builder.getInt64(1));
 }
 
-void stack_push(IRBuilder<> &builder, Value *sp, Value *I64Val)
+static void stack_push(IRBuilder<> &builder, Value *sp, Value *I64Val)
 {
     Value *top = builder.CreateLoad(sp);
     Value *next_top = builder.CreateGEP(top, builder.getInt64(1));
@@ -169,7 +169,7 @@ void stack_push(IRBuilder<> &builder, Value *sp, Value *I64Val)
     builder.CreateStore(I64Val, top);
 }
 
-Value *stack_pop(IRBuilder<> &builder, Value *sp)
+static Value *stack_pop(IRBuilder<> &builder, Value *sp)
 {
     Value *top = builder.CreateLoad(sp);
     Value *prev_top = builder.CreateGEP(top, builder.getInt64(-1));
@@ -177,7 +177,7 @@ Value *stack_pop(IRBuilder<> &builder, Value *sp)
     return builder.CreateLoad(prev_top);
 }
 
-void stack_push_pos(IRBuilder<> &builder, Value *sp, Value *pos)
+static void stack_push_pos(IRBuilder<> &builder, Value *sp, Value *pos)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     Value *pos_ = builder.CreatePtrToInt(pos, builder.getInt64Ty());
@@ -187,7 +187,7 @@ void stack_push_pos(IRBuilder<> &builder, Value *sp, Value *pos)
 #endif
 }
 
-Value *stack_pop_pos(IRBuilder<> &builder, Value *sp)
+static Value *stack_pop_pos(IRBuilder<> &builder, Value *sp)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     Value *pos_ = stack_pop(builder, sp);
@@ -197,7 +197,7 @@ Value *stack_pop_pos(IRBuilder<> &builder, Value *sp)
 #endif
 }
 
-void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+static void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value *pos, Value *next, Value *ast, Value *symtable)
 {
     Type *I64Ty = builder.getInt64Ty();
@@ -231,7 +231,7 @@ void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
     builder.CreateStore(next_top, sp);
 }
 
-void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+static void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value **pos, Value **next, Value **ast, Value **symtable)
 {
     Type *I8PtrTy  = builder.getInt8PtrTy();
@@ -263,7 +263,7 @@ void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
     builder.CreateStore(prev_frame, fp);
 }
 
-void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
+static void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value **pos, Value **next, Value **ast, Value **symtable)
 {
     Type *I8PtrPtrTy  = builder.getInt8PtrTy()->getPointerTo();
@@ -331,7 +331,7 @@ Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
 #endif /*MOZVM_SMALL_TAG_INST*/
 }
 
-Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
+static Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
 {
 #if MOZVM_SMALL_TAG_INST
     Value *r_c_tags = create_get_element_ptr(builder, runtime,
@@ -352,7 +352,7 @@ Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
 #endif /*MOZVM_SMALL_TAG_INST*/
 }
 
-Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
+static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 {
 #if MOZVM_SMALL_STRING_INST
     Value *r_c_strs = create_get_element_ptr(builder, runtime,
@@ -391,7 +391,6 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
     return nullptr;
 #endif /*MOZVM_USE_JMPTBL*/
 }
-
 
 class JitContext {
 private:
@@ -476,18 +475,14 @@ JitContext::JitContext()
     bsetType = define_struct_type("bitset_t", ArrayType::get(I32Ty, (256/BITS)));
 #endif
 #ifdef MOZVM_USE_JMPTBL
-    jmptblType[0] = define_struct_type("jump_table1_t",
-            ArrayType::get(bsetType, 1),
-            ArrayType::get(I32Ty, 2)
-            );
-    jmptblType[1] = define_struct_type("jump_table2_t",
-            ArrayType::get(bsetType, 2),
-            ArrayType::get(I32Ty, 4)
-            );
-    jmptblType[2] = define_struct_type("jump_table3_t",
-            ArrayType::get(bsetType, 3),
-            ArrayType::get(I32Ty, 8)
-            );
+    for (int i = 1; i <= 3; i++) {
+        char name[128];
+        snprintf(name, 128, "jump_table%d_t", i);
+        jmptblType[i - 1] = define_struct_type(name,
+                ArrayType::get(bsetType, 1),
+                ArrayType::get(I32Ty, 1 << i)
+                );
+    }
 #endif
 
     StructType *constantType = define_struct_type("mozvm_constant_t",
@@ -610,7 +605,8 @@ JitContext::JitContext()
     memogetType  = get_function_type(memoentryPtrTy,
             memoPtrTy, mozposType, I32Ty, I8Ty);
 
-    Module *M = new Module("top", Ctx);
+    Module *M = new Module("libnez", Ctx);
+    curMod = M;
     bitsetgetType   = create_bitset_get(builder, M);
 #ifdef MOZVM_USE_JMPTBL
     tbljmpidxType[0] = create_jump_table_index<1>(builder, M);
