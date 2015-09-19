@@ -20,72 +20,33 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#include "jit_types.cpp"
 
 using namespace std;
 using namespace llvm;
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 typedef unordered_map<moz_inst_t *, BasicBlock *> BBMap;
 typedef unordered_map<void *, GlobalVariable *> ConstMap;
 
+static void create_bitset_get(IRBuilder<> &builder, Module *M);
+#ifdef MOZVM_USE_JMPTBL
+template<unsigned n>
+static void create_jump_table_index(IRBuilder<> &builder, Module *M);
+#endif
+static void create_pstring_startswith(IRBuilder<> &builder, Module *M);
+static void create_ast_save_tx(IRBuilder<> &builder, Module *M);
+static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
+static void create_symtable_savepoint(IRBuilder<> &builder, Module *M);
+static void create_symtable_rollback(IRBuilder<> &builder, Module *M);
+
 class JitContext {
 private:
-    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
-#ifdef MOZVM_USE_JMPTBL
-    template<unsigned n>
-    FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
-#endif
-    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
-
 public:
     ExecutionEngine *EE;
     Module *curMod;
     Module *topMod;
-    StructType *bsetType;
-#ifdef MOZVM_USE_JMPTBL
-    StructType *jmptblType[3];
-#endif
-    StructType *nodeType;
-    StructType *astType;
-    StructType *symtableType;
-    StructType *memoType;
-    StructType *memoentryType;
-    Type *mozposType;
-#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-    StructType *memopointType;
-#endif
-    StructType *runtimeType;
-    FunctionType *jitfuncType;
-
-    FunctionType *bitsetgetType;
-#ifdef MOZVM_USE_JMPTBL
-    FunctionType *tbljmpidxType[3];
-#endif
-    FunctionType *pstrstwithType;
-
-    FunctionType *astsaveType;
-    FunctionType *astrollbackType;
-    FunctionType *astcommitType;
-    FunctionType *astreplaceType;
-    FunctionType *astcaptureType;
-    FunctionType *astnewType;
-    FunctionType *astpopType;
-    FunctionType *astpushType;
-    FunctionType *astswapType;
-    FunctionType *asttagType;
-    FunctionType *astlinkType;
-    FunctionType *astlastnodeType;
-
-    FunctionType *memosetType;
-    FunctionType *memofailType;
-    FunctionType *memogetType;
-
-    FunctionType *tblsaveType;
-    FunctionType *tblrollbackType;
 
     ~JitContext() {};
     JitContext(moz_runtime_t *r);
@@ -140,27 +101,6 @@ void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 }
 
 template<typename... Args>
-void define_struct_body(StructType *STy, const Args&... args)
-{
-    vector<Type *> elements;
-    set_vector(&elements, args...);
-    ArrayRef<Type *> elmsRef(elements);
-
-    LLVMContext& Ctx = getGlobalContext();
-    STy->setBody(elmsRef);
-}
-
-template<typename... Args>
-StructType *define_struct_type(const char *name, const Args&... args)
-{
-    LLVMContext& Ctx = getGlobalContext();
-    StructType *STy = StructType::create(Ctx, name);
-
-    define_struct_body(STy, args...);
-    return STy;
-}
-
-template<typename... Args>
 Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... args)
 {
     vector<Value *> indexs;
@@ -168,16 +108,6 @@ Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... a
     ArrayRef<Value *> idxsRef(indexs);
 
     return builder.CreateGEP(Val, idxsRef);
-}
-
-template<typename Returns, typename... Args>
-FunctionType *get_function_type(const Returns& returntype, const Args&... args)
-{
-    vector<Type *> parameters;
-    set_vector(&parameters, args...);
-    ArrayRef<Type *> paramsRef(parameters);
-
-    return FunctionType::get(returntype, paramsRef, false);
 }
 
 template<typename... Args>
@@ -458,7 +388,7 @@ static void register_constants(JitContext *ctx, moz_runtime_t *r)
     char name[128];
     mozvm_constant_t *C = &r->C;
     Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
-    Type *SetTy = ctx->bsetType;
+    Type *SetTy = GetType<bitset_t>();
     for (int i = 0; i < C->tag_size; i++) {
         snprintf(name, 128, "tag%d", i);
         emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
@@ -483,7 +413,7 @@ Value *find_constant(IRBuilder<> &builder, JitContext *ctx, MozConstType Ty, uin
 {
     char name[128];
     Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
-    Type *SetTy = ctx->bsetType->getPointerTo();
+    Type *SetTy = GetType<bitset_t *>();
     Type *Type  = StrTy;
     switch (Ty) {
     case MozConstTypeTag:
@@ -538,190 +468,17 @@ static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 }
 #endif
 
-
-JitContext::JitContext(moz_runtime_t *r)
-{
-    LLVMContext& Ctx = getGlobalContext();
-    IRBuilder<> builder(Ctx);
-
-    Type *VoidTy = Type::getVoidTy(Ctx);
-    Type *I8Ty    = Type::getInt8Ty(Ctx);
-    Type *I16Ty   = Type::getInt16Ty(Ctx);
-    Type *I32Ty   = Type::getInt32Ty(Ctx);
-    Type *I64Ty   = Type::getInt64Ty(Ctx);
-    Type *I8PtrTy    = I8Ty->getPointerTo();
-    Type *I8PtrPtrTy = I8PtrTy->getPointerTo();
-    Type *I32PtrTy   = I32Ty->getPointerTo();
-    Type *I64PtrTy   = I64Ty->getPointerTo();
-
-#if defined(BITSET_USE_ULONG)
-    bsetType = define_struct_type("bitset_t", ArrayType::get(I64Ty, (256/BITS)));
-#elif defined(BITSET_USE_UINT)
-    bsetType = define_struct_type("bitset_t", ArrayType::get(I32Ty, (256/BITS)));
-#endif
-#ifdef MOZVM_USE_JMPTBL
-    for (int i = 1; i <= 3; i++) {
-        char name[128];
-        snprintf(name, 128, "jump_table%d_t", i);
-        jmptblType[i - 1] = define_struct_type(name,
-                ArrayType::get(bsetType, 1),
-                ArrayType::get(I32Ty, 1 << i)
-                );
-    }
-#endif
-
-    StructType *constantType = define_struct_type("mozvm_constant_t",
-            bsetType->getPointerTo(),
-            I8PtrPtrTy, // tags
-            I8PtrPtrTy, // strs
-            I8PtrPtrTy, // tables
-            I32PtrTy,   // jumps
-#ifdef MOZVM_USE_JMPTBL
-            jmptblType[0]->getPointerTo(), // jumps1
-            jmptblType[1]->getPointerTo(), // jumps2
-            jmptblType[2]->getPointerTo(), // jumps3
-#endif
-            I8PtrPtrTy, // nterms
-            I16Ty, // set_size
-            I16Ty, // str_size
-            I16Ty, // tag_size
-            I16Ty, // table_size
-            I16Ty, // nterm_size
-            I32Ty, // inst_size
-            I32Ty, // memo_size
-            I32Ty  // input_size
-#ifdef MOZVM_PROFILE_INST
-            , I64PtrTy // profile
-#endif
-            );
-
-    nodeType = StructType::create(Ctx, "Node");
-    Type *nodePtrTy = nodeType->getPointerTo();
-    StructType *astlogType = StructType::create(Ctx, "AstLog");
-    StructType *astlogarrayType = define_struct_type("ARRAY_AstLog_t",
-            I32Ty, // size
-            I32Ty, // capacity
-            astlogType->getPointerTo() // list
-            );
-    astType = define_struct_type("AstMachine",
-            astlogarrayType, // logs
-            nodePtrTy, // last-linked
-            nodePtrTy, // parsed
-            I8PtrTy // source
-            );
-    Type *astPtrTy = astType->getPointerTo();
-
-    StructType *entryType = StructType::create(Ctx, "entry_t");
-    StructType *entryarrayType = define_struct_type("ARRAY_entry_t_t",
-            I32Ty, // size
-            I32Ty, // capacity
-            entryType->getPointerTo() // list
-            );
-    symtableType = define_struct_type("symtable_t",
-            I32Ty, // state
-            entryarrayType // table
-            );
-
-    memoType = StructType::create(Ctx, "memo_t");
-    Type *memoPtrTy = memoType->getPointerTo();
-    memoentryType = define_struct_type("MemoEntry_t",
-            I64Ty, // hash
-            nodePtrTy, // result(failed)
-            I32Ty, // consumed
-            I32Ty // state
-            );
-    Type *memoentryPtrTy = memoentryType->getPointerTo();
-#ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
-    mozposType = I8PtrTy;
-#else
-    mozposType = I64Ty;
-#endif
-#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-    memopointType = StructType::create(Ctx, "MemoPoint");
-#endif
-    StructType *ntermentryType = StructType::create(Ctx, "mozvm_nterm_entry_t");
-    runtimeType = define_struct_type("moz_runtime_t",
-            astPtrTy,
-            symtableType->getPointerTo(),
-            memoType->getPointerTo(),
-            mozposType, // head
-            I8PtrTy, // tail
-            I8PtrTy, // input
-            I64PtrTy, // stack
-            I64PtrTy, // fp
-#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            memopointType->getPointerTo(),
-#endif
-            mozposType, // cur
-            I8PtrTy, // jit_context
-            ntermentryType->getPointerTo(), // nterm_entry
-            constantType,
-            ArrayType::get(I64Ty, 1)
-            );
-
-    jitfuncType = get_function_type(I8Ty,
-            runtimeType->getPointerTo(), I8PtrTy, I16Ty);
-
-    define_struct_body(ntermentryType,
-            I8PtrTy, // begin
-            I8PtrTy, // end
-            I32Ty, // call_counter
-            jitfuncType->getPointerTo() //compiled_code
-            );
-
-    for(int i = 0; i < ARRAY_SIZE(symbols); i++) {
-        const Symbol *sym = symbols + i;
-        sys::DynamicLibrary::AddSymbol(sym->name, sym->func);
-    }
-
-    astrollbackType = get_function_type(VoidTy, astPtrTy, I64Ty);
-    astcommitType   = get_function_type(VoidTy, astPtrTy, I16Ty, I64Ty);
-    astreplaceType  = get_function_type(VoidTy, astPtrTy, I8PtrTy);
-    astcaptureType  = get_function_type(VoidTy, astPtrTy, mozposType);
-    astnewType      = astcaptureType;
-    astpopType      = get_function_type(VoidTy, astPtrTy, I16Ty);
-    astpushType     = get_function_type(VoidTy, astPtrTy);
-    astswapType     = get_function_type(VoidTy, astPtrTy, mozposType, I16Ty);
-    asttagType      = astreplaceType;
-    astlinkType     = get_function_type(VoidTy, astPtrTy, I16Ty, nodePtrTy);
-    memosetType  = get_function_type(I32Ty,
-            memoPtrTy, mozposType, I32Ty, nodePtrTy, I32Ty, I32Ty);
-    memofailType = get_function_type(I32Ty, memoPtrTy, mozposType, I32Ty);
-    memogetType  = get_function_type(memoentryPtrTy,
-            memoPtrTy, mozposType, I32Ty, I8Ty);
-
-    Module *M = new Module("libnez", Ctx);
-    topMod = curMod = M;
-    bitsetgetType   = create_bitset_get(builder, M);
-#ifdef MOZVM_USE_JMPTBL
-    tbljmpidxType[0] = create_jump_table_index<1>(builder, M);
-    tbljmpidxType[1] = create_jump_table_index<2>(builder, M);
-    tbljmpidxType[2] = create_jump_table_index<3>(builder, M);
-#endif
-    pstrstwithType  = create_pstring_startswith(builder, M);
-    astsaveType     = create_ast_save_tx(builder, M);
-    astlastnodeType = create_ast_get_last_linked_node(builder, M);
-    tblsaveType     = create_symtable_savepoint(builder, M);
-    tblrollbackType = create_symtable_rollback(builder, M);
-
-    EE = EngineBuilder(unique_ptr<Module>(M)).create();
-
-    EE->finalizeObject();
-    curMod = NULL;
-}
-
-FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
+static void create_bitset_get(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
-    Type *bsetPtrTy = bsetType->getPointerTo();
-    FunctionType *funcTy = get_function_type(I32Ty, bsetPtrTy, I32Ty);
+    FunctionType *FTy = GetFuncType(bitset_get);
     Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "bitset_get", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "bitset_get", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *set = arg_iter++;
@@ -753,27 +510,29 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
 #endif
     Value *RetVal = builder.CreateZExt(NEq0, I32Ty);
     builder.CreateRet(RetVal);
-    return funcTy;
 }
 
 #ifdef MOZVM_USE_JMPTBL
 template<unsigned N>
-FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *M)
+static void create_jump_table_index(IRBuilder<> &builder, Module *M)
 {
     char fname[128];
     assert(N <= 3);
     snprintf(fname, 128, "jump_table%d_index", N);
+    FunctionType *FuncTypes[] = {
+        GetFuncType(jump_table1_jump),
+        GetFuncType(jump_table2_jump),
+        GetFuncType(jump_table3_jump)
+    };
 
     LLVMContext& Ctx = M->getContext();
-    Type *I8Ty  = builder.getInt8Ty();
     Type *I32Ty = builder.getInt32Ty();
-    Type *jmptblPtrTy = jmptblType[N - 1]->getPointerTo();
-    FunctionType *funcTy = get_function_type(I32Ty, jmptblPtrTy, I8Ty);
+    FunctionType *FTy = FuncTypes[N - 1];
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    Constant *f_bitsetget = M->getOrInsertFunction("bitset_get", bitsetgetType);
-    Function *F = Function::Create(funcTy, Function::InternalLinkage, fname, M);
+    Constant *f_bitsetget = REGISTER_FUNC(M, bitset_get);
+    Function *F = Function::Create(FTy, Function::InternalLinkage, fname, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl = arg_iter++;
@@ -785,8 +544,8 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
     Value *ch_ = builder.CreateZExt(ch, I32Ty);
     Value *idx;
     for(int i = 0; i < N; i++) {
-        Value *tbl_set = create_get_element_ptr(builder, tbl,
-                i64_0, i32_0, builder.getInt64(i));
+        Value *C = builder.getInt64(i);
+        Value *tbl_set = create_get_element_ptr(builder, tbl, i64_0, i32_0, C);
         Value *idx_ = create_call_inst(builder, f_bitsetget, tbl_set, ch_);
         if(i == 0) {
             idx = idx_;
@@ -797,20 +556,18 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
         }
     }
     builder.CreateRet(idx);
-    return funcTy;
 }
 #endif
 
-FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module *M)
+static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
-    Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
     Type *I8PtrTy  = builder.getInt8PtrTy();
-    FunctionType *funcTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I32Ty);
+    FunctionType *FTy = GetFuncType(pstring_starts_with);
     Function *F;
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "pstring_starts_with", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "pstring_starts_with", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *str  = arg_iter++;
@@ -823,8 +580,8 @@ FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module
 // #ifdef __AVX2__
 // #endif
 #if defined(PSTRING_USE_STRCMP)
-    FunctionType *strncmpTy = get_function_type(I32Ty, I8PtrTy, I8PtrTy, I64Ty);
-    Constant *f_strncmp = M->getOrInsertFunction("strncmp", strncmpTy);
+    FunctionType *strncmpTy = GetFuncType(strncmp);
+    Constant *f_strncmp = REGISTER_FUNC(M, strncmp);
 
     Value *len_   = builder.CreateZExt(len, I64Ty);
     Value *result = create_call_inst(builder, f_strncmp, str, text, len_);
@@ -865,20 +622,18 @@ FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module
     builder.SetInsertPoint(wretBB);
     builder.CreateRet(builder.getInt32(0));
 #endif
-    return funcTy;
 }
 
-FunctionType *JitContext::create_ast_save_tx(IRBuilder<> &builder, Module *M)
+static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
-    Type *astPtrTy = astType->getPointerTo();
-    FunctionType *funcTy = get_function_type(I64Ty, astPtrTy);
+    FunctionType *FTy = GetFuncType(ast_save_tx);
     Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "ast_save_tx", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "ast_save_tx", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *ast = arg_iter++;
@@ -890,23 +645,19 @@ FunctionType *JitContext::create_ast_save_tx(IRBuilder<> &builder, Module *M)
     Value *Size  = builder.CreateLoad(Ptr);
     Value *Size_ = builder.CreateZExt(Size, I64Ty);
     builder.CreateRet(Size_);
-    return funcTy;
 }
 
-FunctionType *JitContext::create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
+static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
-    Type *nodePtrTy = nodeType->getPointerTo();
-    Type *astPtrTy  = astType->getPointerTo();
-    FunctionType *funcTy = get_function_type(nodePtrTy, astPtrTy);
+    FunctionType *FTy = GetFuncType(ast_get_last_linked_node);
     Function *F;
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "ast_get_last_linked_node", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "ast_get_last_linked_node", M);
 
-    Function::arg_iterator arg_iter = F->arg_begin();
-    Value *ast = arg_iter++;
+    Value *ast = F->arg_begin();
 
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
@@ -914,24 +665,21 @@ FunctionType *JitContext::create_ast_get_last_linked_node(IRBuilder<> &builder, 
     Value *Ptr    = create_get_element_ptr(builder, ast, i64_0, i32_1);
     Value *Linked = builder.CreateLoad(Ptr);
     builder.CreateRet(Linked);
-    return funcTy;
 }
 
-FunctionType *JitContext::create_symtable_savepoint(IRBuilder<> &builder, Module *M)
+static void create_symtable_savepoint(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
-    Type *tblPtrTy = symtableType->getPointerTo();
-    FunctionType *funcTy = get_function_type(I64Ty, tblPtrTy);
+    FunctionType *FTy = GetFuncType(symtable_savepoint);
     Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "symtable_savepoint", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "symtable_savepoint", M);
 
-    Function::arg_iterator arg_iter = F->arg_begin();
-    Value *tbl = arg_iter++;
+    Value *tbl = F->arg_begin();
 
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
@@ -940,22 +688,19 @@ FunctionType *JitContext::create_symtable_savepoint(IRBuilder<> &builder, Module
     Value *Size  = builder.CreateLoad(Ptr);
     Value *Size_ = builder.CreateZExt(Size, I64Ty);
     builder.CreateRet(Size_);
-    return funcTy;
 }
 
-FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module *M)
+static void create_symtable_rollback(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
-    Type *I64Ty = builder.getInt64Ty();
-    Type *tblPtrTy = symtableType->getPointerTo();
-    FunctionType *funcTy = get_function_type(builder.getVoidTy(), tblPtrTy, I64Ty);
+    FunctionType *FTy = GetFuncType(symtable_rollback);
     Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "symtable_rollback", M);
+    F = Function::Create(FTy, Function::InternalLinkage, "symtable_rollback", M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl   = arg_iter++;
@@ -968,7 +713,6 @@ FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module 
     Value *saved_ = builder.CreateTrunc(saved, I32Ty);
     builder.CreateStore(saved_, Ptr);
     builder.CreateRetVoid();
-    return funcTy;
 }
 
 #ifdef MOZVM_USE_JMPTBL
@@ -980,7 +724,12 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
     char buf[128];
     snprintf(buf, 128, "jump_table%d_t", N);
     Module *M = ctx->curMod;
-    FunctionType *FTy = ctx->tbljmpidxType[N - 1];
+    FunctionType *FuncTypes[] = {
+        GetFuncType(jump_table1_jump),
+        GetFuncType(jump_table2_jump),
+        GetFuncType(jump_table3_jump)
+    };
+    FunctionType *FTy = FuncTypes[N - 1];
     Constant *f = M->getOrInsertFunction(buf, FTy);
 
     Value *pos = builder.CreateLoad(cur);
@@ -1000,6 +749,37 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
     }
 }
 #endif
+
+
+JitContext::JitContext(moz_runtime_t *r)
+{
+    LLVMContext& Ctx = getGlobalContext();
+    IRBuilder<> builder(Ctx);
+
+    for(int i = 0; i < ARRAY_SIZE(symbols); i++) {
+        const Symbol *sym = symbols + i;
+        sys::DynamicLibrary::AddSymbol(sym->name, sym->func);
+    }
+
+    Module *M = new Module("libnez", Ctx);
+    topMod = curMod = M;
+    create_bitset_get(builder, M);
+#ifdef MOZVM_USE_JMPTBL
+    create_jump_table_index<1>(builder, M);
+    create_jump_table_index<2>(builder, M);
+    create_jump_table_index<3>(builder, M);
+#endif
+    create_pstring_startswith(builder, M);
+    create_ast_save_tx(builder, M);
+    create_ast_get_last_linked_node(builder, M);
+    create_symtable_savepoint(builder, M);
+    create_symtable_rollback(builder, M);
+
+    EE = EngineBuilder(unique_ptr<Module>(M)).create();
+
+    EE->finalizeObject();
+    curMod = NULL;
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -1105,35 +885,35 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     _ctx->curMod = M;
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
-    PointerType *nodePtrTy = _ctx->nodeType->getPointerTo();
+    Constant *f_bitsetget   = REGISTER_FUNC(M, bitset_get);
+    Constant *f_pstrstwith  = REGISTER_FUNC(M, pstring_starts_with);
 
-    Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
-    Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
+    Constant *f_astsave     = REGISTER_FUNC(M, ast_save_tx);
 
-    Constant *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
-    Constant *f_astrollback = M->getOrInsertFunction("ast_rollback_tx", _ctx->astrollbackType);
-    Constant *f_astcommit   = M->getOrInsertFunction("ast_commit_tx", _ctx->astcommitType);
-    Constant *f_astreplace  = M->getOrInsertFunction("ast_log_replace", _ctx->astreplaceType);
-    Constant *f_astcapture  = M->getOrInsertFunction("ast_log_capture", _ctx->astcaptureType);
-    Constant *f_astnew      = M->getOrInsertFunction("ast_log_new", _ctx->astnewType);
-    Constant *f_astpop      = M->getOrInsertFunction("ast_log_pop", _ctx->astpopType);
-    Constant *f_astpush     = M->getOrInsertFunction("ast_log_push", _ctx->astpushType);
-    Constant *f_astswap     = M->getOrInsertFunction("ast_log_swap", _ctx->astswapType);
-    Constant *f_asttag      = M->getOrInsertFunction("ast_log_tag", _ctx->asttagType);
-    Constant *f_astlink     = M->getOrInsertFunction("ast_log_link", _ctx->astlinkType);
-    Constant *f_astlastnode = M->getOrInsertFunction("ast_get_last_linked_node", _ctx->astlastnodeType);
+    Constant *f_astrollback = REGISTER_FUNC(M, ast_rollback_tx);
+    Constant *f_astcommit   = REGISTER_FUNC(M, ast_commit_tx);
+    Constant *f_astreplace  = REGISTER_FUNC(M, ast_log_replace);
+    Constant *f_astcapture  = REGISTER_FUNC(M, ast_log_capture);
+    Constant *f_astnew      = REGISTER_FUNC(M, ast_log_new);
+    Constant *f_astpop      = REGISTER_FUNC(M, ast_log_pop);
+    Constant *f_astpush     = REGISTER_FUNC(M, ast_log_push);
+    Constant *f_astswap     = REGISTER_FUNC(M, ast_log_swap);
+    Constant *f_asttag      = REGISTER_FUNC(M, ast_log_tag);
+    Constant *f_astlink     = REGISTER_FUNC(M, ast_log_link);
+    Constant *f_astlastnode = REGISTER_FUNC(M, ast_get_last_linked_node);
 
-    PointerType *memoentryPtrTy = _ctx->memoentryType->getPointerTo();
+    Type *memoentryPtrTy = GetType<MemoEntry_t *>();
     Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
     Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
-    Constant *f_memoset         = M->getOrInsertFunction("memo_set", _ctx->memosetType);
-    Constant *f_memofail        = M->getOrInsertFunction("memo_fail", _ctx->memofailType);
-    Constant *f_memoget         = M->getOrInsertFunction("memo_get", _ctx->memogetType);
+    Constant *f_memoset         = REGISTER_FUNC(M, memo_set);
+    Constant *f_memofail        = REGISTER_FUNC(M, memo_fail);
+    Constant *f_memoget         = REGISTER_FUNC(M, memo_get);
 
-    Constant *f_tblsave     = M->getOrInsertFunction("symtable_savepoint", _ctx->tblsaveType);
-    Constant *f_tblrollback = M->getOrInsertFunction("symtable_rollback", _ctx->tblrollbackType);
+    Constant *f_tblsave     = REGISTER_FUNC(M, symtable_savepoint);
+    Constant *f_tblrollback = REGISTER_FUNC(M, symtable_rollback);
 
-    Function *F = Function::Create(_ctx->jitfuncType,
+    FunctionType *FuncTy = GetFuncType(mozvm_jit_call_nterm);
+    Function *F = Function::Create(FuncTy,
             Function::ExternalLinkage,
             runtime->C.nterms[nterm], M);
 
@@ -1331,7 +1111,8 @@ L_prepare_table:
                 Constant *ID = builder.getInt16(nterm);
                 Value *func;
                 if(mozvm_nterm_is_already_compiled(target)) {
-                    func = M->getOrInsertFunction(runtime->C.nterms[nterm], _ctx->jitfuncType);
+                    const char *nterm_name = runtime->C.nterms[nterm];
+                    func = M->getOrInsertFunction(nterm_name, FuncTy);
                 }
                 else {
                     func = get_callee_function(builder, runtime_, nterm);
@@ -1553,7 +1334,7 @@ L_prepare_table:
                 builder.CreateBr(rcond);
 
                 builder.SetInsertPoint(rcond);
-                PHINode *pos = builder.CreatePHI(_ctx->mozposType, 2);
+                PHINode *pos = builder.CreatePHI(GetType<mozpos_t>(), 2);
                 pos->addIncoming(firstpos, currentBB);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
@@ -1649,8 +1430,8 @@ L_prepare_table:
             CASE_(Memo) {
                 uint8_t  state  = *(uint8_t   *)(p + 1);
                 uint16_t memoId = *((uint16_t *)(p + 2));
-                Constant *state_    = builder.getInt32(state);
-                Constant *memoId_   = builder.getInt32(memoId);
+                Constant *state_  = builder.getInt32(state);
+                Constant *memoId_ = builder.getInt32(memoId);
 
                 Value *startpos;
                 Value *next;
@@ -1661,6 +1442,8 @@ L_prepare_table:
                 Value *endpos  = builder.CreateLoad(cur);
                 length = get_length(builder, startpos, endpos);
                 length = builder.CreateTrunc(length, builder.getInt32Ty());
+
+                Type *nodePtrTy   = GetType<Node *>();
                 Constant *nullnode = Constant::getNullValue(nodePtrTy);
                 create_call_inst(builder, f_memoset,
                         memo, startpos, memoId_, nullnode, length, state_);
