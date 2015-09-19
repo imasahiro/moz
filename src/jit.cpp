@@ -22,6 +22,9 @@
 
 #include "jit_types.cpp"
 
+// #define MOZVM_JIT_OPTIMIZE_MODULE 1
+// #define MOZVM_JIT_DUMP 1
+
 using namespace std;
 using namespace llvm;
 
@@ -57,18 +60,20 @@ struct Symbol {
     void *func;
 };
 static const Symbol symbols[] = {
-    { "ast_rollback_tx", reinterpret_cast<void *>(ast_rollback_tx) },
-    { "ast_commit_tx",   reinterpret_cast<void *>(ast_commit_tx) },
-    { "ast_log_replace", reinterpret_cast<void *>(ast_log_capture) },
-    { "ast_log_new",     reinterpret_cast<void *>(ast_log_new) },
-    { "ast_log_pop",     reinterpret_cast<void *>(ast_log_pop) },
-    { "ast_log_push",    reinterpret_cast<void *>(ast_log_push) },
-    { "ast_log_swap",    reinterpret_cast<void *>(ast_log_swap) },
-    { "ast_log_tag",     reinterpret_cast<void *>(ast_log_tag) },
-    { "ast_log_link",    reinterpret_cast<void *>(ast_log_link) },
-    { "memo_set",        reinterpret_cast<void *>(memo_set) },
-    { "memo_fail",       reinterpret_cast<void *>(memo_fail) },
-    { "memo_get",        reinterpret_cast<void *>(memo_get) }
+#define DEFINE_SYMBOL(S) { #S, reinterpret_cast<void *>(S) }
+    DEFINE_SYMBOL(ast_rollback_tx),
+    DEFINE_SYMBOL(ast_commit_tx),
+    DEFINE_SYMBOL(ast_log_replace),
+    DEFINE_SYMBOL(ast_log_new),
+    DEFINE_SYMBOL(ast_log_pop),
+    DEFINE_SYMBOL(ast_log_push),
+    DEFINE_SYMBOL(ast_log_swap),
+    DEFINE_SYMBOL(ast_log_tag),
+    DEFINE_SYMBOL(ast_log_link),
+    DEFINE_SYMBOL(memo_set),
+    DEFINE_SYMBOL(memo_fail),
+    DEFINE_SYMBOL(memo_get)
+#undef DEFINE_SYMBOL
 };
 
 static inline bool nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
@@ -76,7 +81,7 @@ static inline bool nterm_has_inst(mozvm_nterm_entry_t *e, moz_inst_t *inst)
     return e->begin <= inst && inst <= e->end;
 }
 
-BasicBlock *get_jump_destination(mozvm_nterm_entry_t *e, moz_inst_t *dest, BasicBlock *failBB)
+static BasicBlock *get_jump_destination(mozvm_nterm_entry_t *e, moz_inst_t *dest, BasicBlock *failBB)
 {
     if(!nterm_has_inst(e, dest) && *dest == Fail) {
         return failBB;
@@ -101,13 +106,13 @@ void set_vector(const Vector& dest, const First& first, const Rest&... rest)
 }
 
 template<typename... Args>
-Value *create_get_element_ptr(IRBuilder<> &builder, Value *Val, const Args&... args)
+Value *create_get_element_ptr(IRBuilder<> &builder, Value *V, const Args&... args)
 {
     vector<Value *> indexs;
     set_vector(&indexs, args...);
     ArrayRef<Value *> idxsRef(indexs);
 
-    return builder.CreateGEP(Val, idxsRef);
+    return builder.CreateGEP(V, idxsRef);
 }
 
 template<typename... Args>
@@ -364,7 +369,7 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
     return nullptr;
 #endif /*MOZVM_USE_JMPTBL*/
 }
-//
+
 // static Value *emit_global_variable(JitContext *ctx, Type *Ty, const char *name, void *addr)
 // {
 //     GlobalVariable *G;
@@ -468,17 +473,17 @@ static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 }
 #endif
 
+#define CREATE_FUNCTION(F, M) \
+    Function::Create(GetFuncType(F), Function::InternalLinkage, #F, M)
+
 static void create_bitset_get(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
-    FunctionType *FTy = GetFuncType(bitset_get);
-    Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
-
-    F = Function::Create(FTy, Function::InternalLinkage, "bitset_get", M);
+    Function *F = CREATE_FUNCTION(bitset_get, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *set = arg_iter++;
@@ -564,10 +569,7 @@ static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
     LLVMContext& Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
     Type *I8PtrTy  = builder.getInt8PtrTy();
-    FunctionType *FTy = GetFuncType(pstring_starts_with);
-    Function *F;
-
-    F = Function::Create(FTy, Function::InternalLinkage, "pstring_starts_with", M);
+    Function *F = CREATE_FUNCTION(pstring_starts_with, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *str  = arg_iter++;
@@ -628,15 +630,12 @@ static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
-    FunctionType *FTy = GetFuncType(ast_save_tx);
-    Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(FTy, Function::InternalLinkage, "ast_save_tx", M);
+    Function *F = CREATE_FUNCTION(ast_save_tx, M);
 
-    Function::arg_iterator arg_iter = F->arg_begin();
-    Value *ast = arg_iter++;
+    Value *ast = F->arg_begin();
 
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
@@ -650,12 +649,10 @@ static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
 static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
-    FunctionType *FTy = GetFuncType(ast_get_last_linked_node);
-    Function *F;
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(FTy, Function::InternalLinkage, "ast_get_last_linked_node", M);
+    Function *F = CREATE_FUNCTION(ast_get_last_linked_node, M);
 
     Value *ast = F->arg_begin();
 
@@ -671,13 +668,11 @@ static void create_symtable_savepoint(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
-    FunctionType *FTy = GetFuncType(symtable_savepoint);
-    Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(FTy, Function::InternalLinkage, "symtable_savepoint", M);
+    Function *F = CREATE_FUNCTION(symtable_savepoint, M);
 
     Value *tbl = F->arg_begin();
 
@@ -694,13 +689,11 @@ static void create_symtable_rollback(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
-    FunctionType *FTy = GetFuncType(symtable_rollback);
-    Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
-    F = Function::Create(FTy, Function::InternalLinkage, "symtable_rollback", M);
+    Function *F = CREATE_FUNCTION(symtable_rollback, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl   = arg_iter++;
@@ -844,29 +837,34 @@ uint8_t mozvm_jit_call_nterm(moz_runtime_t *runtime, const char *str, uint16_t n
 static int optimize(Module *M, Function *F)
 {
     const int OptLevel  = 3;
-    const int SizeLevel = 1;
+    const int SizeLevel = 2;
 
     PassManager         MPM;
     FunctionPassManager FPM(M);
     PassManagerBuilder Builder;
 
     FPM.add(createVerifierPass());
-    MPM.add(createDebugInfoVerifierPass());
     Builder.OptLevel = OptLevel;
     Builder.Inliner  = createFunctionInliningPass(OptLevel, SizeLevel);
 
     Builder.populateFunctionPassManager(FPM);
+#ifdef MOZVM_JIT_OPTIMIZE_MODULE
     Builder.populateModulePassManager(MPM);
     // Builder.populateLTOPassManager(MPM);
+#endif
     FPM.doInitialization();
     FPM.run(*F);
+#ifdef MOZVM_JIT_OPTIMIZE_MODULE
     MPM.run(*M);
+#endif
 
-    // F->dump();
+#ifdef MOZVM_JIT_DUMP
+    F->dump();
     // M->dump();
-    if(verifyFunction(*F)) {
-        return 1;
-    }
+#endif
+    // if(verifyFunction(*F)) {
+    //     return 1;
+    // }
     return 0;
 }
 
