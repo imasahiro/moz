@@ -1242,7 +1242,6 @@ L_prepare_table:
         switch(opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop) {
-                asm volatile("int3");
                 break;
             }
             CASE_(Fail) {
@@ -1331,35 +1330,27 @@ L_prepare_table:
                 currentBB = next;
                 break;
             }
-            CASE_(Byte) {
+            CASE_(Byte);
+            CASE_(NByte) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "byte.succ", F);
-                uint8_t ch = (uint8_t)*(p+1);
+                uint8_t ch = *(uint8_t *)(p+1);
                 Constant *C = builder.getInt8(ch);
 
                 Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *character = builder.CreateLoad(current);
-                Value *cond = builder.CreateICmpNE(character, C);
+                Value *cond;
+                if (opcode == Byte) {
+                    cond = builder.CreateICmpNE(character, C);
+                }
+                else {
+                    cond = builder.CreateICmpEQ(character, C);
+                }
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
-                currentBB = succ;
-                break;
-            }
-            CASE_(NByte) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "nbyte.succ", F);
-                uint8_t ch = (uint8_t)*(p+1);
-                Constant *C = builder.getInt8(ch);
-
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *cond = builder.CreateICmpEQ(character, C);
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
                 currentBB = succ;
                 break;
             }
@@ -1422,38 +1413,24 @@ L_prepare_table:
                 asm volatile("int3");
                 break;
             }
-            CASE_(Str) {
+            CASE_(Str);
+            CASE_(NStr) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
-                STRING_t strId = *((STRING_t *)(p+1));
+                STRING_t strId = *((STRING_t *)(p + 1));
 
                 Value *str = get_string_ptr(builder, runtime_, strId);
                 Value *len = create_call_inst(builder, f_pstrlen, str);
                 Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
-                Value *cond = builder.CreateICmpEQ(result, i32_0);
+                Value *C = opcode == Str ? i32_0 : i32_1;
+                Value *cond = builder.CreateICmpEQ(result, C);
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
                 Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
                 Value *nextpos = consume_n(builder, pos, len_);
                 builder.CreateStore(nextpos, cur);
-                currentBB = succ;
-                break;
-            }
-            CASE_(NStr) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "nstr.succ", F);
-                STRING_t strId = *((STRING_t *)(p+1));
-
-                Value *str = get_string_ptr(builder, runtime_, strId);
-                Value *len = create_call_inst(builder, f_pstrlen, str);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
-                Value *cond = builder.CreateICmpEQ(result, i32_1);
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
                 currentBB = succ;
                 break;
             }
@@ -1465,7 +1442,8 @@ L_prepare_table:
                 asm volatile("int3");
                 break;
             }
-            CASE_(Set) {
+            CASE_(Set);
+            CASE_(NSet) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
                 BITSET_t setId = *((BITSET_t *)(p+1));
 
@@ -1475,29 +1453,19 @@ L_prepare_table:
                 Value *character = builder.CreateLoad(current);
                 Value *index = builder.CreateZExt(character, builder.getInt32Ty());
                 Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpEQ(result, i32_0);
+                Value *C = opcode == Str ? i32_0 : i32_1;
+                Value *cond = NULL;
+                if (opcode == Set) {
+                    cond = builder.CreateICmpEQ(result, i32_0);
+                }
+                else {
+                    cond = builder.CreateICmpNE(result, i32_0);
+                }
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
-                currentBB = succ;
-                break;
-            }
-            CASE_(NSet) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "nset.succ", F);
-                BITSET_t setId = *((BITSET_t *)(p+1));
-
-                Value *set = get_bitset_ptr(builder, runtime_, setId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *index = builder.CreateZExt(character, builder.getInt32Ty());
-                Value *result = create_call_inst(builder, f_bitsetget, set, index);
-                Value *cond = builder.CreateICmpNE(result, i32_0);
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
                 currentBB = succ;
                 break;
             }
