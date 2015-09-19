@@ -25,6 +25,8 @@
 using namespace std;
 using namespace llvm;
 
+typedef unordered_map<moz_inst_t *, BasicBlock *> BBMap;
+
 struct Symbol {
     const char *name;
     void *func;
@@ -413,6 +415,7 @@ private:
 
 public:
     ExecutionEngine *EE;
+    Module *curMod;
     StructType *bsetType;
 #ifdef MOZVM_USE_JMPTBL
     StructType *jmptbl1Type;
@@ -433,9 +436,7 @@ public:
 
     FunctionType *bitsetgetType;
 #ifdef MOZVM_USE_JMPTBL
-    FunctionType *tbljmp1idxType;
-    FunctionType *tbljmp2idxType;
-    FunctionType *tbljmp3idxType;
+    FunctionType *tbljmpidxType[3];
 #endif
     FunctionType *pstrlenType;
     FunctionType *pstrstwithType;
@@ -627,9 +628,9 @@ JitContext::JitContext()
     Module *M = new Module("top", Ctx);
     bitsetgetType   = create_bitset_get(builder, M);
 #ifdef MOZVM_USE_JMPTBL
-    tbljmp1idxType = create_jump_table_index<1>(builder, M);
-    tbljmp2idxType = create_jump_table_index<2>(builder, M);
-    tbljmp3idxType = create_jump_table_index<3>(builder, M);
+    tbljmpidxType[0] = create_jump_table_index<1>(builder, M);
+    tbljmpidxType[1] = create_jump_table_index<2>(builder, M);
+    tbljmpidxType[2] = create_jump_table_index<3>(builder, M);
 #endif
     pstrlenType     = create_pstring_length(builder, M);
     pstrstwithType  = create_pstring_startswith(builder, M);
@@ -639,6 +640,7 @@ JitContext::JitContext()
     tblrollbackType = create_symtable_rollback(builder, M);
     EE = EngineBuilder(unique_ptr<Module>(M)).create();
     EE->finalizeObject();
+    curMod = NULL;
 }
 
 FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
@@ -948,6 +950,35 @@ FunctionType *JitContext::create_symtable_rollback(IRBuilder<> &builder, Module 
     return funcTy;
 }
 
+#ifdef MOZVM_USE_JMPTBL
+template<unsigned N>
+void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
+        JitContext *ctx, Value *cur, Value *str, BasicBlock *unreachableBB,
+        BBMap &BBMap, moz_inst_t *offset, int *jumps)
+{
+    char buf[128];
+    snprintf(buf, 128, "jump_table%d_t", N);
+    Module *M = ctx->curMod;
+    FunctionType *FTy = ctx->tbljmpidxType[N - 1];
+    Constant *f = M->getOrInsertFunction(buf, FTy);
+
+    Value *pos = builder.CreateLoad(cur);
+    Value *current = get_current(builder, str, pos);
+    Value *character = builder.CreateLoad(current);
+    Value *idx = create_call_inst(builder, f, tbl, character);
+
+    SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 1 << N);
+    for(int i = 0; i < 1 << N; i++) {
+        if(jumps[i] != INT_MAX) {
+            moz_inst_t *dest = offset + jumps[i];
+            jump->addCase(builder.getInt32(i), BBMap[dest]);
+        }
+        else {
+            jump->addCase(builder.getInt32(i), unreachableBB);
+        }
+    }
+}
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -1021,20 +1052,13 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     LLVMContext& Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
+    _ctx->curMod = M;
     _ctx->EE->addModule(unique_ptr<Module>(M));
 
     PointerType *nodePtrTy = _ctx->nodeType->getPointerTo();
     Constant *nullnode     = Constant::getNullValue(nodePtrTy);
 
     Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
-    Constant *f_tbljmp1idx;
-    Constant *f_tbljmp2idx;
-    Constant *f_tbljmp3idx;
-#ifdef MOZVM_USE_JMPTBL
-    f_tbljmp1idx  = M->getOrInsertFunction("jump_table1_index", _ctx->tbljmp1idxType);
-    f_tbljmp2idx  = M->getOrInsertFunction("jump_table2_index", _ctx->tbljmp2idxType);
-    f_tbljmp3idx  = M->getOrInsertFunction("jump_table3_index", _ctx->tbljmp3idxType);
-#endif
     Constant *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
     Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
 
@@ -1071,7 +1095,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Value *nterm_ = arg_iter++;
 
     vector<BasicBlock *> failjumpList;
-    unordered_map<moz_inst_t *, BasicBlock *> BBMap;
+    BBMap BBMap;
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
     BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
@@ -1539,75 +1563,30 @@ L_prepare_table:
                 break;
             }
             CASE_(TblJump1) {
-                uint16_t tblId = *((uint16_t *)(p+1));
-                moz_inst_t *jmpoffset = p + shift;
+                uint16_t tblId = *((uint16_t *)(p + 1));
+                moz_inst_t *offset = p + shift;
                 int *jumps = runtime->C.jumps1[tblId].jumps;
-
                 Value *tbl = get_jump_table<1>(builder, runtime_, tblId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *idx = create_call_inst(builder, f_tbljmp1idx, tbl, character);
-
-                SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 2);
-                for(int i = 0; i < 2; i++) {
-                    if(jumps[i] != INT_MAX) {
-                        moz_inst_t *dest = jmpoffset + jumps[i];
-                        // assert(nterm_has_inst(e, dest));
-                        jump->addCase(builder.getInt32(i), BBMap[dest]);
-                    }
-                    else {
-                        jump->addCase(builder.getInt32(i), unreachableBB);
-                    }
-                }
+                create_tbl_jump_inst<1>(builder, tbl, _ctx, cur, str,
+                        unreachableBB, BBMap, offset, jumps);
                 break;
             }
             CASE_(TblJump2) {
-                uint16_t tblId = *((uint16_t *)(p+1));
-                moz_inst_t *jmpoffset = p + shift;
+                uint16_t tblId = *((uint16_t *)(p + 1));
+                moz_inst_t *offset = p + shift;
                 int *jumps = runtime->C.jumps2[tblId].jumps;
-
                 Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *idx = create_call_inst(builder, f_tbljmp2idx, tbl, character);
-
-                SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 4);
-                for(int i = 0; i < 4; i++) {
-                    if(jumps[i] != INT_MAX) {
-                        moz_inst_t *dest = jmpoffset + jumps[i];
-                        // assert(nterm_has_inst(e, dest));
-                        jump->addCase(builder.getInt32(i), BBMap[dest]);
-                    }
-                    else {
-                        jump->addCase(builder.getInt32(i), unreachableBB);
-                    }
-                }
+                create_tbl_jump_inst<2>(builder, tbl, _ctx, cur, str,
+                        unreachableBB, BBMap, offset, jumps);
                 break;
             }
             CASE_(TblJump3) {
-                uint16_t tblId = *((uint16_t *)(p+1));
-                moz_inst_t *jmpoffset = p + shift;
+                uint16_t tblId = *((uint16_t *)(p + 1));
+                moz_inst_t *offset = p + shift;
                 int *jumps = runtime->C.jumps3[tblId].jumps;
-
                 Value *tbl = get_jump_table<3>(builder, runtime_, tblId);
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *character = builder.CreateLoad(current);
-                Value *idx = create_call_inst(builder, f_tbljmp3idx, tbl, character);
-
-                SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 8);
-                for(int i = 0; i < 8; i++) {
-                    if(jumps[i] != INT_MAX) {
-                        moz_inst_t *dest = jmpoffset + jumps[i];
-                        // assert(nterm_has_inst(e, dest));
-                        jump->addCase(builder.getInt32(i), BBMap[dest]);
-                    }
-                    else {
-                        jump->addCase(builder.getInt32(i), unreachableBB);
-                    }
-                }
+                create_tbl_jump_inst<3>(builder, tbl, _ctx, cur, str,
+                        unreachableBB, BBMap, offset, jumps);
                 break;
             }
             CASE_(Lookup) {
