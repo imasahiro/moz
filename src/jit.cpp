@@ -1350,8 +1350,10 @@ L_prepare_table:
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, cur);
+                if (opcode == Byte) {
+                    Value *nextpos = consume(builder, pos);
+                    builder.CreateStore(nextpos, cur);
+                }
                 currentBB = succ;
                 break;
             }
@@ -1380,29 +1382,25 @@ L_prepare_table:
                 asm volatile("int3");
                 break;
             }
-            CASE_(Any) {
+            CASE_(Any);
+            CASE_(NAny) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
 
                 Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
-                Value *cond = builder.CreateICmpEQ(current, tail);
+                Value *cond;
+                if (opcode == Any) {
+                    cond = builder.CreateICmpEQ(current, tail);
+                } else {
+                    cond = builder.CreateICmpNE(current, tail);
+                }
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, cur);
-                currentBB = succ;
-                break;
-            }
-            CASE_(NAny) {
-                BasicBlock *succ = BasicBlock::Create(Ctx, "nany.succ", F);
-
-                Value *pos = builder.CreateLoad(cur);
-                Value *current = get_current(builder, str, pos);
-                Value *cond = builder.CreateICmpNE(current, tail);
-                builder.CreateCondBr(cond, failBB, succ);
-
-                builder.SetInsertPoint(succ);
+                if (opcode == Any) {
+                    Value *nextpos = consume(builder, pos);
+                    builder.CreateStore(nextpos, cur);
+                }
                 currentBB = succ;
                 break;
             }
@@ -1429,9 +1427,11 @@ L_prepare_table:
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
-                Value *nextpos = consume_n(builder, pos, len_);
-                builder.CreateStore(nextpos, cur);
+                if (opcode == Str) {
+                    Value *len_ = builder.CreateZExt(len, builder.getInt64Ty());
+                    Value *nextpos = consume_n(builder, pos, len_);
+                    builder.CreateStore(nextpos, cur);
+                }
                 currentBB = succ;
                 break;
             }
@@ -1465,8 +1465,10 @@ L_prepare_table:
                 builder.CreateCondBr(cond, failBB, succ);
 
                 builder.SetInsertPoint(succ);
-                Value *nextpos = consume(builder, pos);
-                builder.CreateStore(nextpos, cur);
+                if (opcode == Set) {
+                    Value *nextpos = consume(builder, pos);
+                    builder.CreateStore(nextpos, cur);
+                }
                 currentBB = succ;
                 break;
             }
