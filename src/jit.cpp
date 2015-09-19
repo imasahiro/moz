@@ -406,7 +406,6 @@ private:
     template<unsigned n>
     FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
 #endif
-    FunctionType *create_pstring_length(IRBuilder<> &builder, Module *M);
     FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
     FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
     FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
@@ -436,7 +435,6 @@ public:
 #ifdef MOZVM_USE_JMPTBL
     FunctionType *tbljmpidxType[3];
 #endif
-    FunctionType *pstrlenType;
     FunctionType *pstrstwithType;
 
     FunctionType *astsaveType;
@@ -625,7 +623,6 @@ JitContext::JitContext()
     tbljmpidxType[1] = create_jump_table_index<2>(builder, M);
     tbljmpidxType[2] = create_jump_table_index<3>(builder, M);
 #endif
-    pstrlenType     = create_pstring_length(builder, M);
     pstrstwithType  = create_pstring_startswith(builder, M);
     astsaveType     = create_ast_save_tx(builder, M);
     astlastnodeType = create_ast_get_last_linked_node(builder, M);
@@ -726,31 +723,6 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
     return funcTy;
 }
 #endif
-
-FunctionType *JitContext::create_pstring_length(IRBuilder<> &builder, Module *M)
-{
-    LLVMContext& Ctx = M->getContext();
-    Type *I32Ty    = builder.getInt32Ty();
-    Type *I8PtrTy  = builder.getInt8PtrTy();
-    Type *I32PtrTy = I32Ty->getPointerTo();
-    unsigned off = OFFSET_OF(pstring_t, len) - OFFSET_OF(pstring_t, str);
-    Constant *offset = builder.getInt64(off);
-
-    FunctionType *FTy = get_function_type(I32Ty, I8PtrTy);
-    Function *F = Function::Create(FTy, Function::InternalLinkage,
-                                   "pstring_length", M);
-    Value *str = F->arg_begin();
-
-    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
-    builder.SetInsertPoint(entryBB);
-
-    Value *len;
-    len = builder.CreateGEP(str, offset);
-    len = builder.CreateBitCast(len, I32PtrTy);
-    len = builder.CreateLoad(len);
-    builder.CreateRet(len);
-    return funcTy;
-}
 
 FunctionType *JitContext::create_pstring_startswith(IRBuilder<> &builder, Module *M)
 {
@@ -1060,7 +1032,6 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Constant *nullnode     = Constant::getNullValue(nodePtrTy);
 
     Constant *f_bitsetget   = M->getOrInsertFunction("bitset_get", _ctx->bitsetgetType);
-    Constant *f_pstrlen     = M->getOrInsertFunction("pstring_length", _ctx->pstrlenType);
     Constant *f_pstrstwith  = M->getOrInsertFunction("pstring_starts_with", _ctx->pstrstwithType);
 
     Constant *f_astsave     = M->getOrInsertFunction("ast_save_tx", _ctx->astsaveType);
@@ -1416,9 +1387,10 @@ L_prepare_table:
             CASE_(NStr) {
                 BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
                 STRING_t strId = *((STRING_t *)(p + 1));
+                const char *impl = STRING_GET_IMPL(runtime, strId);
 
                 Value *str = get_string_ptr(builder, runtime_, strId);
-                Value *len = create_call_inst(builder, f_pstrlen, str);
+                Value *len = builder.getInt32(pstring_length(impl));
                 Value *pos = builder.CreateLoad(cur);
                 Value *current = get_current(builder, str, pos);
                 Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
