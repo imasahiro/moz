@@ -418,9 +418,7 @@ public:
     Module *curMod;
     StructType *bsetType;
 #ifdef MOZVM_USE_JMPTBL
-    StructType *jmptbl1Type;
-    StructType *jmptbl2Type;
-    StructType *jmptbl3Type;
+    StructType *jmptblType[3];
 #endif
     StructType *nodeType;
     StructType *astType;
@@ -461,11 +459,6 @@ public:
     FunctionType *tblsaveType;
     FunctionType *tblrollbackType;
 
-#ifdef MOZVM_USE_JMPTBL
-    template<unsigned n>
-    StructType *jump_table_type();
-#endif
-
     ~JitContext() {};
     JitContext();
 };
@@ -491,15 +484,15 @@ JitContext::JitContext()
     bsetType = define_struct_type("bitset_t", ArrayType::get(I32Ty, (256/BITS)));
 #endif
 #ifdef MOZVM_USE_JMPTBL
-    jmptbl1Type = define_struct_type("jump_table1_t",
+    jmptblType[0] = define_struct_type("jump_table1_t",
             ArrayType::get(bsetType, 1),
             ArrayType::get(I32Ty, 2)
             );
-    jmptbl2Type = define_struct_type("jump_table2_t",
+    jmptblType[1] = define_struct_type("jump_table2_t",
             ArrayType::get(bsetType, 2),
             ArrayType::get(I32Ty, 4)
             );
-    jmptbl3Type = define_struct_type("jump_table3_t",
+    jmptblType[2] = define_struct_type("jump_table3_t",
             ArrayType::get(bsetType, 3),
             ArrayType::get(I32Ty, 8)
             );
@@ -512,9 +505,9 @@ JitContext::JitContext()
             I8PtrPtrTy, // tables
             I32PtrTy,   // jumps
 #ifdef MOZVM_USE_JMPTBL
-            jmptbl1Type->getPointerTo(), // jumps1
-            jmptbl2Type->getPointerTo(), // jumps2
-            jmptbl3Type->getPointerTo(), // jumps3
+            jmptblType[0]->getPointerTo(), // jumps1
+            jmptblType[1]->getPointerTo(), // jumps2
+            jmptblType[2]->getPointerTo(), // jumps3
 #endif
             I8PtrPtrTy, // nterms
             I16Ty, // set_size
@@ -690,42 +683,23 @@ FunctionType *JitContext::create_bitset_get(IRBuilder<> &builder, Module *M)
 }
 
 #ifdef MOZVM_USE_JMPTBL
-template<unsigned n>
-StructType *JitContext::jump_table_type()
-{
-    switch(n) {
-        case 1: {
-            return jmptbl1Type;
-        }
-        case 2: {
-            return jmptbl2Type;
-        }
-        case 3: {
-            return jmptbl3Type;
-        }
-        default: {
-            return nullptr;
-        }
-    }
-    return nullptr;
-}
-
-template<unsigned n>
+template<unsigned N>
 FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *M)
 {
+    char fname[128];
+    assert(N < 3);
+    snprintf(fname, 128, "jump_table%d_index", N);
+
     LLVMContext& Ctx = M->getContext();
     Type *I8Ty  = builder.getInt8Ty();
     Type *I32Ty = builder.getInt32Ty();
-    Type *jmptblPtrTy = jump_table_type<n>()->getPointerTo();
+    Type *jmptblPtrTy = jmptblType[N - 1]->getPointerTo();
     FunctionType *funcTy = get_function_type(I32Ty, jmptblPtrTy, I8Ty);
-    Function *F;
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
 
     Constant *f_bitsetget = M->getOrInsertFunction("bitset_get", bitsetgetType);
-
-    string func_name = string("jump_table") + to_string(n) + string("_index");
-    F = Function::Create(funcTy, Function::InternalLinkage, func_name, M);
+    Function *F = Function::Create(funcTy, Function::InternalLinkage, fname, M);
 
     Function::arg_iterator arg_iter = F->arg_begin();
     Value *tbl = arg_iter++;
@@ -734,9 +708,9 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *ch_    = builder.CreateZExt(ch, I32Ty);
+    Value *ch_ = builder.CreateZExt(ch, I32Ty);
     Value *idx;
-    for(int i = 0; i < n; i++) {
+    for(int i = 0; i < N; i++) {
         Value *tbl_set = create_get_element_ptr(builder, tbl,
                 i64_0, i32_0, builder.getInt64(i));
         Value *idx_ = create_call_inst(builder, f_bitsetget, tbl_set, ch_);
