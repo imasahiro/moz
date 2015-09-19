@@ -730,26 +730,24 @@ FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *
 FunctionType *JitContext::create_pstring_length(IRBuilder<> &builder, Module *M)
 {
     LLVMContext& Ctx = M->getContext();
-    Type *I32Ty = builder.getInt32Ty();
+    Type *I32Ty    = builder.getInt32Ty();
     Type *I8PtrTy  = builder.getInt8PtrTy();
     Type *I32PtrTy = I32Ty->getPointerTo();
-    FunctionType *funcTy = get_function_type(I32Ty, I8PtrTy);
-    Function *F;
-    unsigned *lenoffset = &(((pstring_t *)NULL)->len);
-    char *stroffset = ((pstring_t *)NULL)->str;
-    Constant *offset = builder.getInt64((long)lenoffset - (long)stroffset);
+    unsigned off = OFFSET_OF(pstring_t, len) - OFFSET_OF(pstring_t, str);
+    Constant *offset = builder.getInt64(off);
 
-    F = Function::Create(funcTy, Function::InternalLinkage, "pstring_length", M);
-
-    Function::arg_iterator arg_iter = F->arg_begin();
-    Value *str = arg_iter++;
+    FunctionType *FTy = get_function_type(I32Ty, I8PtrTy);
+    Function *F = Function::Create(FTy, Function::InternalLinkage,
+                                   "pstring_length", M);
+    Value *str = F->arg_begin();
 
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *len_ptr_ = builder.CreateGEP(str, offset);
-    Value *len_ptr  = builder.CreateBitCast(len_ptr_, I32PtrTy);
-    Value *len      = builder.CreateLoad(len_ptr);
+    Value *len;
+    len = builder.CreateGEP(str, offset);
+    len = builder.CreateBitCast(len, I32PtrTy);
+    len = builder.CreateLoad(len);
     builder.CreateRet(len);
     return funcTy;
 }
