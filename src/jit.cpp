@@ -364,72 +364,72 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
     return nullptr;
 #endif /*MOZVM_USE_JMPTBL*/
 }
-
-static Value *emit_global_variable(JitContext *ctx, Type *Ty, const char *name, void *addr)
-{
-    GlobalVariable *G;
-    Module *M  = ctx->curMod;
-    ExecutionEngine *EE = ctx->EE;
-
-    // if ((G = M->getNamedGlobal(name)) != 0) {
-    //     void *oldAddr = EE->getPointerToGlobal(G);
-    //     if (oldAddr == addr) {
-    //         return G;
-    //     }
-    // }
-    G = new GlobalVariable(*M, Ty, true,
-            GlobalVariable::ExternalLinkage, NULL, name);
-    EE->addGlobalMapping(G, addr);
-    return G;
-}
-
-static void register_constants(JitContext *ctx, moz_runtime_t *r)
-{
-    char name[128];
-    mozvm_constant_t *C = &r->C;
-    Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
-    Type *SetTy = GetType<bitset_t>();
-    for (int i = 0; i < C->tag_size; i++) {
-        snprintf(name, 128, "tag%d", i);
-        emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
-    }
-    for (int i = 0; i < C->str_size; i++) {
-        snprintf(name, 128, "str%d", i);
-        emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
-    }
-    for (int i = 0; i < C->set_size; i++) {
-        snprintf(name, 128, "set%d", i);
-        emit_global_variable(ctx, SetTy, name, (void *)&C->sets[i]);
-    }
-}
-
-typedef enum MozConstType {
-    MozConstTypeTag,
-    MozConstTypeStr,
-    MozConstTypeSet
-} MozConstType;
-
-Value *find_constant(IRBuilder<> &builder, JitContext *ctx, MozConstType Ty, uint16_t id, void *p)
-{
-    char name[128];
-    Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
-    Type *SetTy = GetType<bitset_t *>();
-    Type *Type  = StrTy;
-    switch (Ty) {
-    case MozConstTypeTag:
-        snprintf(name, 128, "tag%d", id);
-        break;
-    case MozConstTypeStr:
-        snprintf(name, 128, "str%d", id);
-        break;
-    case MozConstTypeSet:
-        snprintf(name, 128, "set%d", id);
-        Type = SetTy;
-        break;
-    }
-    Value  *V = builder.getInt64((uintptr_t)p);
-    return builder.CreateIntToPtr(V, Type);
-}
+//
+// static Value *emit_global_variable(JitContext *ctx, Type *Ty, const char *name, void *addr)
+// {
+//     GlobalVariable *G;
+//     Module *M  = ctx->curMod;
+//     ExecutionEngine *EE = ctx->EE;
+//
+//     // if ((G = M->getNamedGlobal(name)) != 0) {
+//     //     void *oldAddr = EE->getPointerToGlobal(G);
+//     //     if (oldAddr == addr) {
+//     //         return G;
+//     //     }
+//     // }
+//     G = new GlobalVariable(*M, Ty, true,
+//             GlobalVariable::ExternalLinkage, NULL, name);
+//     EE->addGlobalMapping(G, addr);
+//     return G;
+// }
+//
+// static void register_constants(JitContext *ctx, moz_runtime_t *r)
+// {
+//     char name[128];
+//     mozvm_constant_t *C = &r->C;
+//     Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
+//     Type *SetTy = GetType<bitset_t>();
+//     for (int i = 0; i < C->tag_size; i++) {
+//         snprintf(name, 128, "tag%d", i);
+//         emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
+//     }
+//     for (int i = 0; i < C->str_size; i++) {
+//         snprintf(name, 128, "str%d", i);
+//         emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
+//     }
+//     for (int i = 0; i < C->set_size; i++) {
+//         snprintf(name, 128, "set%d", i);
+//         emit_global_variable(ctx, SetTy, name, (void *)&C->sets[i]);
+//     }
+// }
+//
+// typedef enum MozConstType {
+//     MozConstTypeTag,
+//     MozConstTypeStr,
+//     MozConstTypeSet
+// } MozConstType;
+//
+// Value *find_constant(IRBuilder<> &builder, JitContext *ctx, MozConstType Ty, uint16_t id, void *p)
+// {
+//     char name[128];
+//     Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
+//     Type *SetTy = GetType<bitset_t *>();
+//     Type *Type  = StrTy;
+//     switch (Ty) {
+//     case MozConstTypeTag:
+//         snprintf(name, 128, "tag%d", id);
+//         break;
+//     case MozConstTypeStr:
+//         snprintf(name, 128, "str%d", id);
+//         break;
+//     case MozConstTypeSet:
+//         snprintf(name, 128, "set%d", id);
+//         Type = SetTy;
+//         break;
+//     }
+//     Value  *V = builder.getInt64((uintptr_t)p);
+//     return builder.CreateIntToPtr(V, Type);
+// }
 
 #if 0
 static Value *get_string_ptr(IRBuilder<> &builder, JitContext *ctx, moz_runtime_t *runtime, STRING_t id)
@@ -733,9 +733,9 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
     Constant *f = M->getOrInsertFunction(buf, FTy);
 
     Value *pos = builder.CreateLoad(cur);
-    Value *current = GetCur(builder, str, pos);
-    Value *character = builder.CreateLoad(current);
-    Value *idx = create_call_inst(builder, f, tbl, character);
+    Value *Cur = GetCur(builder, str, pos);
+    Value *Char = builder.CreateLoad(Cur);
+    Value *idx = create_call_inst(builder, f, tbl, Char);
 
     SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 1 << N);
     for(int i = 0; i < 1 << N; i++) {
@@ -917,7 +917,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     Function::arg_iterator arg_iter=F->arg_begin();
     Value *runtime_ = arg_iter++;
     Value *str = arg_iter++;
-    Value *nterm_ = arg_iter++;
+    // Value *nterm_ = arg_iter++;
 
     vector<BasicBlock *> failjumpList;
     BBMap BBMap;
@@ -1043,7 +1043,7 @@ L_prepare_table:
         stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
     }
 
-    BasicBlock *currentBB = entryBB;
+    BasicBlock *CurBB = entryBB;
     p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
@@ -1052,16 +1052,16 @@ L_prepare_table:
         if(BBMap.find(p) != BBMap.end()) {
             BasicBlock *newBB = BBMap[p];
             newBB->insertInto(F);
-            if(currentBB->getTerminator() == nullptr) {
+            if(CurBB->getTerminator() == nullptr) {
                 builder.CreateBr(newBB);
             }
             builder.SetInsertPoint(newBB);
-            currentBB = newBB;
+            CurBB = newBB;
         }
-        else if(currentBB->getTerminator() != nullptr) {
+        else if(CurBB->getTerminator() != nullptr) {
             BasicBlock *newBB = BasicBlock::Create(Ctx, "unreachable", F);
             builder.SetInsertPoint(newBB);
-            currentBB = newBB;
+            CurBB = newBB;
         }
 
         switch(opcode) {
@@ -1152,7 +1152,7 @@ L_prepare_table:
             builder.CreateStore(ast_tx, ast_tx_);
             Value *saved = create_call_inst(builder, f_tblsave, tbl);
             builder.CreateStore(saved, saved_);
-            currentBB = next;
+            CurBB = next;
             break;
         }
         CASE_(Byte);
@@ -1162,14 +1162,14 @@ L_prepare_table:
             Constant *C = builder.getInt8(ch);
 
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
-            Value *character = builder.CreateLoad(current);
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
             Value *cond;
             if (opcode == Byte) {
-                cond = builder.CreateICmpNE(character, C);
+                cond = builder.CreateICmpNE(Char, C);
             }
             else {
-                cond = builder.CreateICmpEQ(character, C);
+                cond = builder.CreateICmpEQ(Char, C);
             }
             builder.CreateCondBr(cond, failBB, succ);
 
@@ -1178,7 +1178,7 @@ L_prepare_table:
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
             }
-            currentBB = succ;
+            CurBB = succ;
             break;
         }
         CASE_(OByte) {
@@ -1188,9 +1188,9 @@ L_prepare_table:
             Constant *C = builder.getInt8(ch);
 
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
-            Value *character = builder.CreateLoad(current);
-            Value *cond = builder.CreateICmpEQ(character, C);
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
+            Value *cond = builder.CreateICmpEQ(Char, C);
             builder.CreateCondBr(cond, obody, oend);
 
             builder.SetInsertPoint(obody);
@@ -1199,7 +1199,7 @@ L_prepare_table:
             builder.CreateBr(oend);
 
             builder.SetInsertPoint(oend);
-            currentBB = oend;
+            CurBB = oend;
             break;
         }
         CASE_(RByte) {
@@ -1211,12 +1211,12 @@ L_prepare_table:
             BasicBlock *succ = BasicBlock::Create(Ctx, "any.succ", F);
 
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
+            Value *Cur = GetCur(builder, str, pos);
             Value *cond;
             if (opcode == Any) {
-                cond = builder.CreateICmpEQ(current, tail);
+                cond = builder.CreateICmpEQ(Cur, tail);
             } else {
-                cond = builder.CreateICmpNE(current, tail);
+                cond = builder.CreateICmpNE(Cur, tail);
             }
             builder.CreateCondBr(cond, failBB, succ);
 
@@ -1225,7 +1225,7 @@ L_prepare_table:
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
             }
-            currentBB = succ;
+            CurBB = succ;
             break;
         }
         CASE_(OAny) {
@@ -1245,8 +1245,8 @@ L_prepare_table:
             Value *str = get_string_ptr(builder, runtime_, strId);
             Value *len = builder.getInt32(pstring_length(impl));
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
-            Value *result = create_call_inst(builder, f_pstrstwith, current, str, len);
+            Value *Cur = GetCur(builder, str, pos);
+            Value *result = create_call_inst(builder, f_pstrstwith, Cur, str, len);
             Value *C = opcode == Str ? i32_0 : i32_1;
             Value *cond = builder.CreateICmpEQ(result, C);
             builder.CreateCondBr(cond, failBB, succ);
@@ -1257,7 +1257,7 @@ L_prepare_table:
                 Value *nextpos = consume_n(builder, pos, len_);
                 builder.CreateStore(nextpos, cur);
             }
-            currentBB = succ;
+            CurBB = succ;
             break;
         }
         CASE_(OStr) {
@@ -1275,11 +1275,10 @@ L_prepare_table:
 
             Value *set = get_bitset_ptr(builder, runtime_, setId);
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
-            Value *character = builder.CreateLoad(current);
-            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
+            Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
             Value *result = create_call_inst(builder, f_bitsetget, set, index);
-            Value *C = opcode == Str ? i32_0 : i32_1;
             Value *cond = NULL;
             if (opcode == Set) {
                 cond = builder.CreateICmpEQ(result, i32_0);
@@ -1294,7 +1293,7 @@ L_prepare_table:
                 Value *nextpos = consume(builder, pos);
                 builder.CreateStore(nextpos, cur);
             }
-            currentBB = succ;
+            CurBB = succ;
             break;
         }
         CASE_(OSet) {
@@ -1304,9 +1303,9 @@ L_prepare_table:
 
             Value *set = get_bitset_ptr(builder, runtime_, setId);
             Value *pos = builder.CreateLoad(cur);
-            Value *current = GetCur(builder, str, pos);
-            Value *character = builder.CreateLoad(current);
-            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
+            Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
             Value *result = create_call_inst(builder, f_bitsetget, set, index);
             Value *cond = builder.CreateICmpNE(result, i32_0);
             builder.CreateCondBr(cond, obody, oend);
@@ -1317,7 +1316,7 @@ L_prepare_table:
             builder.CreateBr(oend);
 
             builder.SetInsertPoint(oend);
-            currentBB = oend;
+            CurBB = oend;
             break;
         }
         CASE_(RSet) {
@@ -1332,10 +1331,10 @@ L_prepare_table:
 
             builder.SetInsertPoint(rcond);
             PHINode *pos = builder.CreatePHI(GetType<mozpos_t>(), 2);
-            pos->addIncoming(firstpos, currentBB);
-            Value *current = GetCur(builder, str, pos);
-            Value *character = builder.CreateLoad(current);
-            Value *index = builder.CreateZExt(character, builder.getInt32Ty());
+            pos->addIncoming(firstpos, CurBB);
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
+            Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
             Value *result = create_call_inst(builder, f_bitsetget, set, index);
             Value *cond = builder.CreateICmpNE(result, i32_0);
             builder.CreateCondBr(cond, rbody, rend);
@@ -1347,7 +1346,7 @@ L_prepare_table:
 
             builder.SetInsertPoint(rend);
             builder.CreateStore(pos, cur);
-            currentBB = rend;
+            CurBB = rend;
             break;
         }
         CASE_(Consume) {
@@ -1421,7 +1420,7 @@ L_prepare_table:
             builder.SetInsertPoint(miss);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #endif
-            currentBB = miss;
+            CurBB = miss;
             break;
         }
         CASE_(Memo) {
@@ -1532,7 +1531,6 @@ L_prepare_table:
             BasicBlock *succ = BasicBlock::Create(Ctx, "lookup.succ",  F);
             BasicBlock *miss = BasicBlock::Create(Ctx, "lookup.miss", F);
 
-            moz_inst_t *pc   = p + 1;
             uint8_t state = *(uint8_t *)(p + 1);
             TAG_t   tagId = *(TAG_t   *)(p + 2);
             uint16_t  memoId = *(uint16_t  *)(p + 2 + sizeof(TAG_t));
@@ -1568,7 +1566,7 @@ L_prepare_table:
             builder.SetInsertPoint(miss);
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
 #endif
-            currentBB = miss;
+            CurBB = miss;
             break;
         }
         CASE_(TMemo) {

@@ -141,7 +141,7 @@ public:
           Type *BitSetType = TypeBuilder<bitset_t, cross>::get(C);
           Type *IntType    = TypeBuilder<int, cross>::get(C);
           ArrayType *A1 = ArrayType::get(BitSetType, 1);
-          ArrayType *A2 = ArrayType::get(BitSetType, 2);
+          ArrayType *A2 = ArrayType::get(IntType, 2);
           JmpTbl1Type = StructType::create("jump_table1_t",
                   A1, A2, NULL);
       }
@@ -157,7 +157,7 @@ public:
           Type *BitSetType = TypeBuilder<bitset_t, cross>::get(C);
           Type *IntType    = TypeBuilder<int, cross>::get(C);
           ArrayType *A1 = ArrayType::get(BitSetType, 2);
-          ArrayType *A2 = ArrayType::get(BitSetType, 4);
+          ArrayType *A2 = ArrayType::get(IntType, 4);
           JmpTbl2Type = StructType::create("jump_table2_t",
                   A1, A2, NULL);
       }
@@ -173,7 +173,7 @@ public:
           Type *BitSetType = TypeBuilder<bitset_t, cross>::get(C);
           Type *IntType    = TypeBuilder<int, cross>::get(C);
           ArrayType *A1 = ArrayType::get(BitSetType, 3);
-          ArrayType *A2 = ArrayType::get(BitSetType, 8);
+          ArrayType *A2 = ArrayType::get(IntType, 8);
           JmpTbl3Type = StructType::create("jump_table3_t",
                   A1, A2, NULL);
       }
