@@ -26,6 +26,70 @@ using namespace std;
 using namespace llvm;
 
 typedef unordered_map<moz_inst_t *, BasicBlock *> BBMap;
+typedef unordered_map<void *, GlobalVariable *> ConstMap;
+
+class JitContext {
+private:
+    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
+#ifdef MOZVM_USE_JMPTBL
+    template<unsigned n>
+    FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
+#endif
+    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
+    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
+    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
+
+public:
+    ExecutionEngine *EE;
+    Module *curMod;
+    Module *topMod;
+    StructType *bsetType;
+#ifdef MOZVM_USE_JMPTBL
+    StructType *jmptblType[3];
+#endif
+    StructType *nodeType;
+    StructType *astType;
+    StructType *symtableType;
+    StructType *memoType;
+    StructType *memoentryType;
+    Type *mozposType;
+#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
+    StructType *memopointType;
+#endif
+    StructType *runtimeType;
+    FunctionType *jitfuncType;
+
+    FunctionType *bitsetgetType;
+#ifdef MOZVM_USE_JMPTBL
+    FunctionType *tbljmpidxType[3];
+#endif
+    FunctionType *pstrstwithType;
+
+    FunctionType *astsaveType;
+    FunctionType *astrollbackType;
+    FunctionType *astcommitType;
+    FunctionType *astreplaceType;
+    FunctionType *astcaptureType;
+    FunctionType *astnewType;
+    FunctionType *astpopType;
+    FunctionType *astpushType;
+    FunctionType *astswapType;
+    FunctionType *asttagType;
+    FunctionType *astlinkType;
+    FunctionType *astlastnodeType;
+
+    FunctionType *memosetType;
+    FunctionType *memofailType;
+    FunctionType *memogetType;
+
+    FunctionType *tblsaveType;
+    FunctionType *tblrollbackType;
+
+    ~JitContext() {};
+    JitContext(moz_runtime_t *r);
+};
 
 struct Symbol {
     const char *name;
@@ -331,7 +395,7 @@ Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
 #endif /*MOZVM_SMALL_TAG_INST*/
 }
 
-static Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
+static Value *get_tag_ptr(IRBuilder<> &builder, JitContext *ctx, Value *runtime, TAG_t id)
 {
 #if MOZVM_SMALL_TAG_INST
     Value *r_c_tags = create_get_element_ptr(builder, runtime,
@@ -350,27 +414,6 @@ static Value *get_tag_ptr(IRBuilder<> &builder, Value *runtime, TAG_t id)
     // tag_t *_tag = (tag_t *)id;
     return nullptr;
 #endif /*MOZVM_SMALL_TAG_INST*/
-}
-
-static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
-{
-#if MOZVM_SMALL_STRING_INST
-    Value *r_c_strs = create_get_element_ptr(builder, runtime,
-            builder.getInt64(0),
-#ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-            builder.getInt32(12),
-#else
-            builder.getInt32(11),
-#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
-            builder.getInt32(2));
-    Value *strs_head = builder.CreateLoad(r_c_strs);
-    Value *str_head  = builder.CreateGEP(strs_head, builder.getInt64(id));
-    return builder.CreateLoad(str_head);
-#else
-    asm volatile("int3");
-    // const char *_str = (const char *)id;
-    return nullptr;
-#endif /*MOZVM_SMALL_STRING_INST*/
 }
 
 template<unsigned N>
@@ -392,69 +435,111 @@ Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 #endif /*MOZVM_USE_JMPTBL*/
 }
 
-class JitContext {
-private:
-    FunctionType *create_bitset_get(IRBuilder<> &builder, Module *M);
-#ifdef MOZVM_USE_JMPTBL
-    template<unsigned n>
-    FunctionType *create_jump_table_index(IRBuilder<> &builder, Module *M);
-#endif
-    FunctionType *create_pstring_startswith(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_save_tx(IRBuilder<> &builder, Module *M);
-    FunctionType *create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_savepoint(IRBuilder<> &builder, Module *M);
-    FunctionType *create_symtable_rollback(IRBuilder<> &builder, Module *M);
+static Value *emit_global_variable(JitContext *ctx, Type *Ty, const char *name, void *addr)
+{
+    GlobalVariable *G;
+    Module *M  = ctx->curMod;
+    ExecutionEngine *EE = ctx->EE;
 
-public:
-    ExecutionEngine *EE;
-    Module *curMod;
-    StructType *bsetType;
-#ifdef MOZVM_USE_JMPTBL
-    StructType *jmptblType[3];
+    // if ((G = M->getNamedGlobal(name)) != 0) {
+    //     void *oldAddr = EE->getPointerToGlobal(G);
+    //     if (oldAddr == addr) {
+    //         return G;
+    //     }
+    // }
+    G = new GlobalVariable(*M, Ty, true,
+            GlobalVariable::ExternalLinkage, NULL, name);
+    EE->addGlobalMapping(G, addr);
+    return G;
+}
+
+static void register_constants(JitContext *ctx, moz_runtime_t *r)
+{
+    char name[128];
+    mozvm_constant_t *C = &r->C;
+    Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
+    Type *SetTy = ctx->bsetType;
+    for (int i = 0; i < C->tag_size; i++) {
+        snprintf(name, 128, "tag%d", i);
+        emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
+    }
+    for (int i = 0; i < C->str_size; i++) {
+        snprintf(name, 128, "str%d", i);
+        emit_global_variable(ctx, StrTy, name, (void *)C->tags[i]);
+    }
+    for (int i = 0; i < C->set_size; i++) {
+        snprintf(name, 128, "set%d", i);
+        emit_global_variable(ctx, SetTy, name, (void *)&C->sets[i]);
+    }
+}
+
+typedef enum MozConstType {
+    MozConstTypeTag,
+    MozConstTypeStr,
+    MozConstTypeSet
+} MozConstType;
+
+Value *find_constant(IRBuilder<> &builder, JitContext *ctx, MozConstType Ty, uint16_t id, void *p)
+{
+    char name[128];
+    Type *StrTy = Type::getInt8PtrTy(getGlobalContext());
+    Type *SetTy = ctx->bsetType->getPointerTo();
+    Type *Type  = StrTy;
+    switch (Ty) {
+    case MozConstTypeTag:
+        snprintf(name, 128, "tag%d", id);
+        break;
+    case MozConstTypeStr:
+        snprintf(name, 128, "str%d", id);
+        break;
+    case MozConstTypeSet:
+        snprintf(name, 128, "set%d", id);
+        Type = SetTy;
+        break;
+    }
+    Value  *V = builder.getInt64((uintptr_t)p);
+    return builder.CreateIntToPtr(V, Type);
+}
+
+#if 0
+static Value *get_string_ptr(IRBuilder<> &builder, JitContext *ctx, moz_runtime_t *runtime, STRING_t id)
+{
+    STRING_t id_ = 0;
+    void *impl = NULL;
+#ifdef MOZVM_SMALL_STRING_INST
+    id_  = id;
+    impl = (void *)STRING_GET_IMPL(runtime, id);
+#else
+    id_  = id - R->C.strs;
+    impl = (void *)id;
 #endif
-    StructType *nodeType;
-    StructType *astType;
-    StructType *symtableType;
-    StructType *memoType;
-    StructType *memoentryType;
-    Type *mozposType;
+    return find_constant(builder, ctx, MozConstTypeStr, id_, impl);
+}
+#else
+static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
+{
+#if MOZVM_SMALL_STRING_INST
+    Value *r_c_strs = create_get_element_ptr(builder, runtime,
+            builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-    StructType *memopointType;
+            builder.getInt32(12),
+#else
+            builder.getInt32(11),
+#endif /*MOZVM_USE_DYNAMIC_DEACTIVATION*/
+            builder.getInt32(2));
+    Value *strs_head = builder.CreateLoad(r_c_strs);
+    Value *str_head  = builder.CreateGEP(strs_head, builder.getInt64(id));
+    return builder.CreateLoad(str_head);
+#else
+    asm volatile("int3");
+    // const char *_str = (const char *)id;
+    return nullptr;
+#endif /*MOZVM_SMALL_STRING_INST*/
+}
 #endif
-    StructType *runtimeType;
-    FunctionType *jitfuncType;
 
-    FunctionType *bitsetgetType;
-#ifdef MOZVM_USE_JMPTBL
-    FunctionType *tbljmpidxType[3];
-#endif
-    FunctionType *pstrstwithType;
 
-    FunctionType *astsaveType;
-    FunctionType *astrollbackType;
-    FunctionType *astcommitType;
-    FunctionType *astreplaceType;
-    FunctionType *astcaptureType;
-    FunctionType *astnewType;
-    FunctionType *astpopType;
-    FunctionType *astpushType;
-    FunctionType *astswapType;
-    FunctionType *asttagType;
-    FunctionType *astlinkType;
-    FunctionType *astlastnodeType;
-
-    FunctionType *memosetType;
-    FunctionType *memofailType;
-    FunctionType *memogetType;
-
-    FunctionType *tblsaveType;
-    FunctionType *tblrollbackType;
-
-    ~JitContext() {};
-    JitContext();
-};
-
-JitContext::JitContext()
+JitContext::JitContext(moz_runtime_t *r)
 {
     LLVMContext& Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
@@ -606,7 +691,7 @@ JitContext::JitContext()
             memoPtrTy, mozposType, I32Ty, I8Ty);
 
     Module *M = new Module("libnez", Ctx);
-    curMod = M;
+    topMod = curMod = M;
     bitsetgetType   = create_bitset_get(builder, M);
 #ifdef MOZVM_USE_JMPTBL
     tbljmpidxType[0] = create_jump_table_index<1>(builder, M);
@@ -618,7 +703,9 @@ JitContext::JitContext()
     astlastnodeType = create_ast_get_last_linked_node(builder, M);
     tblsaveType     = create_symtable_savepoint(builder, M);
     tblrollbackType = create_symtable_rollback(builder, M);
+
     EE = EngineBuilder(unique_ptr<Module>(M)).create();
+
     EE->finalizeObject();
     curMod = NULL;
 }
@@ -674,7 +761,7 @@ template<unsigned N>
 FunctionType *JitContext::create_jump_table_index(IRBuilder<> &builder, Module *M)
 {
     char fname[128];
-    assert(N < 3);
+    assert(N <= 3);
     snprintf(fname, 128, "jump_table%d_index", N);
 
     LLVMContext& Ctx = M->getContext();
@@ -930,7 +1017,7 @@ void mozvm_jit_init(moz_runtime_t *runtime)
 {
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
-    runtime->jit_context = reinterpret_cast<void *>(new JitContext());
+    runtime->jit_context = reinterpret_cast<void *>(new JitContext(runtime));
 }
 
 void mozvm_jit_reset(moz_runtime_t *runtime)
@@ -940,7 +1027,7 @@ void mozvm_jit_reset(moz_runtime_t *runtime)
         runtime->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
     }
     delete get_context(runtime);
-    runtime->jit_context = reinterpret_cast<void *>(new JitContext());
+    runtime->jit_context = reinterpret_cast<void *>(new JitContext(runtime));
 }
 
 void mozvm_jit_dispose(moz_runtime_t *runtime)
@@ -1632,7 +1719,7 @@ L_prepare_table:
             CASE_(TTag) {
                 TAG_t tagId = *(TAG_t *)(p + 1);
 
-                Value *tag = get_tag_ptr(builder, runtime_, tagId);
+                Value *tag = get_tag_ptr(builder, _ctx, runtime_, tagId);
                 create_call_inst(builder, f_asttag, ast, tag);
                 break;
             }
