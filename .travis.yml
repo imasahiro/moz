@@ -5,6 +5,7 @@ compiler:
 
 env:
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6
+    - COMPILER=clang++-3.6 CCOMPILER=clang-3.6 JIT=1
     - COMPILER=g++-4.9     CCOMPILER=gcc-4.9
 
 
@@ -34,7 +35,7 @@ before_script:
 script:
     - mkdir -p build install
     - cd build
-    - cmake ../ -DCMAKE_INSTALL_PREFIX=../install
+    - cmake ../ -DCMAKE_INSTALL_PREFIX=../install -DENABLE_JIT=$JIT
     - make
     - make test
     - make install
