@@ -482,7 +482,7 @@ DEF(SIs, TAG_t tagId)
         token_t captured;
         token_init(&captured, (const char *)POP(), GET_CURRENT());
         if (token_equal(&t, &captured)) {
-            CONSUME_N(token_length(&t));
+            // CONSUME_N(token_length(&t));
             NEXT();
         }
     }
@@ -497,7 +497,7 @@ DEF(SIsa, TAG_t tagId)
     if (!symtable_contains(tbl, tableName, &captured)) {
         FAIL();
     }
-    CONSUME_N(token_length(&captured));
+    // CONSUME_N(token_length(&captured));
 }
 DEF(SDefNum)
 {
