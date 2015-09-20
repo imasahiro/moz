@@ -81,6 +81,16 @@ static inline unsigned pstring_length(const char *s)
     return str->len;
 }
 
+static inline int pstring_equal(const char *p1, const char *p2)
+{
+    pstring_t *s1 = CONTAINER_OF(p1, pstring_t, str);
+    pstring_t *s2 = CONTAINER_OF(p2, pstring_t, str);
+    if (s1->len != s2->len) {
+        return 0;
+    }
+    return strncmp(p1, p2, s1->len) == 0;
+}
+
 #if defined(PSTRING_C_TEST) || defined(PSTRING_USE_STRCMP)
 static inline int pstring_starts_with_strcmp(const char *p, const char *text, unsigned len)
 {

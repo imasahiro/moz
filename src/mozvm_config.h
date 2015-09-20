@@ -48,6 +48,7 @@ extern "C" {
 #define MOZVM_USE_FREE_LIST 1
 // #define MOZVM_MEMORY_USE_BOEHM_GC 1
 #define MOZVM_ENABLE_NODE_DIGEST 1
+#define MOZVM_ENABLE_NEZTEST 1
 
 // VM / bytecode
 #define MOZVM_SMALL_STRING_INST 1

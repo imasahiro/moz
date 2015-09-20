@@ -6,6 +6,8 @@
 #include <getopt.h>
 #include <sys/time.h>
 
+#include "test.c"
+
 static void usage(const char *arg)
 {
     fprintf(stderr, "Usage: %s -p <bytecode_file> -i <input_file>\n", arg);
@@ -52,12 +54,16 @@ int main(int argc, char *const argv[])
     unsigned quiet_mode = 0;
 #ifdef MOZVM_ENABLE_NODE_DIGEST
     unsigned show_digest = 0;
+    unsigned test_mode = 0;
 #endif
     int opt;
 
     while ((opt = getopt(argc, argv,
 #ifdef MOZVM_ENABLE_NODE_DIGEST
                     "d"
+#ifdef MOZVM_ENABLE_NEZTEST
+                    "t"
+#endif
 #endif
                     "qsn:p:i:h")) != -1) {
         switch (opt) {
@@ -68,6 +74,9 @@ int main(int argc, char *const argv[])
 #ifdef MOZVM_ENABLE_NODE_DIGEST
         case 'd':
             show_digest = 1;
+            break;
+        case 't':
+            test_mode = 1;
             break;
 #endif
         case 'q':
@@ -93,12 +102,12 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (input_file == NULL) {
+    if (test_mode == 0 && input_file == NULL) {
         fprintf(stderr, "error: please specify input file\n");
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (!mozvm_loader_load_input_file(&L, input_file)) {
+    if (test_mode == 0 && !mozvm_loader_load_input_file(&L, input_file)) {
         fprintf(stderr, "error: failed to load input_file='%s'\n", input_file);
         usage(argv[0]);
         exit(EXIT_FAILURE);
@@ -106,10 +115,15 @@ int main(int argc, char *const argv[])
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
 #endif
-    NodeManager_init();
     head = inst = mozvm_loader_load_file(&L, syntax_file, 1);
     assert(inst != NULL);
 
+    if (test_mode) {
+        mozvm_run_test(&L, input_file);
+        goto L_exit;
+    }
+
+    NodeManager_init();
     while (loop-- > 0) {
         Node *node = NULL;
         reset_timer();
@@ -163,6 +177,7 @@ int main(int argc, char *const argv[])
         symtable_print_stats();
         moz_runtime_print_stats(L.R);
     }
+L_exit:
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
     NodeManager_dispose();
