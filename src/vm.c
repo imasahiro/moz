@@ -257,8 +257,8 @@ void moz_runtime_dispose(moz_runtime_t *r)
 #error not implemented
 #else
 static const moz_inst_t bytecode_base[] = {
-    Exit, 0,
-    Exit, 1
+    Exit, 0, // success
+    Exit, 1  // error
 };
 #endif
 
