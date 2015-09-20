@@ -106,7 +106,7 @@ void set_vector(const Vector &dest, const First &first, const Rest&... rest)
 }
 
 template<typename... Args>
-Value *create_get_element_ptr(IRBuilder<> &builder, Value *V, const Args&... args)
+Value *create_gep(IRBuilder<> &builder, Value *V, const Args&... args)
 {
     vector<Value *> indexs;
     set_vector(&indexs, args...);
@@ -285,7 +285,7 @@ static void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
 
 Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
 {
-    Value *r_nterm_entry = create_get_element_ptr(builder, runtime,
+    Value *r_nterm_entry = create_gep(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             builder.getInt32(11)
@@ -294,7 +294,7 @@ Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
 #endif
             );
     Value *entry_head = builder.CreateLoad(r_nterm_entry);
-    Value *callee     = create_get_element_ptr(builder, entry_head,
+    Value *callee     = create_gep(builder, entry_head,
             builder.getInt64(nterm), builder.getInt32(3));
     return builder.CreateLoad(callee);
 }
@@ -302,7 +302,7 @@ Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
 Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 {
 #if MOZVM_SMALL_BITSET_INST
-    Value *r_c_sets = create_get_element_ptr(builder, runtime,
+    Value *r_c_sets = create_gep(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             builder.getInt32(12),
@@ -333,7 +333,7 @@ Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
 static Value *get_tag_ptr(IRBuilder<> &builder, JitContext *ctx, Value *runtime, TAG_t id)
 {
 #if MOZVM_SMALL_TAG_INST
-    Value *r_c_tags = create_get_element_ptr(builder, runtime,
+    Value *r_c_tags = create_gep(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             builder.getInt32(12),
@@ -355,7 +355,7 @@ template<unsigned N>
 Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 {
 #ifdef MOZVM_USE_JMPTBL
-    Value *r_c_jumps = create_get_element_ptr(builder, runtime,
+    Value *r_c_jumps = create_gep(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             builder.getInt32(12),
@@ -454,7 +454,7 @@ static Value *get_string_ptr(IRBuilder<> &builder, JitContext *ctx, moz_runtime_
 static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 {
 #if MOZVM_SMALL_STRING_INST
-    Value *r_c_strs = create_get_element_ptr(builder, runtime,
+    Value *r_c_strs = create_gep(builder, runtime,
             builder.getInt64(0),
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             builder.getInt32(12),
@@ -499,7 +499,7 @@ static void create_bitset_get(IRBuilder<> &builder, Module *M)
     Value *Mask   = builder.CreateShl(builder.getInt64(1), Mod_);
     Value *Div    = builder.CreateLShr(idx, builder.getInt32(6));
     Value *Div_   = builder.CreateZExt(Div, I64Ty);
-    Value *Ptr    = create_get_element_ptr(builder, set, i64_0, i32_0, Div_);
+    Value *Ptr    = create_gep(builder, set, i64_0, i32_0, Div_);
     Value *Data   = builder.CreateLoad(Ptr);
     Value *Result = builder.CreateAnd(Data, Mask);
     Value *NEq0   = builder.CreateICmpNE(Result, i64_0);
@@ -508,7 +508,7 @@ static void create_bitset_get(IRBuilder<> &builder, Module *M)
     Value *Mask   = builder.CreateShl(builder.getInt32(1), Mod);
     Value *Div    = builder.CreateLShr(idx, builder.getInt32(5));
     Value *Div_   = builder.CreateZExt(Div, I64Ty);
-    Value *Ptr    = create_get_element_ptr(builder, set, i64_0, i32_0, Div_);
+    Value *Ptr    = create_gep(builder, set, i64_0, i32_0, Div_);
     Value *Data   = builder.CreateLoad(Ptr);
     Value *Result = builder.CreateAnd(Data, Mask);
     Value *NEq0   = builder.CreateICmpNE(Result, i32_0);
@@ -550,7 +550,7 @@ static void create_jump_table_index(IRBuilder<> &builder, Module *M)
     Value *idx;
     for(int i = 0; i < N; i++) {
         Value *C = builder.getInt64(i);
-        Value *tbl_set = create_get_element_ptr(builder, tbl, i64_0, i32_0, C);
+        Value *tbl_set = create_gep(builder, tbl, i64_0, i32_0, C);
         Value *idx_ = create_call_inst(builder, f_bitsetget, tbl_set, ch_);
         if(i == 0) {
             idx = idx_;
@@ -640,7 +640,7 @@ static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *Ptr   = create_get_element_ptr(builder, ast, i64_0, i32_0, i32_0);
+    Value *Ptr   = create_gep(builder, ast, i64_0, i32_0, i32_0);
     Value *Size  = builder.CreateLoad(Ptr);
     Value *Size_ = builder.CreateZExt(Size, I64Ty);
     builder.CreateRet(Size_);
@@ -659,7 +659,7 @@ static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *Ptr    = create_get_element_ptr(builder, ast, i64_0, i32_1);
+    Value *Ptr    = create_gep(builder, ast, i64_0, i32_1);
     Value *Linked = builder.CreateLoad(Ptr);
     builder.CreateRet(Linked);
 }
@@ -679,7 +679,7 @@ static void create_symtable_savepoint(IRBuilder<> &builder, Module *M)
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *Ptr   = create_get_element_ptr(builder, tbl, i64_0, i32_1, i32_0);
+    Value *Ptr   = create_gep(builder, tbl, i64_0, i32_1, i32_0);
     Value *Size  = builder.CreateLoad(Ptr);
     Value *Size_ = builder.CreateZExt(Size, I64Ty);
     builder.CreateRet(Size_);
@@ -702,7 +702,7 @@ static void create_symtable_rollback(IRBuilder<> &builder, Module *M)
     BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
     builder.SetInsertPoint(entryBB);
 
-    Value *Ptr    = create_get_element_ptr(builder, tbl, i64_0, i32_1, i32_0);
+    Value *Ptr    = create_gep(builder, tbl, i64_0, i32_1, i32_0);
     Value *saved_ = builder.CreateTrunc(saved, I32Ty);
     builder.CreateStore(saved_, Ptr);
     builder.CreateRetVoid();
@@ -1015,22 +1015,22 @@ L_prepare_table:
     Constant *i32_2 = builder.getInt32(2);
     Constant *i64_0 = builder.getInt64(0);
 
-    Value *ast_   = create_get_element_ptr(builder, runtime_, i64_0, i32_0);
+    Value *ast_   = create_gep(builder, runtime_, i64_0, i32_0);
     Value *ast    = builder.CreateLoad(ast_);
-    Value *tbl_   = create_get_element_ptr(builder, runtime_, i64_0, i32_1);
+    Value *tbl_   = create_gep(builder, runtime_, i64_0, i32_1);
     Value *tbl    = builder.CreateLoad(tbl_);
-    Value *memo_  = create_get_element_ptr(builder, runtime_, i64_0, i32_2);
+    Value *memo_  = create_gep(builder, runtime_, i64_0, i32_2);
     Value *memo   = builder.CreateLoad(memo_);
-    Value *head_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(3));
-    Value *tail_  = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(4));
+    Value *head_  = create_gep(builder, runtime_, i64_0, builder.getInt32(3));
+    Value *tail_  = create_gep(builder, runtime_, i64_0, builder.getInt32(4));
     Value *tail   = builder.CreateLoad(tail_);
 
-    Value *sp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(6));
-    Value *fp = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(7));
+    Value *sp = create_gep(builder, runtime_, i64_0, builder.getInt32(6));
+    Value *fp = create_gep(builder, runtime_, i64_0, builder.getInt32(7));
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-    Value *cur = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(9));
+    Value *cur = create_gep(builder, runtime_, i64_0, builder.getInt32(9));
 #else
-    Value *cur = create_get_element_ptr(builder, runtime_, i64_0, builder.getInt32(8));
+    Value *cur = create_gep(builder, runtime_, i64_0, builder.getInt32(8));
 #endif
 
     {
@@ -1402,14 +1402,14 @@ L_prepare_table:
             builder.CreateCondBr(hitcond, hit, miss);
 
             builder.SetInsertPoint(hit);
-            Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+            Value *result_  = create_gep(builder, entry, i64_0, i32_1);
             Value *result   = builder.CreateLoad(result_);
             Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
             Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
             builder.CreateCondBr(failcond, failBB, succ);
 
             builder.SetInsertPoint(succ);
-            Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+            Value *consumed_ = create_gep(builder, entry, i64_0, i32_2);
             Value *consumed  = builder.CreateLoad(consumed_);
             Value *newpos    = consume_n(builder, pos, consumed);
             builder.CreateStore(newpos, cur);
@@ -1547,14 +1547,14 @@ L_prepare_table:
             builder.CreateCondBr(hitcond, hit, miss);
 
             builder.SetInsertPoint(hit);
-            Value *result_  = create_get_element_ptr(builder, entry, i64_0, i32_1);
+            Value *result_  = create_gep(builder, entry, i64_0, i32_1);
             Value *result   = builder.CreateLoad(result_);
             Value *failed   = builder.CreatePtrToInt(result, builder.getInt64Ty());
             Value *failcond = builder.CreateICmpEQ(failed, memo_entry_failed);
             builder.CreateCondBr(failcond, failBB, succ);
 
             builder.SetInsertPoint(succ);
-            Value *consumed_ = create_get_element_ptr(builder, entry, i64_0, i32_2);
+            Value *consumed_ = create_gep(builder, entry, i64_0, i32_2);
             Value *consumed  = builder.CreateLoad(consumed_);
             Value *newpos    = consume_n(builder, pos, consumed);
             builder.CreateStore(newpos, cur);
@@ -1658,10 +1658,9 @@ L_prepare_table:
         builder.SetInsertPoint(rollback);
         create_call_inst(builder, f_astrollback, ast, ast_tx_);
         create_call_inst(builder, f_tblrollback, tbl, saved_);
-        IndirectBrInst *indirect_br = builder.CreateIndirectBr(next_, failjumpList.size());
-        vector<BasicBlock *>::iterator itr;
-        for(itr = failjumpList.begin(); itr != failjumpList.end(); itr++) {
-            indirect_br->addDestination(*itr);
+        auto indirect_br = builder.CreateIndirectBr(next_, failjumpList.size());
+        for(BasicBlock *BB : failjumpList) {
+            indirect_br->addDestination(BB);
         }
     }
 
