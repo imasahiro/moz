@@ -1,6 +1,5 @@
-#include "jit.h"
-
 #ifdef MOZVM_ENABLE_JIT
+#include "jit.h"
 #include "pstring.h"
 #include "jmptbl.h"
 #include "instruction.h"
@@ -24,6 +23,7 @@
 
 // #define MOZVM_JIT_OPTIMIZE_MODULE 1
 // #define MOZVM_JIT_DUMP 1
+#define MOZVM_JIT_RESET_COMPILED_CODE 1
 
 using namespace std;
 using namespace llvm;
@@ -134,15 +134,15 @@ static Value *GetCur(IRBuilder<> &builder, Value *str, Value *pos)
 #endif
 }
 
-static Value *get_length(IRBuilder<> &builder, Value *startpos, Value *endpos)
+static Value *get_length(IRBuilder<> &builder, Value *begin, Value *end)
 {
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
     Type *I64Ty = builder.getInt64Ty();
-    Value *endpos_   = builder.CreatePtrToInt(endpos,   I64Ty);
-    Value *startpos_ = builder.CreatePtrToInt(startpos, I64Ty);
-    return builder.CreateSub(endpos_, startpos_);
+    begin = builder.CreatePtrToInt(begin, I64Ty);
+    end   = builder.CreatePtrToInt(end,   I64Ty);
+    return builder.CreateSub(end, begin);
 #else
-    return builder.CreateSub(endpos, startpos);
+    return builder.CreateSub(end, begin);
 #endif
 }
 
@@ -283,7 +283,7 @@ static void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
 #endif
 }
 
-Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
+static Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
 {
     Value *r_nterm_entry = create_gep(builder, runtime,
             builder.getInt64(0),
@@ -299,7 +299,7 @@ Value *get_callee_function(IRBuilder<> &builder, Value *runtime, uint16_t nterm)
     return builder.CreateLoad(callee);
 }
 
-Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
+static Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 {
 #if MOZVM_SMALL_BITSET_INST
     Value *r_c_sets = create_gep(builder, runtime,
@@ -319,7 +319,7 @@ Value *get_bitset_ptr(IRBuilder<> &builder, Value *runtime, BITSET_t id)
 #endif /*MOZVM_SMALL_BITSET_INST*/
 }
 
-Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
+static Value *get_tag_id(IRBuilder<> &builder, Value *runtime, TAG_t id)
 {
 #if MOZVM_SMALL_TAG_INST
     return builder.getInt16(id);
@@ -352,7 +352,7 @@ static Value *get_tag_ptr(IRBuilder<> &builder, JitContext *ctx, Value *runtime,
 }
 
 template<unsigned N>
-Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
+static Value *get_jump_table(IRBuilder<> &builder, Value *runtime, uint16_t id)
 {
 #ifdef MOZVM_USE_JMPTBL
     Value *r_c_jumps = create_gep(builder, runtime,
@@ -743,7 +743,6 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
 }
 #endif
 
-
 JitContext::JitContext(moz_runtime_t *r)
 {
     LLVMContext &Ctx = getGlobalContext();
@@ -795,10 +794,12 @@ void mozvm_jit_init(moz_runtime_t *runtime)
 
 void mozvm_jit_reset(moz_runtime_t *runtime)
 {
+#ifdef MOZVM_JIT_RESET_COMPILED_CODE
     for (int i = 0; i < runtime->C.nterm_size; i++) {
         runtime->nterm_entry[i].call_counter  = 0;
         runtime->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
     }
+#endif
     delete get_context(runtime);
     runtime->jit_context = reinterpret_cast<void *>(new JitContext(runtime));
 }
@@ -1027,11 +1028,13 @@ L_prepare_table:
 
     Value *sp = create_gep(builder, runtime_, i64_0, builder.getInt32(6));
     Value *fp = create_gep(builder, runtime_, i64_0, builder.getInt32(7));
+    Value *cur = create_gep(builder, runtime_, i64_0,
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
-    Value *cur = create_gep(builder, runtime_, i64_0, builder.getInt32(9));
+            builder.getInt32(9)
 #else
-    Value *cur = create_gep(builder, runtime_, i64_0, builder.getInt32(8));
+            builder.getInt32(8)
 #endif
+            );
 
     {
         BlockAddress *addr = BlockAddress::get(F, errBB);
@@ -1541,8 +1544,8 @@ L_prepare_table:
 #ifdef MOZVM_USE_DYNAMIC_DEACTIVATION
             asm volatile("int3");
 #endif
-            Value *pos     = builder.CreateLoad(cur);
-            Value *entry   = create_call(builder, f_memoget, memo, pos, memoId_, state_);
+            Value *pos   = builder.CreateLoad(cur);
+            Value *entry = create_call(builder, f_memoget, memo, pos, memoId_, state_);
             Value *hitcond = builder.CreateICmpNE(entry, nullentry);
             builder.CreateCondBr(hitcond, hit, miss);
 
