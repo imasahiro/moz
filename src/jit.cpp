@@ -116,7 +116,7 @@ Value *create_gep(IRBuilder<> &builder, Value *V, const Args&... args)
 }
 
 template<typename... Args>
-Value *create_call_inst(IRBuilder<> &builder, Value *F, const Args&... args)
+Value *create_call(IRBuilder<> &builder, Value *F, const Args&... args)
 {
     vector<Value *> arguments;
     set_vector(&arguments, args...);
@@ -551,7 +551,7 @@ static void create_jump_table_index(IRBuilder<> &builder, Module *M)
     for(int i = 0; i < N; i++) {
         Value *C = builder.getInt64(i);
         Value *tbl_set = create_gep(builder, tbl, i64_0, i32_0, C);
-        Value *idx_ = create_call_inst(builder, f_bitsetget, tbl_set, ch_);
+        Value *idx_ = create_call(builder, f_bitsetget, tbl_set, ch_);
         if(i == 0) {
             idx = idx_;
         }
@@ -586,7 +586,7 @@ static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
     Constant *f_strncmp = REGISTER_FUNC(M, strncmp);
 
     Value *len_   = builder.CreateZExt(len, I64Ty);
-    Value *result = create_call_inst(builder, f_strncmp, str, text, len_);
+    Value *result = create_call(builder, f_strncmp, str, text, len_);
     Value *cond   = builder.CreateICmpEQ(result, builder.getInt32(0));
     Value *cond_  = builder.CreateZExt(cond, I32Ty);
     builder.CreateRet(cond_);
@@ -728,7 +728,7 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
     Value *pos = builder.CreateLoad(cur);
     Value *Cur = GetCur(builder, str, pos);
     Value *Char = builder.CreateLoad(Cur);
-    Value *idx = create_call_inst(builder, f, tbl, Char);
+    Value *idx = create_call(builder, f, tbl, Char);
 
     SwitchInst *jump = builder.CreateSwitch(idx, unreachableBB, 1 << N);
     for(int i = 0; i < 1 << N; i++) {
@@ -1036,8 +1036,8 @@ L_prepare_table:
     {
         BlockAddress *addr = BlockAddress::get(F, errBB);
         Value *pos = builder.CreateLoad(cur);
-        Value *ast_tx = create_call_inst(builder, f_astsave, ast);
-        Value *saved  = create_call_inst(builder, f_tblsave, tbl);
+        Value *ast_tx = create_call(builder, f_astsave, ast);
+        Value *saved  = create_call(builder, f_tblsave, tbl);
         stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
     }
 
@@ -1085,8 +1085,8 @@ L_prepare_table:
 
             BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
             Value *pos = builder.CreateLoad(cur);
-            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
-            Value *saved  = create_call_inst(builder, f_tblsave, tbl);
+            Value *ast_tx = create_call(builder, f_astsave, ast);
+            Value *saved  = create_call(builder, f_tblsave, tbl);
             stack_push_frame(builder, sp, fp, pos, addr, ast_tx, saved);
             break;
         }
@@ -1112,7 +1112,7 @@ L_prepare_table:
             else {
                 func = get_callee_function(builder, runtime_, nterm);
             }
-            Value *result = create_call_inst(builder, func, runtime_, str, ID);
+            Value *result = create_call(builder, func, runtime_, str, ID);
             Value *cond   = builder.CreateICmpNE(result, i8_0);
             builder.CreateCondBr(cond, failBB, BBMap[dest]);
             break;
@@ -1146,9 +1146,9 @@ L_prepare_table:
 
             builder.SetInsertPoint(next);
             builder.CreateStore(pos, prev_pos_);
-            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+            Value *ast_tx = create_call(builder, f_astsave, ast);
             builder.CreateStore(ast_tx, ast_tx_);
-            Value *saved = create_call_inst(builder, f_tblsave, tbl);
+            Value *saved = create_call(builder, f_tblsave, tbl);
             builder.CreateStore(saved, saved_);
             CurBB = next;
             break;
@@ -1244,7 +1244,7 @@ L_prepare_table:
             Value *len = builder.getInt32(pstring_length(impl));
             Value *pos = builder.CreateLoad(cur);
             Value *Cur = GetCur(builder, str, pos);
-            Value *result = create_call_inst(builder, f_pstrstwith, Cur, str, len);
+            Value *result = create_call(builder, f_pstrstwith, Cur, str, len);
             Value *C = opcode == Str ? i32_0 : i32_1;
             Value *cond = builder.CreateICmpEQ(result, C);
             builder.CreateCondBr(cond, failBB, succ);
@@ -1276,7 +1276,7 @@ L_prepare_table:
             Value *Cur = GetCur(builder, str, pos);
             Value *Char = builder.CreateLoad(Cur);
             Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
-            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *result = create_call(builder, f_bitsetget, set, index);
             Value *cond = NULL;
             if (opcode == Set) {
                 cond = builder.CreateICmpEQ(result, i32_0);
@@ -1304,7 +1304,7 @@ L_prepare_table:
             Value *Cur = GetCur(builder, str, pos);
             Value *Char = builder.CreateLoad(Cur);
             Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
-            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *result = create_call(builder, f_bitsetget, set, index);
             Value *cond = builder.CreateICmpNE(result, i32_0);
             builder.CreateCondBr(cond, obody, oend);
 
@@ -1333,7 +1333,7 @@ L_prepare_table:
             Value *Cur = GetCur(builder, str, pos);
             Value *Char = builder.CreateLoad(Cur);
             Value *index = builder.CreateZExt(Char, builder.getInt32Ty());
-            Value *result = create_call_inst(builder, f_bitsetget, set, index);
+            Value *result = create_call(builder, f_bitsetget, set, index);
             Value *cond = builder.CreateICmpNE(result, i32_0);
             builder.CreateCondBr(cond, rbody, rend);
 
@@ -1397,7 +1397,7 @@ L_prepare_table:
 #error not implemented
 #endif
             Value *pos     = builder.CreateLoad(cur);
-            Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+            Value *entry   = create_call(builder, f_memoget, memo, pos, memoId_, state_);
             Value *hitcond = builder.CreateICmpNE(entry, nullentry);
             builder.CreateCondBr(hitcond, hit, miss);
 
@@ -1439,7 +1439,7 @@ L_prepare_table:
 
             Type *nodePtrTy   = GetType<Node *>();
             Constant *nullnode = Constant::getNullValue(nodePtrTy);
-            create_call_inst(builder, f_memoset,
+            create_call(builder, f_memoset,
                     memo, startpos, memoId_, nullnode, length, state_);
             break;
         }
@@ -1449,19 +1449,19 @@ L_prepare_table:
             Constant *memoId_ = builder.getInt32(memoId);
 
             Value *pos = builder.CreateLoad(cur);
-            create_call_inst(builder, f_memofail, memo, pos, memoId_);
+            create_call(builder, f_memofail, memo, pos, memoId_);
             builder.CreateBr(failBB);
             break;
         }
         CASE_(TPush) {
-            create_call_inst(builder, f_astpush, ast);
+            create_call(builder, f_astpush, ast);
             break;
         }
         CASE_(TPop) {
             TAG_t tagId = *((TAG_t *)(p + 1));
 
             Value *_tagId = get_tag_id(builder, runtime_, tagId);
-            create_call_inst(builder, f_astpop, ast, _tagId);
+            create_call(builder, f_astpop, ast, _tagId);
             break;
         }
         CASE_(TLeftFold) {
@@ -1472,7 +1472,7 @@ L_prepare_table:
             Value *_tagId  = get_tag_id(builder, runtime_, tagId);
             Value *pos     = builder.CreateLoad(cur);
             Value *swappos = consume_n(builder, pos, shift_);
-            create_call_inst(builder, f_astswap, ast, swappos, _tagId);
+            create_call(builder, f_astswap, ast, swappos, _tagId);
             break;
         }
         CASE_(TNew) {
@@ -1481,7 +1481,7 @@ L_prepare_table:
 
             Value *pos    = builder.CreateLoad(cur);
             Value *newpos = consume_n(builder, pos, shift_);
-            create_call_inst(builder, f_astnew, ast, newpos);
+            create_call(builder, f_astnew, ast, newpos);
             break;
         }
         CASE_(TCapture) {
@@ -1490,25 +1490,25 @@ L_prepare_table:
 
             Value *pos        = builder.CreateLoad(cur);
             Value *capturepos = consume_n(builder, pos, shift_);
-            create_call_inst(builder, f_astcapture, ast, capturepos);
+            create_call(builder, f_astcapture, ast, capturepos);
             break;
         }
         CASE_(TTag) {
             TAG_t tagId = *(TAG_t *)(p + 1);
 
             Value *tag = get_tag_ptr(builder, _ctx, runtime_, tagId);
-            create_call_inst(builder, f_asttag, ast, tag);
+            create_call(builder, f_asttag, ast, tag);
             break;
         }
         CASE_(TReplace) {
             STRING_t strId = *(STRING_t *)(p + 1);
 
             Value *str = get_string_ptr(builder, runtime_, strId);
-            create_call_inst(builder, f_astreplace, ast, str);
+            create_call(builder, f_astreplace, ast, str);
             break;
         }
         CASE_(TStart) {
-            Value *ast_tx = create_call_inst(builder, f_astsave, ast);
+            Value *ast_tx = create_call(builder, f_astsave, ast);
             stack_push(builder, sp, ast_tx);
             break;
         }
@@ -1517,7 +1517,7 @@ L_prepare_table:
 
             Value *_tagId = get_tag_id(builder, runtime_, tagId);
             Value *tx     = stack_pop(builder, sp);
-            create_call_inst(builder, f_astcommit, ast, _tagId, tx);
+            create_call(builder, f_astcommit, ast, _tagId, tx);
             break;
         }
         CASE_(TAbort) {
@@ -1542,7 +1542,7 @@ L_prepare_table:
             asm volatile("int3");
 #endif
             Value *pos     = builder.CreateLoad(cur);
-            Value *entry   = create_call_inst(builder, f_memoget, memo, pos, memoId_, state_);
+            Value *entry   = create_call(builder, f_memoget, memo, pos, memoId_, state_);
             Value *hitcond = builder.CreateICmpNE(entry, nullentry);
             builder.CreateCondBr(hitcond, hit, miss);
 
@@ -1558,7 +1558,7 @@ L_prepare_table:
             Value *consumed  = builder.CreateLoad(consumed_);
             Value *newpos    = consume_n(builder, pos, consumed);
             builder.CreateStore(newpos, cur);
-            create_call_inst(builder, f_astlink, ast, _tagId, result);
+            create_call(builder, f_astlink, ast, _tagId, result);
             builder.CreateBr(BBMap[dest]);
 
             builder.SetInsertPoint(miss);
@@ -1581,8 +1581,8 @@ L_prepare_table:
             Value *endpos  = builder.CreateLoad(cur);
             Value *length  = get_length(builder, startpos, endpos);
             Value *length_ = builder.CreateTrunc(length, builder.getInt32Ty());
-            Value *node    = create_call_inst(builder, f_astlastnode, ast);
-            create_call_inst(builder, f_memoset,
+            Value *node    = create_call(builder, f_astlastnode, ast);
+            create_call(builder, f_memoset,
                     memo, startpos, memoId_, node, length_, state_);
             break;
         }
@@ -1656,8 +1656,8 @@ L_prepare_table:
         builder.CreateBr(rollback);
 
         builder.SetInsertPoint(rollback);
-        create_call_inst(builder, f_astrollback, ast, ast_tx_);
-        create_call_inst(builder, f_tblrollback, tbl, saved_);
+        create_call(builder, f_astrollback, ast, ast_tx_);
+        create_call(builder, f_tblrollback, tbl, saved_);
         auto indirect_br = builder.CreateIndirectBr(next_, failjumpList.size());
         for(BasicBlock *BB : failjumpList) {
             indirect_br->addDestination(BB);
