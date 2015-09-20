@@ -210,6 +210,7 @@ static void StackFrame_dispose(StackFrame *frame)
     ARRAY_dispose(long, &frame->stack);
 }
 
+#if 0
 static void stack_push_frame(StackFrame *stack,
         Value *pos, Value *next, Value *ast, Value *tbl)
 {
@@ -247,6 +248,7 @@ static void stack_peek_frame(StackFrame *stack,
     *ast  = (Value *)ARRAY_get(long, &stack->stack, fp + 3);
     *tbl  = (Value *)ARRAY_get(long, &stack->stack, fp + 4);
 }
+#endif
 
 static void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value *pos, Value *next, Value *ast, Value *symtable)
@@ -918,68 +920,14 @@ static int optimize(Module *M, Function *F)
     return 0;
 }
 
-moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
+static void mozvm_jit_compile_init(moz_runtime_t *runtime,
+        mozvm_nterm_entry_t *e, BBMap &BBMap,
+        BasicBlock *failBB, BasicBlock *errBB,
+        vector<BasicBlock *> &failjumpList)
 {
-    JitContext *_ctx = get_context(runtime);
-    uint16_t nterm = e - runtime->nterm_entry;
-
-    if(mozvm_nterm_is_already_compiled(e)) {
-        return e->compiled_code;
-    }
-
-    StackFrame Frame;
-    StackFrame_init(&Frame);
-    LLVMContext &Ctx = getGlobalContext();
-    IRBuilder<> builder(Ctx);
-    Module *M = new Module(runtime->C.nterms[nterm], Ctx);
-    _ctx->curMod = M;
-    _ctx->EE->addModule(unique_ptr<Module>(M));
-
-    Type *memoentryPtrTy = GetType<MemoEntry_t *>();
-    Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
-    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
-
-    Constant *f_bitsetget   = REGISTER_FUNC(M, bitset_get);
-    Constant *f_pstrstwith  = REGISTER_FUNC(M, pstring_starts_with);
-    Constant *f_astsave     = REGISTER_FUNC(M, ast_save_tx);
-    Constant *f_astrollback = REGISTER_FUNC(M, ast_rollback_tx);
-    Constant *f_astcommit   = REGISTER_FUNC(M, ast_commit_tx);
-    Constant *f_astreplace  = REGISTER_FUNC(M, ast_log_replace);
-    Constant *f_astcapture  = REGISTER_FUNC(M, ast_log_capture);
-    Constant *f_astnew      = REGISTER_FUNC(M, ast_log_new);
-    Constant *f_astpop      = REGISTER_FUNC(M, ast_log_pop);
-    Constant *f_astpush     = REGISTER_FUNC(M, ast_log_push);
-    Constant *f_astswap     = REGISTER_FUNC(M, ast_log_swap);
-    Constant *f_asttag      = REGISTER_FUNC(M, ast_log_tag);
-    Constant *f_astlink     = REGISTER_FUNC(M, ast_log_link);
-    Constant *f_astlastnode = REGISTER_FUNC(M, ast_get_last_linked_node);
-    Constant *f_memoset     = REGISTER_FUNC(M, memo_set);
-    Constant *f_memofail    = REGISTER_FUNC(M, memo_fail);
-    Constant *f_memoget     = REGISTER_FUNC(M, memo_get);
-    Constant *f_tblsave     = REGISTER_FUNC(M, symtable_savepoint);
-    Constant *f_tblrollback = REGISTER_FUNC(M, symtable_rollback);
-
-    FunctionType *FuncTy = GetFuncType(mozvm_jit_call_nterm);
-    Function *F = Function::Create(FuncTy,
-            Function::ExternalLinkage,
-            runtime->C.nterms[nterm], M);
-
-    Function::arg_iterator arg_iter=F->arg_begin();
-    Value *runtime_ = arg_iter++;
-    Value *str = arg_iter++;
-    // Value *nterm_ = arg_iter++;
-
-    vector<BasicBlock *> failjumpList;
-    BBMap BBMap;
-    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
-    BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
-    BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
-    BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
-    BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
-
-    moz_inst_t *p = e->begin;
     int *table_jumps = NULL;
     int  table_size  = 0;
+    moz_inst_t *p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
@@ -1010,7 +958,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         }
         case Lookup:
         case TLookup: {
-            mozaddr_t skip = *(mozaddr_t *)(p + shift - sizeof(mozaddr_t);
+            mozaddr_t skip = *(mozaddr_t *)(p + shift - sizeof(mozaddr_t));
             moz_inst_t *dest = p + shift + skip;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
@@ -1059,6 +1007,69 @@ L_prepare_table:
 
     failjumpList.push_back(errBB);
 
+}
+
+moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
+{
+    JitContext *_ctx = get_context(runtime);
+    uint16_t nterm = e - runtime->nterm_entry;
+
+    if(mozvm_nterm_is_already_compiled(e)) {
+        return e->compiled_code;
+    }
+
+    StackFrame Frame;
+    StackFrame_init(&Frame);
+    LLVMContext &Ctx = getGlobalContext();
+    IRBuilder<> builder(Ctx);
+    Module *M = new Module(runtime->C.nterms[nterm], Ctx);
+    _ctx->curMod = M;
+    _ctx->EE->addModule(unique_ptr<Module>(M));
+
+    Type *memoentryPtrTy = GetType<MemoEntry_t *>();
+    Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
+    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
+
+    Constant *f_pstrstwith = REGISTER_FUNC(M, pstring_starts_with);
+    Constant *f_bitsetget   = REGISTER_FUNC(M, bitset_get);
+    Constant *f_astsave     = REGISTER_FUNC(M, ast_save_tx);
+    Constant *f_astrollback = REGISTER_FUNC(M, ast_rollback_tx);
+    Constant *f_astcommit   = REGISTER_FUNC(M, ast_commit_tx);
+    Constant *f_astreplace  = REGISTER_FUNC(M, ast_log_replace);
+    Constant *f_astcapture  = REGISTER_FUNC(M, ast_log_capture);
+    Constant *f_astnew      = REGISTER_FUNC(M, ast_log_new);
+    Constant *f_astpop      = REGISTER_FUNC(M, ast_log_pop);
+    Constant *f_astpush     = REGISTER_FUNC(M, ast_log_push);
+    Constant *f_astswap     = REGISTER_FUNC(M, ast_log_swap);
+    Constant *f_asttag      = REGISTER_FUNC(M, ast_log_tag);
+    Constant *f_astlink     = REGISTER_FUNC(M, ast_log_link);
+    Constant *f_astlastnode = REGISTER_FUNC(M, ast_get_last_linked_node);
+    Constant *f_memoset     = REGISTER_FUNC(M, memo_set);
+    Constant *f_memofail    = REGISTER_FUNC(M, memo_fail);
+    Constant *f_memoget     = REGISTER_FUNC(M, memo_get);
+    Constant *f_tblsave     = REGISTER_FUNC(M, symtable_savepoint);
+    Constant *f_tblrollback = REGISTER_FUNC(M, symtable_rollback);
+
+    FunctionType *FuncTy = GetFuncType(mozvm_jit_call_nterm);
+    Function *F = Function::Create(FuncTy,
+            Function::ExternalLinkage,
+            runtime->C.nterms[nterm], M);
+
+    Function::arg_iterator arg_iter=F->arg_begin();
+    Value *runtime_ = arg_iter++;
+    Value *str = arg_iter++;
+    // Value *nterm_ = arg_iter++;
+
+    vector<BasicBlock *> failjumpList;
+    BBMap BBMap;
+    BasicBlock *entryBB = BasicBlock::Create(Ctx, "entrypoint", F);
+    BasicBlock *failBB  = BasicBlock::Create(Ctx, "fail");
+    BasicBlock *retBB   = BasicBlock::Create(Ctx, "success");
+    BasicBlock *errBB   = BasicBlock::Create(Ctx, "error");
+    BasicBlock *unreachableBB = BasicBlock::Create(Ctx, "switch.default");
+
+    mozvm_jit_compile_init(runtime, e, BBMap, failBB, errBB, failjumpList);
+
     builder.SetInsertPoint(entryBB);
     Constant *i8_0  = builder.getInt8(0);
     Constant *i32_0 = builder.getInt32(0);
@@ -1095,7 +1106,7 @@ L_prepare_table:
     }
 
     BasicBlock *CurBB = entryBB;
-    p = e->begin;
+    moz_inst_t *p = e->begin;
     while (p < e->end) {
         uint8_t opcode = *p;
         unsigned shift = opcode_size(opcode);
@@ -1300,9 +1311,9 @@ L_prepare_table:
         }
         CASE_(Str);
         CASE_(NStr) {
-            BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
-            STRING_t strId = *(STRING_t *)(p + 1);
+            STRING_t   strId = *(STRING_t *)(p + 1);
             const char *impl = STRING_GET_IMPL(runtime, strId);
+            BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
 
             Value *str = get_string_ptr(builder, runtime_, strId);
             Value *len = builder.getInt32(pstring_length(impl));
