@@ -86,20 +86,20 @@ static BasicBlock *get_jump_destination(mozvm_nterm_entry_t *e, moz_inst_t *dest
     if(!nterm_has_inst(e, dest) && *dest == Fail) {
         return failBB;
     } else {
-        LLVMContext& Ctx = getGlobalContext();
+        LLVMContext &Ctx = getGlobalContext();
         return BasicBlock::Create(Ctx, "jump.label");
     }
     return nullptr;
 }
 
 template<typename Vector, typename First>
-void set_vector(const Vector& dest, const First& first)
+void set_vector(const Vector &dest, const First &first)
 {
     dest->push_back(first);
 }
 
 template<typename Vector, typename First, typename... Rest>
-void set_vector(const Vector& dest, const First& first, const Rest&... rest)
+void set_vector(const Vector &dest, const First &first, const Rest&... rest)
 {
     set_vector(dest, first);
     set_vector(dest, rest...);
@@ -478,7 +478,7 @@ static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 
 static void create_bitset_get(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Type *I64Ty = builder.getInt64Ty();
     Constant *i32_0 = builder.getInt32(0);
@@ -530,7 +530,7 @@ static void create_jump_table_index(IRBuilder<> &builder, Module *M)
         GetFuncType(jump_table3_jump)
     };
 
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     FunctionType *FTy = FuncTypes[N - 1];
     Constant *i32_0 = builder.getInt32(0);
@@ -566,7 +566,7 @@ static void create_jump_table_index(IRBuilder<> &builder, Module *M)
 
 static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
     Type *I8PtrTy  = builder.getInt8PtrTy();
     Function *F = CREATE_FUNCTION(pstring_starts_with, M);
@@ -628,7 +628,7 @@ static void create_pstring_startswith(IRBuilder<> &builder, Module *M)
 
 static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
     Constant *i32_0 = builder.getInt32(0);
     Constant *i64_0 = builder.getInt64(0);
@@ -648,7 +648,7 @@ static void create_ast_save_tx(IRBuilder<> &builder, Module *M)
 
 static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Constant *i32_1 = builder.getInt32(1);
     Constant *i64_0 = builder.getInt64(0);
 
@@ -666,7 +666,7 @@ static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M)
 
 static void create_symtable_savepoint(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I64Ty = builder.getInt64Ty();
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
@@ -687,7 +687,7 @@ static void create_symtable_savepoint(IRBuilder<> &builder, Module *M)
 
 static void create_symtable_rollback(IRBuilder<> &builder, Module *M)
 {
-    LLVMContext& Ctx = M->getContext();
+    LLVMContext &Ctx = M->getContext();
     Type *I32Ty = builder.getInt32Ty();
     Constant *i32_0 = builder.getInt32(0);
     Constant *i32_1 = builder.getInt32(1);
@@ -746,7 +746,7 @@ void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
 
 JitContext::JitContext(moz_runtime_t *r)
 {
-    LLVMContext& Ctx = getGlobalContext();
+    LLVMContext &Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
 
     for(int i = 0; i < ARRAY_SIZE(symbols); i++) {
@@ -877,7 +877,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         return e->compiled_code;
     }
 
-    LLVMContext& Ctx = getGlobalContext();
+    LLVMContext &Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
     _ctx->curMod = M;
