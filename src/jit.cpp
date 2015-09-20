@@ -3,6 +3,7 @@
 #include "pstring.h"
 #include "jmptbl.h"
 #include "instruction.h"
+#include "karray.h"
 
 #include <memory>
 #include <vector>
@@ -194,6 +195,65 @@ static Value *stack_pop_pos(IRBuilder<> &builder, Value *sp)
 #else
     return stack_pop(builder, sp);
 #endif
+}
+
+DEF_ARRAY_T_OP_NOPOINTER(long);
+
+struct StackFrame {
+    ARRAY(long) stack;
+    long sp;
+    long fp;
+};
+
+static void StackFrame_init(StackFrame *frame)
+{
+    ARRAY_init(long, &frame->stack, 0);
+    frame->sp = frame->fp = 0;
+    ARRAY_add(long, &frame->stack, INTPTR_MAX);
+}
+
+static void StackFrame_dispose(StackFrame *frame)
+{
+    ARRAY_pop(long, &frame->stack);
+    ARRAY_dispose(long, &frame->stack);
+}
+
+static void stack_push_frame(StackFrame *stack,
+        Value *pos, Value *next, Value *ast, Value *tbl)
+{
+    long fp = stack->fp;
+    stack->fp = ARRAY_size(stack->stack);
+    ARRAY_ensureSize(long, &stack->stack, 5);
+    ARRAY_set(long, &stack->stack, fp + 0, fp);
+    ARRAY_set(long, &stack->stack, fp + 1, (long) pos);
+    ARRAY_set(long, &stack->stack, fp + 2, (long) next);
+    ARRAY_set(long, &stack->stack, fp + 3, (long) ast);
+    ARRAY_set(long, &stack->stack, fp + 4, (long) tbl);
+    stack->sp = fp + 5;
+    ARRAY_size(stack->stack) = fp + 5;
+}
+
+static void stack_pop_frame(StackFrame *stack,
+        Value **pos, Value **next, Value **ast, Value **tbl)
+{
+    long fp = stack->fp;
+    stack->sp = stack->fp;
+    stack->fp = ARRAY_get(long, &stack->stack, fp + 0);
+    *pos  = (Value *)ARRAY_get(long, &stack->stack, fp + 1);
+    *next = (Value *)ARRAY_get(long, &stack->stack, fp + 2);
+    *ast  = (Value *)ARRAY_get(long, &stack->stack, fp + 3);
+    *tbl  = (Value *)ARRAY_get(long, &stack->stack, fp + 4);
+    ARRAY_size(stack->stack) = stack->fp;
+}
+
+static void stack_peek_frame(StackFrame *stack,
+        Value **pos, Value **next, Value **ast, Value **tbl)
+{
+    long fp = stack->fp;
+    *pos  = (Value *)ARRAY_get(long, &stack->stack, fp + 1);
+    *next = (Value *)ARRAY_get(long, &stack->stack, fp + 2);
+    *ast  = (Value *)ARRAY_get(long, &stack->stack, fp + 3);
+    *tbl  = (Value *)ARRAY_get(long, &stack->stack, fp + 4);
 }
 
 static void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
@@ -878,6 +938,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         return e->compiled_code;
     }
 
+    StackFrame Frame;
+    StackFrame_init(&Frame);
     LLVMContext &Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
     Module *M = new Module(runtime->C.nterms[nterm], Ctx);
@@ -1108,6 +1170,16 @@ L_prepare_table:
 
             Constant *ID = builder.getInt16(nterm);
             Value *func;
+
+            // Value *prev_pos_;
+            // Value *next_;
+            // Value *ast_tx_;
+            // Value *saved_;
+            //
+            // BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
+            // Value *pos = builder.CreateLoad(cur);
+            // stack_peek_frame(&Frame, &prev_pos_, &next_, &ast_tx_, &saved_);
+            // stack_push_frame(builder, sp, fp, pos, addr, ast_tx_, saved_);
             if(mozvm_nterm_is_already_compiled(target)) {
                 const char *nterm_name = runtime->C.nterms[nterm];
                 func = M->getOrInsertFunction(nterm_name, FuncTy);
@@ -1115,6 +1187,7 @@ L_prepare_table:
             else {
                 func = get_callee_function(builder, runtime_, nterm);
             }
+            // stack_pop_frame(builder, sp, fp, &pos, &addr, &ast_tx_, &saved_);
             Value *result = create_call(builder, func, runtime_, str, ID);
             Value *cond   = builder.CreateICmpNE(result, i8_0);
             builder.CreateCondBr(cond, failBB, BBMap[dest]);
@@ -1686,6 +1759,7 @@ L_prepare_table:
     builder.SetInsertPoint(unreachableBB);
     builder.CreateUnreachable();
 
+    StackFrame_dispose(&Frame);
 
     if (optimize(M, F)) {
         return NULL;
