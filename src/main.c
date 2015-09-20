@@ -98,7 +98,7 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (!mozvm_loader_load_input(&L, input_file)) {
+    if (!mozvm_loader_load_input_file(&L, input_file)) {
         fprintf(stderr, "error: failed to load input_file='%s'\n", input_file);
         usage(argv[0]);
         exit(EXIT_FAILURE);

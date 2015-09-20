@@ -47,25 +47,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print);
 static void dump_set(bitset_t *set, char *buf);
 #endif
 
-static char *load_file(const char *path, size_t *size, int align)
-{
-    size_t len;
-    size_t readed;
-    char *data;
-    FILE *fp = fopen(path, "rb");
-    assert(fp != 0);
-
-    fseek(fp, 0, SEEK_END);
-    len = (size_t) ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    data = (char *) VM_CALLOC(1, len + 1 + align);
-    readed = fread(data, 1, len, fp);
-    assert(len == readed);
-    fclose(fp);
-    *size = len;
-    return data;
-    (void)readed;
-}
+#include "input_source.h"
 
 typedef struct input_stream {
     size_t pos;
@@ -761,10 +743,17 @@ static int checkVersion(input_stream_t *is)
     return read8(is) >= MOZ_SUPPORTED_NEZ_VERSION;
 }
 
-int mozvm_loader_load_input(mozvm_loader_t *L, const char *file)
+int mozvm_loader_load_input_file(mozvm_loader_t *L, const char *file)
 {
     L->input = load_file(file, &L->input_size, 32);
     return L->input != NULL;
+}
+
+int mozvm_loader_load_input_text(mozvm_loader_t *L, const char *text, unsigned len)
+{
+    L->input = (char *)VM_CALLOC(1, len + 1);
+    memcpy(L->input, text, len);
+    return 1;
 }
 
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
