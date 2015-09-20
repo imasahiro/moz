@@ -710,7 +710,7 @@ static void create_symtable_rollback(IRBuilder<> &builder, Module *M)
 
 #ifdef MOZVM_USE_JMPTBL
 template<unsigned N>
-void create_tbl_jump_inst(IRBuilder<> &builder, Value *tbl,
+void create_call_tbljmp(IRBuilder<> &builder, Value *tbl,
         JitContext *ctx, Value *cur, Value *str, BasicBlock *unreachableBB,
         BBMap &BBMap, moz_inst_t *offset, int *jumps)
 {
@@ -1363,7 +1363,7 @@ L_prepare_table:
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps1[tblId].jumps;
             Value *tbl = get_jump_table<1>(builder, runtime_, tblId);
-            create_tbl_jump_inst<1>(builder, tbl, _ctx, cur, str,
+            create_call_tbljmp<1>(builder, tbl, _ctx, cur, str,
                     unreachableBB, BBMap, offset, jumps);
             break;
         }
@@ -1372,7 +1372,7 @@ L_prepare_table:
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps2[tblId].jumps;
             Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
-            create_tbl_jump_inst<2>(builder, tbl, _ctx, cur, str,
+            create_call_tbljmp<2>(builder, tbl, _ctx, cur, str,
                     unreachableBB, BBMap, offset, jumps);
             break;
         }
@@ -1381,7 +1381,7 @@ L_prepare_table:
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps3[tblId].jumps;
             Value *tbl = get_jump_table<3>(builder, runtime_, tblId);
-            create_tbl_jump_inst<3>(builder, tbl, _ctx, cur, str,
+            create_call_tbljmp<3>(builder, tbl, _ctx, cur, str,
                     unreachableBB, BBMap, offset, jumps);
             break;
         }
