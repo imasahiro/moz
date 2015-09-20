@@ -31,19 +31,11 @@ using namespace llvm;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+#define CREATE_FUNCTION(F, M) \
+    Function::Create(GetFuncType(F), Function::InternalLinkage, #F, M)
+
 typedef unordered_map<moz_inst_t *, BasicBlock *> BBMap;
 typedef unordered_map<void *, GlobalVariable *> ConstMap;
-
-static void create_bitset_get(IRBuilder<> &builder, Module *M);
-#ifdef MOZVM_USE_JMPTBL
-template<unsigned n>
-static void create_jump_table_index(IRBuilder<> &builder, Module *M);
-#endif
-static void create_pstring_startswith(IRBuilder<> &builder, Module *M);
-static void create_ast_save_tx(IRBuilder<> &builder, Module *M);
-static void create_ast_get_last_linked_node(IRBuilder<> &builder, Module *M);
-static void create_symtable_savepoint(IRBuilder<> &builder, Module *M);
-static void create_symtable_rollback(IRBuilder<> &builder, Module *M);
 
 class JitContext {
 private:
@@ -533,9 +525,6 @@ static Value *get_string_ptr(IRBuilder<> &builder, Value *runtime, STRING_t id)
 }
 #endif
 
-#define CREATE_FUNCTION(F, M) \
-    Function::Create(GetFuncType(F), Function::InternalLinkage, #F, M)
-
 static void create_bitset_get(IRBuilder<> &builder, Module *M)
 {
     LLVMContext &Ctx = M->getContext();
@@ -1010,7 +999,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         case Call: {
-            mozaddr_t next = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
+            mozaddr_t next = *(mozaddr_t *)(p + 1 + sizeof(uint16_t));
             moz_inst_t *dest = p + shift + next;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
@@ -1021,8 +1010,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         }
         case Lookup:
         case TLookup: {
-            moz_inst_t *pc = p + shift - sizeof(mozaddr_t);
-            mozaddr_t skip = *((mozaddr_t *)(pc));
+            mozaddr_t skip = *(mozaddr_t *)(p + shift - sizeof(mozaddr_t);
             moz_inst_t *dest = p + shift + skip;
             if(BBMap.find(dest) == BBMap.end()) {
                 BasicBlock *label = get_jump_destination(e, dest, failBB);
@@ -1033,20 +1021,20 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
         }
 #ifdef MOZVM_USE_JMPTBL
         case TblJump1: {
-            uint16_t tblId = *((uint16_t *)(p + 1));
+            uint16_t tblId = *(uint16_t *)(p + 1);
             table_jumps = runtime->C.jumps1[tblId].jumps;
             table_size  = 2;
             goto L_prepare_table;
         }
         case TblJump2: {
-            uint16_t tblId = *((uint16_t *)(p + 1));
+            uint16_t tblId = *(uint16_t *)(p + 1);
             table_jumps = runtime->C.jumps2[tblId].jumps;
             table_size  = 4;
             goto L_prepare_table;
         }
         case TblJump3: {
             {
-                uint16_t tblId = *((uint16_t *)(p + 1));
+                uint16_t tblId = *(uint16_t *)(p + 1);
                 table_jumps = runtime->C.jumps3[tblId].jumps;
                 table_size  = 8;
             }
@@ -1145,7 +1133,7 @@ L_prepare_table:
             break;
         }
         CASE_(Alt) {
-            mozaddr_t failjump = *((mozaddr_t *)(p + 1));
+            mozaddr_t failjump = *(mozaddr_t *)(p + 1);
             moz_inst_t *dest = p + shift + failjump;
 
             BlockAddress *addr = BlockAddress::get(F, BBMap[dest]);
@@ -1156,15 +1144,15 @@ L_prepare_table:
             break;
         }
         CASE_(Jump) {
-            mozaddr_t jump = *((mozaddr_t *)(p + 1));
+            mozaddr_t jump = *(mozaddr_t *)(p + 1);
             moz_inst_t *dest = p + shift + jump;
 
             builder.CreateBr(BBMap[dest]);
             break;
         }
         CASE_(Call) {
-            uint16_t nterm   = *((uint16_t *)(p + 1));
-            mozaddr_t next   = *((mozaddr_t *)(p + 1 + sizeof(uint16_t)));
+            uint16_t nterm   = *(uint16_t *)(p + 1);
+            mozaddr_t next   = *(mozaddr_t *)(p + 1 + sizeof(uint16_t));
             moz_inst_t *dest = p + shift + next;
             mozvm_nterm_entry_t *target = &runtime->nterm_entry[nterm];
 
@@ -1313,7 +1301,7 @@ L_prepare_table:
         CASE_(Str);
         CASE_(NStr) {
             BasicBlock *succ = BasicBlock::Create(Ctx, "str.succ", F);
-            STRING_t strId = *((STRING_t *)(p + 1));
+            STRING_t strId = *(STRING_t *)(p + 1);
             const char *impl = STRING_GET_IMPL(runtime, strId);
 
             Value *str = get_string_ptr(builder, runtime_, strId);
@@ -1345,7 +1333,7 @@ L_prepare_table:
         CASE_(Set);
         CASE_(NSet) {
             BasicBlock *succ = BasicBlock::Create(Ctx, "set.succ", F);
-            BITSET_t setId = *((BITSET_t *)(p + 1));
+            BITSET_t setId = *(BITSET_t *)(p + 1);
 
             Value *set = get_bitset_ptr(builder, runtime_, setId);
             Value *pos = builder.CreateLoad(cur);
@@ -1373,7 +1361,7 @@ L_prepare_table:
         CASE_(OSet) {
             BasicBlock *obody = BasicBlock::Create(Ctx, "oset.body", F);
             BasicBlock *oend  = BasicBlock::Create(Ctx, "oset.end", F);
-            BITSET_t setId = *((BITSET_t *)(p + 1));
+            BITSET_t setId = *(BITSET_t *)(p + 1);
 
             Value *set = get_bitset_ptr(builder, runtime_, setId);
             Value *pos = builder.CreateLoad(cur);
@@ -1398,7 +1386,7 @@ L_prepare_table:
             BasicBlock *rbody = BasicBlock::Create(Ctx, "rset.body", F);
             BasicBlock *rend  = BasicBlock::Create(Ctx, "rset.end",  F);
 
-            BITSET_t setId = *((BITSET_t *)(p + 1));
+            BITSET_t setId = *(BITSET_t *)(p + 1);
             Value *set = get_bitset_ptr(builder, runtime_, setId);
             Value *firstpos = builder.CreateLoad(cur);
             builder.CreateBr(rcond);
@@ -1432,7 +1420,7 @@ L_prepare_table:
             break;
         }
         CASE_(TblJump1) {
-            uint16_t tblId = *((uint16_t *)(p + 1));
+            uint16_t tblId = *(uint16_t *)(p + 1);
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps1[tblId].jumps;
             Value *tbl = get_jump_table<1>(builder, runtime_, tblId);
@@ -1441,7 +1429,7 @@ L_prepare_table:
             break;
         }
         CASE_(TblJump2) {
-            uint16_t tblId = *((uint16_t *)(p + 1));
+            uint16_t tblId = *(uint16_t *)(p + 1);
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps2[tblId].jumps;
             Value *tbl = get_jump_table<2>(builder, runtime_, tblId);
@@ -1450,7 +1438,7 @@ L_prepare_table:
             break;
         }
         CASE_(TblJump3) {
-            uint16_t tblId = *((uint16_t *)(p + 1));
+            uint16_t tblId = *(uint16_t *)(p + 1);
             moz_inst_t *offset = p + shift;
             int *jumps = runtime->C.jumps3[tblId].jumps;
             Value *tbl = get_jump_table<3>(builder, runtime_, tblId);
@@ -1498,8 +1486,8 @@ L_prepare_table:
             break;
         }
         CASE_(Memo) {
-            uint8_t  state  = *(uint8_t   *)(p + 1);
-            uint16_t memoId = *((uint16_t *)(p + 2));
+            uint8_t  state  = *(uint8_t  *)(p + 1);
+            uint16_t memoId = *(uint16_t *)(p + 2);
             Constant *state_  = builder.getInt32(state);
             Constant *memoId_ = builder.getInt32(memoId);
 
@@ -1521,7 +1509,7 @@ L_prepare_table:
         }
         CASE_(MemoFail) {
             // uint8_t state   = *(uint8_t   *)(p + 1);
-            uint16_t memoId = *((uint16_t *)(p + 2));
+            uint16_t memoId = *(uint16_t *)(p + 2);
             Constant *memoId_ = builder.getInt32(memoId);
 
             Value *pos = builder.CreateLoad(cur);
@@ -1534,7 +1522,7 @@ L_prepare_table:
             break;
         }
         CASE_(TPop) {
-            TAG_t tagId = *((TAG_t *)(p + 1));
+            TAG_t tagId = *(TAG_t *)(p + 1);
 
             Value *_tagId = get_tag_id(builder, runtime_, tagId);
             create_call(builder, f_astpop, ast, _tagId);
