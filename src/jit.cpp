@@ -1028,7 +1028,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
 
     Type *memoentryPtrTy = GetType<MemoEntry_t *>();
     Constant *nullentry         = Constant::getNullValue(memoentryPtrTy);
-    Constant *memo_entry_failed = builder.getInt64(UINTPTR_MAX);
+    Constant *memo_entry_failed = builder.getInt64(MEMO_ENTRY_FAILED);
 
     Constant *f_pstrstwith = REGISTER_FUNC(M, pstring_starts_with);
     Constant *f_bitsetget   = REGISTER_FUNC(M, bitset_get);

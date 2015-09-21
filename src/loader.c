@@ -778,6 +778,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     memo_size = (unsigned) read16(&is);
     jmptbl_size = (unsigned) read16(&is);
     nterm_size  = (unsigned) read16(&is);
+    (void)jmptbl_size;
 
     mozvm_loader_init(L, inst_size);
     L->R = moz_runtime_init(memo_size, nterm_size);
@@ -985,7 +986,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 OP_PRINT("%8ld, ", L->R->C.profile[j]);
             }
 #endif
-            OP_PRINT("%4ld %4d %s ", p - head, i, opcode2str(opcode));
+            OP_PRINT("%4ld %4d %s ", (long)(p - head), i, opcode2str(opcode));
             switch (opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop);
@@ -995,7 +996,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
             }
             CASE_(Alt);
             CASE_(Jump) {
-                OP_PRINT("%ld", p + shift - head + *(mozaddr_t *)(p + 1));
+                OP_PRINT("%ld", (long)(p + shift - head + *(mozaddr_t *)(p + 1)));
                 break;
             }
             CASE_(Call) {
@@ -1009,8 +1010,8 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 #endif
                 next = *(mozaddr_t *)(pc + 1);
                 jump = *(mozaddr_t *)(pc + 1 + sizeof(mozaddr_t));
-                OP_PRINT("next=%ld ", pc + shift - p + next);
-                OP_PRINT("jump=%ld" , pc + shift - p + jump);
+                OP_PRINT("next=%ld ", (long)(pc + shift - p + next));
+                OP_PRINT("jump=%ld" , (long)(pc + shift - p + jump));
                 break;
             }
             CASE_(Ret);
@@ -1081,7 +1082,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 }
 L_dump_table:
                 for (i = 0; i < table_size; i++) {
-                    OP_PRINT("%ld ,", p + shift + table[i] - head);
+                    OP_PRINT("%ld ,", (long)(p + shift + table[i] - head));
                 }
                 break;
             }

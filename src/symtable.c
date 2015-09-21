@@ -47,7 +47,7 @@ void symtable_print_stats()
 
 static void symtable_push(symtable_t *tbl, const char *tag, unsigned hash, token_t *t)
 {
-    entry_t entry = {};
+    entry_t entry;
     entry.state = tbl->state++;
     entry.hash = hash;
     entry.tag = tag;

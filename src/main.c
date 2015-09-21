@@ -44,7 +44,7 @@ static void show_timer(const char *s)
 int main(int argc, char *const argv[])
 {
     long parsed;
-    mozvm_loader_t L = {};
+    mozvm_loader_t L;
     moz_inst_t *head, *inst;
 
     const char *syntax_file = NULL;

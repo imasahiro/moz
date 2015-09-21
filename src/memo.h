@@ -1,7 +1,9 @@
+#include <stdint.h>
+#include <limits.h>
+
 #ifndef MEMO_H
 #define MEMO_H
 
-#include <stdint.h>
 #include "mozvm_config.h"
 #include "node.h"
 
@@ -25,7 +27,7 @@ typedef struct MemoEntry {
     unsigned state;
 } MemoEntry_t;
 
-#define MEMO_ENTRY_FAILED UINTPTR_MAX
+#define MEMO_ENTRY_FAILED ULONG_MAX
 
 struct memo;
 typedef struct memo memo_t;

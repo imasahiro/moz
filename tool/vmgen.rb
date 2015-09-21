@@ -41,8 +41,8 @@ open(file) {|f|
 
   out = open(vminst, "w")
   out.puts <<-TXT
-#ifndef #{vminst.upcase.gsub(".", "_").gsub("/", "_")}
-#define #{vminst.upcase.gsub(".", "_").gsub("/", "_")}
+#ifndef #{vminst.upcase.gsub(".", "_").gsub("/", "_").gsub("-", "_")}
+#define #{vminst.upcase.gsub(".", "_").gsub("/", "_").gsub("-", "_")}
 
 #ifdef MOZVM_OPCODE_SIZE
 static unsigned opcode_size(int opcode)

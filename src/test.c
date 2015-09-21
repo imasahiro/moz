@@ -14,7 +14,7 @@ DEF_ARRAY_OP(Example);
 static int load_tests(ARRAY(Example) *examples, const char *test_file)
 {
     size_t input_len = 0;
-    Example e = {};
+    Example e;
     const char *p;
     const char *input = load_file(test_file, &input_len, 0);
     const char *end   = input + input_len;
@@ -26,7 +26,7 @@ static int load_tests(ARRAY(Example) *examples, const char *test_file)
     // ...
 
     p = input;
-    next = strchr(p, '\n');
+    next = (char *)strchr(p, '\n');
     e.hash = pstring_alloc(p, next - p);
     p = next + 1;
     e.text = pstring_alloc(p, end - p);
