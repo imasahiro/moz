@@ -7,5 +7,6 @@ a.out*
 *.ncz
 *.nzc
 *.moz
+*.test_moz
 Release/
 Debug/
