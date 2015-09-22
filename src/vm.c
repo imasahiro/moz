@@ -237,13 +237,18 @@ void moz_runtime_dispose(moz_runtime_t *r)
     SP = SP + FP_MAX; \
 } while (0)
 
+#define DROP_FRAME() do {\
+    SP     = FP; \
+    FP     = (long *)FP[FP_FP]; \
+} while (0)
+
 #define POP_FRAME(POS, NEXT, AST, SYMTBL) do {\
     SP     = FP; \
     SYMTBL = FP[FP_SYMTBL];\
     AST    = FP[FP_AST];\
     NEXT   = (moz_inst_t *)FP[FP_NEXT];\
     POS    = (mozpos_t)FP[FP_POS];\
-    FP     = (long *)FP[FP_FP]; \
+    DROP_FRAME(); \
 } while (0)
 
 #define PEEK_FRAME(POS, NEXT, AST, SYMTBL) do {\

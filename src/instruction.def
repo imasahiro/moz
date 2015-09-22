@@ -20,11 +20,7 @@ DEF(Alt, mozaddr_t failjump)
 }
 DEF(Succ)
 {
-    long saved, ast_tx;
-    mozpos_t pos;
-    moz_inst_t *jump;
-    POP_FRAME(pos, jump, ast_tx, saved);
-    (void)saved; (void)ast_tx; (void)jump; (void)pos;
+    DROP_FRAME();
 }
 DEF(Jump, mozaddr_t jump)
 {
