@@ -968,7 +968,7 @@ static void dump_set(bitset_t *set, char *buf)
 static char *write_char(char *p, unsigned char ch);
 static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 {
-    int i = 0, j = 0;
+    int idx = 0, j = 0;
     uint8_t opcode = 0;
     moz_inst_t *head = ARRAY_n(L->buf, 0);
     for (j = 0; j < L->R->C.nterm_size; j++) {
@@ -978,7 +978,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         unsigned shift = 0;
         int *table = NULL;
         int table_size = 0;
-        for (p = e->begin; p < e->end; p += shift, i++) {
+        for (p = e->begin; p < e->end; p += shift, idx++) {
             opcode = *p;
             shift = opcode_size(opcode);
 #ifdef MOZVM_PROFILE_INST
@@ -986,7 +986,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 OP_PRINT("%8ld, ", L->R->C.profile[j]);
             }
 #endif
-            OP_PRINT("%4ld %4d %s ", (long)(p - head), i, opcode2str(opcode));
+            OP_PRINT("%4ld %4d %s ", (long)(p - head), idx, opcode2str(opcode));
             switch (opcode) {
 #define CASE_(OP) case OP:
             CASE_(Nop);
@@ -1010,8 +1010,8 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 #endif
                 next = *(mozaddr_t *)(pc + 1);
                 jump = *(mozaddr_t *)(pc + 1 + sizeof(mozaddr_t));
-                OP_PRINT("next=%ld ", (long)(pc + shift - p + next));
-                OP_PRINT("jump=%ld" , (long)(pc + shift - p + jump));
+                OP_PRINT("next=%ld ", (long)(pc + shift - head + next));
+                OP_PRINT("jump=%ld" , (long)(pc + shift - head + jump));
                 break;
             }
             CASE_(Ret);
@@ -1065,7 +1065,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 {
                     JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
                     int *impl = JMPTBL_GET_IMPL(L->R, tblId);
-                    int target[257] = {};
+                    int i, target[257] = {};
                     table = target;
                     table_size = 0;
                     for (i = 0; i < 257; i++) {
@@ -1081,8 +1081,11 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                     }
                 }
 L_dump_table:
-                for (i = 0; i < table_size; i++) {
-                    OP_PRINT("%ld ,", (long)(p + shift + table[i] - head));
+                {
+                    int i;
+                    for (i = 0; i < table_size; i++) {
+                        OP_PRINT("%ld ,", (long)(p + shift + table[i] - head));
+                    }
                 }
                 break;
             }
