@@ -960,6 +960,7 @@ static void dump_set(bitset_t *set, char *buf)
 #if 1
 #define OP_PRINT(FMT, ...) if (print) { fprintf(stderr, FMT, __VA_ARGS__); }
 #define OP_PRINT_END()     if (print) { fprintf(stderr, "\n"); }
+#define OP_PRINT_STR(STR)  if (print) { fprintf(stderr, STR); }
 #else
 #define OP_PRINT(FMT, ...)
 #define OP_PRINT_END()
@@ -1083,9 +1084,16 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
 L_dump_table:
                 {
                     int i;
+                    OP_PRINT_STR("[");
                     for (i = 0; i < table_size; i++) {
-                        OP_PRINT("%ld ,", (long)(p + shift + table[i] - head));
+                        if (table[i] != INT_MAX) {
+                            if (i != 0) {
+                                OP_PRINT_STR(", ");
+                            }
+                            OP_PRINT("%ld", (long)(p + shift + table[i] - head));
+                        }
                     }
+                    OP_PRINT_STR("]");
                 }
                 break;
             }
