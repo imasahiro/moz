@@ -139,7 +139,7 @@ static void print_indent(unsigned level)
 {
     unsigned i;
     for (i = 0; i < level; i++) {
-        fprintf(stderr, "  ");
+        fprintf(stderr, " ");
     }
 }
 
@@ -166,11 +166,12 @@ static void Node_print2(Node *o, const char **tag_list, unsigned level)
             else {
                 fprintf(stderr, "null");
             }
-            fprintf(stderr, ",\n");
+            fprintf(stderr, "\n");
         }
         print_indent(level);
-        fprintf(stderr, "]");
     }
+    print_indent(level);
+    fprintf(stderr, "]");
 }
 
 void Node_print(Node *o, const char **tag_list)
