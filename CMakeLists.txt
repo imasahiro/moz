@@ -45,6 +45,20 @@ set(MOZ_SRC  src/loader.c src/mozvm.c src/cli/main.c)
 set(STAT_SRC src/cli/stat.cpp)
 set(DUMP_SRC src/cli/dump.c)
 
+if(ENABLE_JIT)
+    add_definitions(-DMOZVM_ENABLE_JIT=1)
+    SET(MOZ_SRC ${MOZ_SRC} src/jit.cpp)
+    find_package(LLVM REQUIRED CONFIG)
+    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+    add_definitions(${LLVM_DEFINITIONS})
+    include_directories(${LLVM_INCLUDE_DIRS})
+    link_directories(${LLVM_LIBRARY_DIRS})
+
+    llvm_map_components_to_libnames(llvm_libs
+        support core nativecodegen mcdisassembler mcjit ipo)
+endif()
+
 add_library(nez SHARED ${NEZ_SRC})
 add_library(node SHARED ${NODE_SRC})
 
@@ -58,6 +72,13 @@ endif()
 target_link_libraries(nez node)
 target_link_libraries(moz nez)
 target_link_libraries(moz_dump nez)
+
+if(ENABLE_JIT)
+    target_link_libraries(moz ${llvm_libs})
+    target_link_libraries(moz_all ${llvm_libs})
+    target_link_libraries(moz_stat ${llvm_libs})
+endif()
+
 
 add_custom_command(OUTPUT vm_core.c vm_inst.h
     COMMAND ruby
