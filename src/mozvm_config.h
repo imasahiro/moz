@@ -33,7 +33,7 @@ extern "C" {
 // #define MOZVM_USE_DYNAMIC_DEACTIVATION 1
 
 // Runtime
-#define MOZ_DEFAULT_STACK_SIZE  (1024)
+#define MOZ_DEFAULT_STACK_SIZE  (2048)
 
 // jump table
 #define MOZ_JMPTABLE_SIZE 256
