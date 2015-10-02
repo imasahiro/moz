@@ -598,7 +598,7 @@ static void create_jump_table_index(IRBuilder<> &builder, Module *M)
     builder.SetInsertPoint(entryBB);
 
     Value *ch_ = builder.CreateZExt(ch, I32Ty);
-    Value *idx;
+    Value *idx = nullptr;
     for(int i = 0; i < N; i++) {
         Value *C = builder.getInt64(i);
         Value *tbl_set = create_gep(builder, tbl, i64_0, i32_0, C);
@@ -766,7 +766,7 @@ void create_call_tbljmp(IRBuilder<> &builder, Value *tbl,
         BBMap &BBMap, moz_inst_t *offset, int *jumps)
 {
     char buf[128];
-    snprintf(buf, 128, "jump_table%d_t", N);
+    snprintf(buf, 128, "jump_table%d_index", N);
     Module *M = ctx->curMod;
     FunctionType *FuncTypes[] = {
         GetFuncType(jump_table1_jump),
@@ -799,7 +799,7 @@ JitContext::JitContext(moz_runtime_t *r)
     LLVMContext &Ctx = getGlobalContext();
     IRBuilder<> builder(Ctx);
 
-    for(int i = 0; i < ARRAY_SIZE(symbols); i++) {
+    for(unsigned i = 0; i < ARRAY_SIZE(symbols); i++) {
         const Symbol *sym = symbols + i;
         sys::DynamicLibrary::AddSymbol(sym->name, sym->func);
     }
@@ -1007,7 +1007,7 @@ L_prepare_table:
                     moz_inst_t *dest = jmpoffset + table_jumps[i];
                     if(BBMap.find(dest) == BBMap.end()) {
                         BasicBlock *label = get_jump_destination(e, dest, failBB);
-                        assert(label != NULL);
+                        assert(label != nullptr);
                         BBMap[dest] = label;
                     }
                 }
@@ -1566,8 +1566,8 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         CASE_(TLeftFold) {
-            uint8_t shift    = *(uint8_t *)(p + 1);
-            TAG_t tagId      = *(TAG_t   *)(p + 2);
+            int8_t shift     = *(int8_t *)(p + 1);
+            TAG_t tagId      = *(TAG_t  *)(p + 2);
             Constant *shift_ = builder.getInt64(shift);
 
             Value *_tagId  = get_tag_id(builder, runtime_, tagId);
@@ -1577,7 +1577,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         CASE_(TNew) {
-            uint8_t shift    = *(uint8_t *)(p + 1);
+            int8_t shift     = *(int8_t *)(p + 1);
             Constant *shift_ = builder.getInt64(shift);
 
             Value *pos    = builder.CreateLoad(cur);
@@ -1586,7 +1586,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         CASE_(TCapture) {
-            uint8_t shift    = *(uint8_t *)(p + 1);
+            int8_t shift     = *(int8_t *)(p + 1);
             Constant *shift_ = builder.getInt64(shift);
 
             Value *pos        = builder.CreateLoad(cur);
