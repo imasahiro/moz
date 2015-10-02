@@ -967,6 +967,20 @@ static void mozvm_jit_compile_init(moz_runtime_t *runtime,
             }
             break;
         }
+        case First: {
+            JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
+            moz_inst_t *jmpoffset = p + shift;
+            table_jumps = JMPTBL_GET_IMPL(runtime, tblId);
+            for(int i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                moz_inst_t *dest = jmpoffset + table_jumps[i];
+                if(BBMap.find(dest) == BBMap.end()) {
+                    BasicBlock *label = get_jump_destination(e, dest, failBB);
+                    assert(label != nullptr);
+                    BBMap[dest] = label;
+                }
+            }
+            break;
+        }
 #ifdef MOZVM_USE_JMPTBL
         case TblJump1: {
             uint16_t tblId = *(uint16_t *)(p + 1);
@@ -1427,7 +1441,19 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         CASE_(First) {
-            asm volatile("int3");
+            JMPTBL_t tblId = *(JMPTBL_t *)(p + 1);
+            moz_inst_t *offset = p + shift;
+            int *jmpTable = JMPTBL_GET_IMPL(runtime, tblId);
+
+            Value *pos = builder.CreateLoad(cur);
+            Value *Cur = GetCur(builder, str, pos);
+            Value *Char = builder.CreateLoad(Cur);
+            Value *index = builder.CreateZExt(Char, builder.getInt64Ty());
+            SwitchInst *jump = builder.CreateSwitch(index, unreachableBB, MOZ_JMPTABLE_SIZE);
+            for(int i = 0; i < MOZ_JMPTABLE_SIZE; i++) {
+                moz_inst_t *dest = offset + jmpTable[i];
+                jump->addCase(builder.getInt64(i), BBMap[dest]);
+            }
             break;
         }
         CASE_(TblJump1) {
