@@ -284,13 +284,24 @@ static void stack_push_frame(IRBuilder<> &builder, Value *sp, Value *fp,
     builder.CreateStore(next_top, sp);
 }
 
+static void stack_drop_frame(IRBuilder<> &builder, Value *sp, Value *fp)
+{
+    Type *I64PtrTy = builder.getInt64Ty()->getPointerTo();
+    Value *frame = builder.CreateLoad(fp);
+    builder.CreateStore(frame, sp);
+
+    Value *fp_fp       = frame;
+    Value *prev_frame_ = builder.CreateLoad(fp_fp);
+    Value *prev_frame  = builder.CreateIntToPtr(prev_frame_, I64PtrTy);
+    builder.CreateStore(prev_frame, fp);
+}
+
 static void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
         Value **pos, Value **next, Value **ast, Value **symtable)
 {
     Type *I8PtrTy  = builder.getInt8PtrTy();
-    Type *I64PtrTy = builder.getInt64Ty()->getPointerTo();
     Value *frame = builder.CreateLoad(fp);
-    builder.CreateStore(frame, sp);
+    // builder.CreateStore(frame, sp);
 
     Value *fp_symtable = builder.CreateGEP(frame, builder.getInt64(4));
     *symtable = builder.CreateLoad(fp_symtable);
@@ -310,10 +321,7 @@ static void stack_pop_frame(IRBuilder<> &builder, Value *sp, Value *fp,
     *pos = pos_;
 #endif
 
-    Value *fp_fp       = frame;
-    Value *prev_frame_ = builder.CreateLoad(fp_fp);
-    Value *prev_frame  = builder.CreateIntToPtr(prev_frame_, I64PtrTy);
-    builder.CreateStore(prev_frame, fp);
+    stack_drop_frame(builder, sp, fp);
 }
 
 static void stack_peek_frame(IRBuilder<> &builder, Value *sp, Value *fp,
@@ -1150,11 +1158,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
             break;
         }
         CASE_(Succ) {
-            Value *pos;
-            Value *next;
-            Value *ast_tx;
-            Value *saved;
-            stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
+            stack_drop_frame(builder, sp, fp);
             break;
         }
         CASE_(Alt) {
@@ -1768,11 +1772,7 @@ moz_jit_func_t mozvm_jit_compile(moz_runtime_t *runtime, mozvm_nterm_entry_t *e)
     retBB->insertInto(F);
     builder.SetInsertPoint(retBB);
     {
-        Value *pos;
-        Value *next;
-        Value *ast_tx;
-        Value *saved;
-        stack_pop_frame(builder, sp, fp, &pos, &next, &ast_tx, &saved);
+        stack_drop_frame(builder, sp, fp);
         builder.CreateRet(i8_0);
     }
 
