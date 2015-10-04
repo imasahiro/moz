@@ -91,7 +91,6 @@ int mozvm_run_test(mozvm_loader_t *L, const char *test_file)
     }
 
     FOR_EACH_ARRAY(examples, x, e) {
-        // fprintf(stderr, "'%s' '%s' '%s'\n", x->hash, x->text);
         pstring_delete(x->hash);
         pstring_delete(x->text);
     }

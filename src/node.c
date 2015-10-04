@@ -196,7 +196,6 @@ static void Node_digest2(Node *o, const char **tag_list, md5_state_t *ctx)
     if (o->tag) {
         unsigned tlen = pstring_length(o->tag);
         md5_append(ctx, (unsigned char *)o->tag, tlen);
-        // fprintf(stderr, "'#%.*s'\n", tlen, o->tag);
     }
 
     for (i = 0; i < len; i++) {
@@ -207,7 +206,6 @@ static void Node_digest2(Node *o, const char **tag_list, md5_state_t *ctx)
             if (label[0] != 0) {
                 md5_append(ctx, (unsigned char *)"$", 1);
                 md5_append(ctx, (unsigned char *)label, pstring_length(label));
-                // fprintf(stderr, "'$%.*s'\n", pstring_length(label), label);
             }
             Node_digest2(node, tag_list, ctx);
         }
@@ -220,7 +218,6 @@ static void Node_digest2(Node *o, const char **tag_list, md5_state_t *ctx)
         }
         else {
             md5_append(ctx, (unsigned char *)o->pos, o->len);
-            // fprintf(stderr, "'%.*s'\n", o->len, o->pos);
         }
     }
 }

@@ -232,7 +232,10 @@ Node *constructLeft(AstMachine *ast, AstLog *cur, AstLog *tail,
                 assert(n >= 0);
                 Node_set(newnode, n, labelId, child);
             } else {
+#ifdef AST_DEBUG
                 fprintf(stderr, "@@ linking null child at %u(%u)\n", n, labelId);
+#endif
+                assert(child != NULL);
             }
             n++;
             cur += shift;
