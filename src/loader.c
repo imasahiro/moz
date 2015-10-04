@@ -1008,7 +1008,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 moz_inst_t *pc = p;
 #ifdef MOZVM_USE_PROD
                 int prod = *(int16_t *)(p + 1);
-                OP_PRINT("%s ", L->R->C.prods[prod]);
+                OP_PRINT("%s ", L->R->C.prods[prod].name);
                 pc += sizeof(int16_t);
 #endif
                 next = *(mozaddr_t *)(pc + 1);
