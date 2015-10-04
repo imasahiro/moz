@@ -121,12 +121,13 @@ moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
     VM_FREE(L->table);
     L->table = NULL;
     for (i = 0; i < L->R->C.prod_size; i++) {
-        uintptr_t begin = (uintptr_t) L->R->prods[i].begin;
-        uintptr_t end   = (uintptr_t) L->R->prods[i].end;
-        L->R->prods[i].begin = inst + begin;
-        L->R->prods[i].end   = inst + end;
+        moz_production_t *e = &L->R->C.prods[i];
+        uintptr_t begin = (uintptr_t) e->begin;
+        uintptr_t end   = (uintptr_t) e->end;
+        e->begin = inst + begin;
+        e->end   = inst + end;
 #ifdef MOZVM_ENABLE_JIT
-        L->R->prods[i].compiled_code = mozvm_jit_call_prod;
+        e->compiled_code = mozvm_jit_call_prod;
 #endif
     }
     return inst;
@@ -635,9 +636,9 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is, int opt)
         prod = mozvm_loader_load_inst(L, is, opt);
         if (opcode == Label) {
             prod_id = prod;
-            L->R->prods[prod_id].begin = (moz_inst_t *)begin;
+            L->R->C.prods[prod_id].begin = (moz_inst_t *)begin;
         }
-        L->R->prods[prod_id].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
+        L->R->C.prods[prod_id].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
     }
 
     while (j < (int)ARRAY_size(L->buf)) {
@@ -781,7 +782,7 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     (void)jmptbl_size;
 
     mozvm_loader_init(L, inst_size);
-    L->R = moz_runtime_init(memo_size, prod_size);
+    L->R = moz_runtime_init(memo_size);
 
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
@@ -794,12 +795,13 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     bc->prod_size = prod_size;
 
     if (bc->prod_size > 0) {
-        bc->prods = (const char **)VM_MALLOC(sizeof(const char *) * bc->prod_size);
+        unsigned size = sizeof(moz_production_t) * bc->prod_size;
+        bc->prods = (moz_production_t *)VM_MALLOC(size);
         for (i = 0; i < bc->prod_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc->prods[i] = pstring_alloc(str, (unsigned)len);
+            bc->prods[i].name = pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
             fprintf(stderr, "prod%d %s\n", i, bc->prods[i]);
 #endif
@@ -973,9 +975,9 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
     uint8_t opcode = 0;
     moz_inst_t *head = ARRAY_n(L->buf, 0);
     for (j = 0; j < L->R->C.prod_size; j++) {
-        moz_production_t *e = &L->R->prods[j];
+        moz_production_t *e = &L->R->C.prods[j];
         moz_inst_t *p;
-        OP_PRINT("prod%d %s\n", j, L->R->C.prods[j]);
+        OP_PRINT("prod%d %s\n", j, e->name);
         unsigned shift = 0;
         int *table = NULL;
         int table_size = 0;

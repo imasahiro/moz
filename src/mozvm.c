@@ -60,7 +60,7 @@ MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_DECL);
 #endif
 
-moz_runtime_t *moz_runtime_init(unsigned memo, unsigned prod_size)
+moz_runtime_t *moz_runtime_init(unsigned memo)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -79,8 +79,6 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned prod_size)
     r->fp = r->stack;
 
     r->C.memo_size = memo;
-    size = sizeof(moz_production_t) * (prod_size + 1);
-    r->prods = (moz_production_t *) VM_CALLOC(1, size);
 #ifdef MOZVM_ENABLE_JIT
     r->cur = 0;
     mozvm_jit_init(r);
@@ -156,7 +154,6 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
 #endif
 
-    VM_FREE(r->prods);
 #ifdef MOZVM_ENABLE_JIT
     mozvm_jit_dispose(r);
 #endif
@@ -183,7 +180,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
     if (r->C.prod_size) {
         for (i = 0; i < r->C.prod_size; i++) {
-            pstring_delete((const char *)r->C.prods[i]);
+            pstring_delete((const char *)r->C.prods[i].name);
         }
         VM_FREE(r->C.prods);
     }

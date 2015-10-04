@@ -36,7 +36,7 @@ static int load_tests(ARRAY(Example) *examples, const char *test_file)
 
 static moz_production_t *get_production(mozvm_loader_t *L)
 {
-    return &L->R->prods[0];
+    return &L->R->C.prods[0];
 }
 #define PARSE_ERROR(file, hash) \
     fprintf(stderr, "parse error. %s %s\n", file, hash);

@@ -27,6 +27,7 @@ typedef void jit_context_t;
 typedef struct moz_production_t {
     moz_inst_t *begin;
     moz_inst_t *end;
+    const char *name;
 #ifdef MOZVM_ENABLE_JIT
     unsigned call_counter;
     moz_jit_func_t compiled_code;
@@ -44,7 +45,7 @@ typedef struct mozvm_constant_t {
     jump_table2_t *jumps2;
     jump_table3_t *jumps3;
 #endif
-    const char **prods;
+    moz_production_t *prods;
 
     uint16_t set_size;
     uint16_t str_size;
@@ -77,7 +78,6 @@ typedef struct moz_runtime_t {
     mozpos_t cur;
     jit_context_t *jit_context;
 #endif
-    moz_production_t *prods;
     mozvm_constant_t C;
     long stack_[1];
 } moz_runtime_t;
@@ -117,7 +117,7 @@ typedef int *JMPTBL_t;
 #define JMPTBL_GET_IMPL(runtime, ID) (ID)
 #endif
 
-moz_runtime_t *moz_runtime_init(unsigned memo_size, unsigned prod_size);
+moz_runtime_t *moz_runtime_init(unsigned memo_size);
 void moz_runtime_dispose(moz_runtime_t *r);
 void moz_runtime_reset1(moz_runtime_t *r);
 void moz_runtime_reset2(moz_runtime_t *r);
