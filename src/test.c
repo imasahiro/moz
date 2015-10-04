@@ -34,9 +34,9 @@ static int load_tests(ARRAY(Example) *examples, const char *test_file)
     return 1;
 }
 
-static mozvm_nterm_entry_t *get_production(mozvm_loader_t *L)
+static moz_production_t *get_production(mozvm_loader_t *L)
 {
-    return &L->R->nterm_entry[0];
+    return &L->R->prods[0];
 }
 #define PARSE_ERROR(file, hash) \
     fprintf(stderr, "parse error. %s %s\n", file, hash);
@@ -54,15 +54,15 @@ int mozvm_run_test(mozvm_loader_t *L, const char *test_file)
     ARRAY_init(Example, &examples, 1);
 
     // unsigned i;
-    // for (i = 0; i < L->R->C.nterm_size; i++) {
-    //     fprintf(stderr, "nterm%d %s\n", i, L->R->C.nterms[i]);
+    // for (i = 0; i < L->R->C.prod_size; i++) {
+    //     fprintf(stderr, "prod%d %s\n", i, L->R->C.prods[i]);
     // }
 
     if (load_tests(&examples, test_file)) {
         FOR_EACH_ARRAY(examples, x, e) {
             const char *begin = x->text;
             const char *end   = begin + pstring_length(begin);
-            mozvm_nterm_entry_t *e = get_production(L);
+            moz_production_t *e = get_production(L);
 
             moz_runtime_set_source(L->R, begin, end);
             moz_runtime_parse_init(L->R, x->text, NULL);

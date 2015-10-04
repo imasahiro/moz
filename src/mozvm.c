@@ -60,7 +60,7 @@ MOZVM_VM_PROFILE_EACH(MOZVM_PROFILE_DECL);
 MOZVM_VM_MEMO_PROFILE_EACH(MOZVM_PROFILE_DECL);
 #endif
 
-moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
+moz_runtime_t *moz_runtime_init(unsigned memo, unsigned prod_size)
 {
     moz_runtime_t *r;
     unsigned size = sizeof(*r) + sizeof(long) * (MOZ_DEFAULT_STACK_SIZE - 1);
@@ -79,8 +79,8 @@ moz_runtime_t *moz_runtime_init(unsigned memo, unsigned nterm_size)
     r->fp = r->stack;
 
     r->C.memo_size = memo;
-    size = sizeof(mozvm_nterm_entry_t) * (nterm_size + 1);
-    r->nterm_entry = (mozvm_nterm_entry_t *) VM_CALLOC(1, size);
+    size = sizeof(moz_production_t) * (prod_size + 1);
+    r->prods = (moz_production_t *) VM_CALLOC(1, size);
 #ifdef MOZVM_ENABLE_JIT
     r->cur = 0;
     mozvm_jit_init(r);
@@ -156,7 +156,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     }
 #endif
 
-    VM_FREE(r->nterm_entry);
+    VM_FREE(r->prods);
 #ifdef MOZVM_ENABLE_JIT
     mozvm_jit_dispose(r);
 #endif
@@ -181,11 +181,11 @@ void moz_runtime_dispose(moz_runtime_t *r)
         }
         VM_FREE(r->C.strs);
     }
-    if (r->C.nterm_size) {
-        for (i = 0; i < r->C.nterm_size; i++) {
-            pstring_delete((const char *)r->C.nterms[i]);
+    if (r->C.prod_size) {
+        for (i = 0; i < r->C.prod_size; i++) {
+            pstring_delete((const char *)r->C.prods[i]);
         }
-        VM_FREE(r->C.nterms);
+        VM_FREE(r->C.prods);
     }
     VM_FREE(r);
 }
@@ -203,7 +203,7 @@ void moz_runtime_dispose(moz_runtime_t *r)
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
     symtable_rollback(SYMTABLE_GET(), saved_); \
     /* fprintf(stderr, "%-8s fail  SP=%p FP=%p jump=%p\n", */ \
-    /*         runtime->nterms[nterm_id], SP, FP, jump_);  */ \
+    /*         runtime->prods[prod_id], SP, FP, jump_);  */ \
     PC = jump_; \
 } while (0)
 #if 0
@@ -296,8 +296,8 @@ moz_inst_t *moz_runtime_parse_init(moz_runtime_t *runtime, const char *str, moz_
             bytecode_base + 2,
 #endif
             ast_save_tx(AST), symtable_savepoint(TBL));
-#ifdef MOZVM_DEBUG_NTERM
-    PUSH(0/*nterm_id*/);
+#ifdef MOZVM_DEBUG_PROD
+    PUSH(0/*prod_id*/);
 #endif
     PUSH(bytecode_base);
     runtime->stack = SP;
@@ -316,8 +316,8 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 
     long *SP = runtime->stack;
     long *FP = runtime->fp;
-#ifdef MOZVM_DEBUG_NTERM
-    long nterm_id = 0;
+#ifdef MOZVM_DEBUG_PROD
+    long prod_id = 0;
 #endif
 
 #ifdef MOZVM_USE_POINTER_AS_POS_REGISTER
@@ -391,8 +391,8 @@ long moz_runtime_parse(moz_runtime_t *runtime, const char *str, const moz_inst_t
 
 #define OP_CASE_(OP) LABEL(OP): PROFILE_INST(PC-1); MOZVM_PROFILE_INC(INST_COUNT);
 #ifdef PRINT_INST
-#ifdef MOZVM_DEBUG_NTERM
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%p %-8s \t%s\n", (PC-1), runtime->C.nterms[nterm_id], #OP);
+#ifdef MOZVM_DEBUG_PROD
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stdout, "%p %-8s \t%s\n", (PC-1), runtime->C.prods[prod_id], #OP);
 #else
 // #define OP_CASE(OP) LABEL(OP):; fprintf(stderr, "SP=%p FP=%p %ld %s\n", SP, FP, (long)(PC-1), #OP);
 #if PRINT_INST == 1

@@ -57,7 +57,7 @@ extern "C" {
 #define MOZVM_SMALL_JMPTBL_INST 1
 #define MOZVM_USE_JMPTBL 1
 // #define MOZVM_USE_INT16_ADDR 1
-// #define MOZVM_DEBUG_NTERM       1
+// #define MOZVM_DEBUG_PROD       1
 // #define MOZVM_ENABLE_JIT       1
 #define MOZVM_JIT_COUNTER_THRESHOLD 1
 #define MOZVM_USE_SSE4_2        1
@@ -66,8 +66,8 @@ extern "C" {
 // #define MOZVM_USE_DIRECT_THREADING     1
 // #define MOZVM_EMIT_OP_LABEL 1
 
-#if defined(MOZVM_DEBUG_NTERM) || defined(MOZVM_ENABLE_JIT)
-#define MOZVM_USE_NTERM 1
+#if defined(MOZVM_DEBUG_PROD) || defined(MOZVM_ENABLE_JIT)
+#define MOZVM_USE_PROD 1
 #endif
 
 #ifdef MOZVM_USE_DIRECT_THREADING

@@ -120,13 +120,13 @@ moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L)
     moz_inst_t *inst = ARRAY_n(L->buf, 0);
     VM_FREE(L->table);
     L->table = NULL;
-    for (i = 0; i < L->R->C.nterm_size; i++) {
-        uintptr_t begin = (uintptr_t) L->R->nterm_entry[i].begin;
-        uintptr_t end   = (uintptr_t) L->R->nterm_entry[i].end;
-        L->R->nterm_entry[i].begin = inst + begin;
-        L->R->nterm_entry[i].end   = inst + end;
+    for (i = 0; i < L->R->C.prod_size; i++) {
+        uintptr_t begin = (uintptr_t) L->R->prods[i].begin;
+        uintptr_t end   = (uintptr_t) L->R->prods[i].end;
+        L->R->prods[i].begin = inst + begin;
+        L->R->prods[i].end   = inst + end;
 #ifdef MOZVM_ENABLE_JIT
-        L->R->nterm_entry[i].compiled_code = mozvm_jit_call_nterm;
+        L->R->prods[i].compiled_code = mozvm_jit_call_prod;
 #endif
     }
     return inst;
@@ -275,7 +275,7 @@ static uint16_t mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, in
 {
     uint8_t opcode = read8(is);
     int has_jump = opcode & 0x80;
-    uint16_t nterm = 0;
+    uint16_t prod = 0;
     opcode = opcode & 0x7f;
     if (opt &&
             (opcode == Nop
@@ -311,15 +311,15 @@ static uint16_t mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, in
     }
     CASE_(Call) {
         int next  = read24(is);
-        int nterm = read16(is);
+        int prod = read16(is);
         int jump  = get_next(is, &has_jump);
-#ifdef MOZVM_USE_NTERM
-        mozvm_loader_write16(L, nterm);
+#ifdef MOZVM_USE_PROD
+        mozvm_loader_write16(L, prod);
 #endif
         mozvm_loader_write_addr(L, next);
         mozvm_loader_write_addr(L, jump);
         break;
-        (void)nterm;
+        (void)prod;
     }
     CASE_(Ret) {
         mozvm_loader_write_addr(L, 0);
@@ -585,7 +585,7 @@ static uint16_t mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, in
 #ifdef MOZVM_EMIT_OP_LABEL
         mozvm_loader_write16(L, label);
 #endif
-        nterm = label;
+        prod = label;
         break;
     }
     }
@@ -595,7 +595,7 @@ static uint16_t mozvm_loader_load_inst(mozvm_loader_t *L, input_stream_t *is, in
         mozvm_loader_write_opcode(L, Jump);
         mozvm_loader_write_addr(L, jump);
     }
-    return nterm;
+    return prod;
 }
 
 static long get_opcode(mozvm_loader_t *L, unsigned idx)
@@ -619,25 +619,25 @@ static void set_opcode(mozvm_loader_t *L, unsigned idx, long opcode)
 static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is, int opt)
 {
     int i = 0, j = 0;
-    uint16_t nterm_id = 0;
+    uint16_t prod_id = 0;
 #ifdef MOZVM_USE_DIRECT_THREADING
     const long *addr = (const long *)moz_runtime_parse(L->R, NULL, NULL);
 #endif
     while (is->pos < is->end) {
         long begin = 0;
         uint8_t opcode = *peek(is);
-        uint16_t nterm;
+        uint16_t prod;
         if (opcode == Label) {
             begin = (long)ARRAY_size(L->buf);
         }
         L->inst_size++;
         L->table[i++] = ARRAY_size(L->buf);
-        nterm = mozvm_loader_load_inst(L, is, opt);
+        prod = mozvm_loader_load_inst(L, is, opt);
         if (opcode == Label) {
-            nterm_id = nterm;
-            L->R->nterm_entry[nterm_id].begin = (moz_inst_t *)begin;
+            prod_id = prod;
+            L->R->prods[prod_id].begin = (moz_inst_t *)begin;
         }
-        L->R->nterm_entry[nterm_id].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
+        L->R->prods[prod_id].end = (moz_inst_t *)(long)ARRAY_size(L->buf);
     }
 
     while (j < (int)ARRAY_size(L->buf)) {
@@ -758,7 +758,7 @@ int mozvm_loader_load_input_text(mozvm_loader_t *L, const char *text, unsigned l
 
 moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
 {
-    unsigned i, inst_size, memo_size, jmptbl_size, nterm_size;
+    unsigned i, inst_size, memo_size, jmptbl_size, prod_size;
     mozvm_constant_t *bc = NULL;
     input_stream_t is;
     moz_inst_t *inst = NULL;
@@ -777,11 +777,11 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     inst_size = (unsigned) read16(&is);
     memo_size = (unsigned) read16(&is);
     jmptbl_size = (unsigned) read16(&is);
-    nterm_size  = (unsigned) read16(&is);
+    prod_size  = (unsigned) read16(&is);
     (void)jmptbl_size;
 
     mozvm_loader_init(L, inst_size);
-    L->R = moz_runtime_init(memo_size, nterm_size);
+    L->R = moz_runtime_init(memo_size, prod_size);
 
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_RUNTIME_INIT);
@@ -791,17 +791,17 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     memset(bc, 0, sizeof(mozvm_constant_t));
     bc->inst_size = inst_size;
     bc->memo_size = memo_size;
-    bc->nterm_size = nterm_size;
+    bc->prod_size = prod_size;
 
-    if (bc->nterm_size > 0) {
-        bc->nterms = (const char **)VM_MALLOC(sizeof(const char *) * bc->nterm_size);
-        for (i = 0; i < bc->nterm_size; i++) {
+    if (bc->prod_size > 0) {
+        bc->prods = (const char **)VM_MALLOC(sizeof(const char *) * bc->prod_size);
+        for (i = 0; i < bc->prod_size; i++) {
             uint16_t len = read16(&is);
             char *str = peek(&is);
             skip(&is, len + 1);
-            bc->nterms[i] = pstring_alloc(str, (unsigned)len);
+            bc->prods[i] = pstring_alloc(str, (unsigned)len);
 #if VERBOSE_DEBUG
-            fprintf(stderr, "nterm%d %s\n", i, bc->nterms[i]);
+            fprintf(stderr, "prod%d %s\n", i, bc->prods[i]);
 #endif
         }
     }
@@ -972,10 +972,10 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
     int idx = 0, j = 0;
     uint8_t opcode = 0;
     moz_inst_t *head = ARRAY_n(L->buf, 0);
-    for (j = 0; j < L->R->C.nterm_size; j++) {
-        mozvm_nterm_entry_t *e = &L->R->nterm_entry[j];
+    for (j = 0; j < L->R->C.prod_size; j++) {
+        moz_production_t *e = &L->R->prods[j];
         moz_inst_t *p;
-        OP_PRINT("Nterm%d %s\n", j, L->R->C.nterms[j]);
+        OP_PRINT("prod%d %s\n", j, L->R->C.prods[j]);
         unsigned shift = 0;
         int *table = NULL;
         int table_size = 0;
@@ -1004,9 +1004,9 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
                 int next;
                 int jump;
                 moz_inst_t *pc = p;
-#ifdef MOZVM_USE_NTERM
-                int nterm = *(int16_t *)(p + 1);
-                OP_PRINT("%s ", L->R->C.nterms[nterm]);
+#ifdef MOZVM_USE_PROD
+                int prod = *(int16_t *)(p + 1);
+                OP_PRINT("%s ", L->R->C.prods[prod]);
                 pc += sizeof(int16_t);
 #endif
                 next = *(mozaddr_t *)(pc + 1);
