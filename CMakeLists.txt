@@ -36,7 +36,7 @@ if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
 endif()
 
 set(NEZ_SRC  src/ast.c src/memo.c src/symtable.c src/node.c src/memory.c)
-set(MOZ_SRC  src/loader.c src/main.c src/vm.c)
+set(MOZ_SRC  src/loader.c src/main.c src/mozvm.c)
 set(STAT_SRC src/stat.cpp)
 set(DUMP_SRC src/dump.c)
 
@@ -97,7 +97,7 @@ enable_testing()
 
 add_executable(test_ast    test/test_ast.c)
 add_executable(test_objsize test/test_objsize.c)
-# add_executable(test_loader test/test_loader.c src/loader.c src/vm.c)
+# add_executable(test_loader test/test_loader.c src/loader.c src/mozvm.c)
 add_executable(test_memo   test/test_memo.c)
 add_executable(test_node   test/test_node.c)
 add_executable(test_sym    test/test_sym.c)

@@ -15,5 +15,5 @@
 
 #include "node.c"
 #include "memory.c"
-#include "vm.c"
+#include "mozvm.c"
 #include "main.c"

@@ -5,7 +5,7 @@
 #endif
 #define LOADER_DEBUG 1
 #include "loader.c"
-#include "vm.c"
+#include "mozvm.c"
 
 static void usage(const char *arg)
 {
