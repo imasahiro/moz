@@ -119,6 +119,12 @@ void Node_append(Node *o, Node *n)
     }
 }
 
+static inline const char *Node_label(Node *o, const char **tag_list)
+{
+    assert(o->labelId != NODE_LABEL_UNDEF);
+    return tag_list[o->labelId];
+}
+
 void Node_free(Node *o)
 {
     unsigned i, len = Node_length(o);

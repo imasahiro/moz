@@ -78,12 +78,6 @@ struct Node {
 
 #define NODE_LABEL_UNDEF ((int)(-1))
 
-static inline const char *Node_label(Node *o, const char **tag_list)
-{
-    assert(o->labelId != NODE_LABEL_UNDEF);
-    return tag_list[o->labelId];
-}
-
 static inline unsigned Node_length(Node *o)
 {
     return o->entry.raw.size;
