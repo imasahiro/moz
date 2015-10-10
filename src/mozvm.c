@@ -7,7 +7,7 @@
 
 #include "mozvm.h"
 #include "instruction.h"
-#include "pstring.h"
+#include "core/pstring.h"
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"

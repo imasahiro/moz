@@ -1,5 +1,5 @@
 #include "node.h"
-#include "pstring.h"
+#include "core/pstring.h"
 #include <stdio.h>
 #include <assert.h>
 

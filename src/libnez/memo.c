@@ -1,10 +1,11 @@
-#include "memo.h"
-#include "karray.h"
 #include <stdlib.h>
 #include <assert.h>
 #ifdef MOZVM_PROFILE
 #include <stdio.h>
 #endif
+
+#include "memo.h"
+#include "core/karray.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,4 +1,4 @@
-#include "karray.h"
+#include "core/karray.h"
 #include "mozvm_config.h"
 #include <assert.h>
 

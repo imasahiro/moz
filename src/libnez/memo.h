@@ -5,7 +5,7 @@
 #define MEMO_H
 
 #include "mozvm_config.h"
-#include "node.h"
+#include "node/node.h"
 
 #ifdef __cplusplus
 extern "C" {

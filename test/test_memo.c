@@ -1,4 +1,4 @@
-#include "memo.h"
+#include "libnez/memo.h"
 #include <stdio.h>
 #include <assert.h>
 

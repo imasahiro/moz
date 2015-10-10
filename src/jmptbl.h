@@ -1,4 +1,4 @@
-#include "bitset.h"
+#include "core/bitset.h"
 
 #ifndef MOZVM_JMPTBL_T
 #define MOZVM_JMPTBL_T

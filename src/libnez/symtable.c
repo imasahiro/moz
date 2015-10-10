@@ -1,6 +1,4 @@
 #include "symtable.h"
-#include "karray.h"
-#include "token.h"
 #define KHASH_USE_FNV1A 1
 #include "khash.h"
 

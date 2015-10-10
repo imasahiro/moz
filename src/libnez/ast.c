@@ -1,6 +1,4 @@
 #include "ast.h"
-#include "karray.h"
-#include "node.h"
 #include <stdio.h>
 
 #ifdef __cplusplus

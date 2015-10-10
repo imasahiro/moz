@@ -1,5 +1,5 @@
-#include "ast.h"
-#include "pstring.h"
+#include "libnez/ast.h"
+#include "core/pstring.h"
 #include <string.h>
 
 static struct tag {

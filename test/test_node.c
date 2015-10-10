@@ -1,4 +1,4 @@
-#include "node.h"
+#include "node/node.h"
 
 int main(int argc, char const* argv[])
 {

@@ -1,4 +1,4 @@
-#include "symtable.h"
+#include "libnez/symtable.h"
 #include <assert.h>
 
 int main(int argc, char const* argv[])

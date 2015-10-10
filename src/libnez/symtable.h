@@ -1,5 +1,5 @@
 #include "token.h"
-#include "karray.h"
+#include "core/karray.h"
 
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H

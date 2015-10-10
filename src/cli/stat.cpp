@@ -4,16 +4,16 @@
 
 #include "mozvm_config.h"
 
-#include "ast.c"
-#include "symtable.c"
-#include "memo.c"
+#include "libnez/ast.c"
+#include "libnez/symtable.c"
+#include "libnez/memo.c"
 #include "loader.c"
 
 #ifdef MOZVM_ENABLE_JIT
 #include "jit.cpp"
 #endif
 
-#include "node.c"
+#include "node/node.c"
 #include "memory.c"
 #include "mozvm.c"
 #include "main.c"

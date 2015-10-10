@@ -19,7 +19,7 @@
 #define MOZVM_DUMP_OPCODE 1
 #endif
 #include "instruction.h"
-#include "pstring.h"
+#include "core/pstring.h"
 
 #ifdef MOZVM_ENABLE_JIT
 #include "jit.h"
@@ -47,7 +47,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print);
 static void dump_set(bitset_t *set, char *buf);
 #endif
 
-#include "input_source.h"
+#include "core/input_source.h"
 
 typedef struct input_stream {
     size_t pos;

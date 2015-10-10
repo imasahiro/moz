@@ -2,7 +2,7 @@
 #define LOADER_H
 
 #include "mozvm.h"
-#include "karray.h"
+#include "core/karray.h"
 
 #ifdef __cplusplus
 extern "C" {

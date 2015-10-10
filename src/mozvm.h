@@ -2,8 +2,8 @@
 #define MOZ_VM_H
 
 #include "mozvm_config.h"
-#include "libnez.h"
-#include "bitset.h"
+#include "libnez/libnez.h"
+#include "core/bitset.h"
 
 #ifdef MOZVM_USE_JMPTBL
 #include "jmptbl.h"

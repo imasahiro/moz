@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include "mozvm_config.h"
-#include "node.h"
+#include "node/node.h"
 #ifndef AST_H
 #define AST_H
 

@@ -1,6 +1,6 @@
-#include "karray.h"
-#include "pstring.h"
-#include "input_source.h"
+#include "core/karray.h"
+#include "core/pstring.h"
+#include "core/input_source.h"
 
 typedef struct Example {
     const char *hash;

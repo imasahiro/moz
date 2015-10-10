@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for dir in Debug Release; do
+for dir in Debug Release Small; do
     rm -rf $dir
     mkdir -p $dir
     (cd $dir && \
