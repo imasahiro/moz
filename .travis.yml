@@ -7,8 +7,6 @@ env:
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6 JIT=1
     - COMPILER=g++-4.9     CCOMPILER=gcc-4.9
-
-
 addons:
     apt:
         sources:
@@ -26,7 +24,8 @@ addons:
             - llvm-3.6
             - llvm-3.6-dev
 
-before_script:
+before_install:
+    - git submodule update --init --recursive
     - export CXX=$COMPILER
     - export CC=$CCOMPILER
     - $CC  --version
