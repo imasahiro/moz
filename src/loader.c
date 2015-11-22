@@ -1153,7 +1153,9 @@ L_dump_table:
                 break;
             }
             CASE_(TReplace) {
-                asm volatile("int3");
+                STRING_t strId = *(STRING_t *)(p + 1);
+                const char *impl = STRING_GET_IMPL(L->R, strId);
+                OP_PRINT("%s", impl);
                 break;
             }
             CASE_(TStart) {
