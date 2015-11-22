@@ -60,7 +60,7 @@ extern "C" {
 // #define MOZVM_DEBUG_PROD       1
 // #define MOZVM_ENABLE_JIT       1
 #define MOZVM_JIT_COUNTER_THRESHOLD 1
-#define MOZVM_USE_SSE4_2        1
+// #define MOZVM_USE_SSE4_2        1
 // #define MOZVM_USE_SWITCH_CASE_DISPATCH 1
 #define MOZVM_USE_INDIRECT_THREADING   1
 // #define MOZVM_USE_DIRECT_THREADING     1

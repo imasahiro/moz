@@ -31,7 +31,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#ifdef MOZVM_USE_SSE4_2
 #include <x86intrin.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,7 +111,7 @@ static inline int pstring_starts_with_simple(const char *p, const char *text, un
     return 1;
 }
 
-#ifdef __AVX2__
+#if defined(MOZVM_USE_SSE4_2) && defined(__AVX2__)
 static inline int pstring_starts_with_avx2(const char *str, const char *text, unsigned len)
 {
     uint64_t m, mask;
@@ -125,7 +127,7 @@ static inline int pstring_starts_with_avx2(const char *str, const char *text, un
 
 static inline int pstring_starts_with(const char *str, const char *text, unsigned len)
 {
-#ifdef __AVX2__
+#if defined(MOZVM_USE_SSE4_2) && defined(__AVX2__)
     if (len <= 32) {
         return pstring_starts_with_avx2(str, text, len);
     }
@@ -155,7 +157,7 @@ static int pstring_starts_with__(pstring_t *str1, pstring_t *str2)
 
 static inline const char *pstring_find_not_char(const char *str, const char *end, uint8_t c)
 {
-#if __SSE4_2__
+#if defined(MOZVM_USE_SSE4_2) && defined(__AVX2__)
     uint8_t ranges[4] __attribute__((aligned(16))) = {};
     unsigned range_size = 4;
     size_t len = end - str;
