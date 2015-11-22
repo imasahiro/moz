@@ -1,6 +1,6 @@
 #include <stdio.h>
 #define MOZVM_OPCODE_SIZE 1
-#include "instruction.h"
+#include "vm1/instruction.h"
 #include "mozvm.h"
 #include "vm_inst.h"
 

@@ -41,7 +41,7 @@ endif()
 
 set(NODE_SRC src/node/node.c)
 set(NEZ_SRC  src/libnez/ast.c src/libnez/memo.c src/libnez/symtable.c src/memory.c)
-set(MOZ_SRC  src/loader.c src/mozvm.c src/cli/main.c)
+set(MOZ_SRC  src/loader.c src/runtime.c src/cli/main.c src/vm1/mozvm1.c)
 set(STAT_SRC src/cli/stat.cpp)
 set(DUMP_SRC src/cli/dump.c)
 
