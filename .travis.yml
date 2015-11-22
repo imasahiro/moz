@@ -3,6 +3,9 @@ sudo: false
 compiler:
     - gcc
 
+jdk:
+    - oraclejdk8
+
 env:
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6 JIT=1
@@ -23,14 +26,17 @@ addons:
             - g++-4.9
             - llvm-3.6
             - llvm-3.6-dev
+            - ant
 
 before_install:
-    - git submodule update --init --recursive
     - export CXX=$COMPILER
     - export CC=$CCOMPILER
     - $CC  --version
     - $CXX --version
     - cmake  --version
+    - java  -version
+    - javac -version
+    - ant  --version
 script:
     - mkdir -p build install
     - cd build
