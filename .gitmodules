@@ -1,3 +1,6 @@
 [submodule "test_vm"]
 	path = test_vm
 	url = https://github.com/imasahiro/peg_test_case.git
+[submodule "nez-grammar"]
+	path = nez-grammar
+	url = https://github.com/imasahiro/language-nez.git
