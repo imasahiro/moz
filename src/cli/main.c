@@ -115,7 +115,7 @@ int main(int argc, char *const argv[])
 #if defined(MOZVM_PROFILE) && defined(MOZVM_MEMORY_PROFILE)
         mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_INPUT_LOAD);
 #endif
-    head = inst = mozvm_loader_load_file(&L, syntax_file, 1);
+    head = inst = mozvm_loader_load_syntax_file(&L, syntax_file, 1);
     assert(inst != NULL);
 
     if (test_mode) {

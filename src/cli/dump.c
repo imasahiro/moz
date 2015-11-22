@@ -36,7 +36,7 @@ int main(int argc, char *const argv[])
         exit(EXIT_FAILURE);
     }
     NodeManager_init();
-    mozvm_loader_load_file(&L, syntax_file, 1);
+    mozvm_loader_load_syntax_file(&L, syntax_file, 1);
     mozvm_loader_dump(&L, 1);
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);

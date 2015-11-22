@@ -22,7 +22,6 @@ int main(int argc, char *const argv[])
     mozvm_loader_t L;
     moz_inst_t *inst;
 
-    const char *syntax_file = NULL;
     const char *input_file = NULL;
     const char *output_file = NULL;
     int opt;
@@ -56,7 +55,8 @@ int main(int argc, char *const argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    inst = mozvm_loader_load_file(&L, syntax_file, 1);
+    inst = mozvm_loader_load_syntax(&L, syntax_bytecode,
+            sizeof(syntax_bytecode), 1);
     assert(inst != NULL);
 
     NodeManager_init();

@@ -15,9 +15,9 @@ static int load_tests(ARRAY(Example) *examples, const char *test_file)
 {
     size_t input_len = 0;
     Example e;
-    const char *p;
-    const char *input = load_file(test_file, &input_len, 0);
-    const char *end   = input + input_len;
+    char *p;
+    char *input = (char *)load_file(test_file, &input_len, 0);
+    char *end   = input + input_len;
     char *next;
     // [format]
     // L1: hash

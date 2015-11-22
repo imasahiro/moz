@@ -746,7 +746,7 @@ static int checkVersion(input_stream_t *is)
 
 int mozvm_loader_load_input_file(mozvm_loader_t *L, const char *file)
 {
-    L->input = load_file(file, &L->input_size, 32);
+    L->input = (char *)load_file(file, &L->input_size, 32);
     return L->input != NULL;
 }
 
@@ -757,7 +757,7 @@ int mozvm_loader_load_input_text(mozvm_loader_t *L, const char *text, unsigned l
     return 1;
 }
 
-moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
+static moz_inst_t *mozvm_loader_load_syntax2(mozvm_loader_t *L, const uint8_t *memory, unsigned len, int opt)
 {
     unsigned i, inst_size, memo_size, jmptbl_size, prod_size;
     mozvm_constant_t *bc = NULL;
@@ -765,7 +765,8 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     moz_inst_t *inst = NULL;
 
     is.pos = 0;
-    is.data = load_file(file, &is.end, 0);
+    is.end = len;
+    is.data = (char *)memory;
     if (!checkFileType(&is)) {
         fprintf(stderr, "verify error: not bytecode file\n");
         exit(EXIT_FAILURE);
@@ -888,6 +889,20 @@ moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt)
     mozvm_mm_snapshot(MOZVM_MM_PROF_EVENT_BYTECODE_LOAD);
 #endif
     return inst;
+}
+
+moz_inst_t *mozvm_loader_load_syntax(mozvm_loader_t *L, const uint8_t *memory, unsigned len, int opt)
+{
+    uint8_t *data = (uint8_t *)VM_CALLOC(1, len);
+    memcpy(data, memory, len);
+    return mozvm_loader_load_syntax2(L, data, len, opt);
+}
+
+moz_inst_t *mozvm_loader_load_syntax_file(mozvm_loader_t *L, const char *file, int opt)
+{
+    size_t end = 0;
+    const uint8_t *memory = load_file(file, &end, 0);
+    return mozvm_loader_load_syntax2(L, memory, end, opt);
 }
 
 #ifdef LOADER_DEBUG

@@ -30,7 +30,8 @@ typedef struct mozvm_loader_t mozvm_loader_t;
 mozvm_loader_t *mozvm_loader_init(mozvm_loader_t *L, unsigned inst_size);
 moz_inst_t *mozvm_loader_freeze(mozvm_loader_t *L);
 void mozvm_loader_dispose(mozvm_loader_t *L);
-moz_inst_t *mozvm_loader_load_file(mozvm_loader_t *L, const char *file, int opt);
+moz_inst_t *mozvm_loader_load_syntax(mozvm_loader_t *L, const uint8_t *memory, unsigned len, int opt);
+moz_inst_t *mozvm_loader_load_syntax_file(mozvm_loader_t *L, const char *file, int opt);
 int mozvm_loader_load_input_file(mozvm_loader_t *L, const char *file);
 int mozvm_loader_load_input_text(mozvm_loader_t *L, const char *text, unsigned len);
 
