@@ -62,11 +62,11 @@ target_link_libraries(moz_dump nez)
 add_custom_command(OUTPUT vm_core.c vm_inst.h
     COMMAND ruby
     "${CMAKE_CURRENT_SOURCE_DIR}/tool/vmgen.rb"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/instruction.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vm1/instruction.def"
     "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c"
     "${CMAKE_CURRENT_BINARY_DIR}/vm_inst.h"
     DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/instruction.def"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vm1/instruction.def"
         "${CMAKE_CURRENT_SOURCE_DIR}/tool/vmgen.rb"
 )
 

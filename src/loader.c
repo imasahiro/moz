@@ -18,7 +18,7 @@
 #ifdef LOADER_DEBUG
 #define MOZVM_DUMP_OPCODE 1
 #endif
-#include "instruction.h"
+#include "vm1/instruction.h"
 #include "core/pstring.h"
 
 #ifdef MOZVM_ENABLE_JIT

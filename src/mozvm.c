@@ -6,7 +6,7 @@
 #endif
 
 #include "mozvm.h"
-#include "instruction.h"
+#include "vm1/instruction.h"
 #include "core/pstring.h"
 
 #ifdef MOZVM_USE_JMPTBL
