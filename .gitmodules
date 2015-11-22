@@ -4,3 +4,6 @@
 [submodule "nez-grammar"]
 	path = nez-grammar
 	url = https://github.com/imasahiro/language-nez.git
+[submodule "nez"]
+	path = nez
+	url = https://github.com/imasahiro/nez.git

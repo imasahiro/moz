@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/time.h>
+#include "nez_moz.h"
 
 #ifdef __cplusplus
 extern "C" {
