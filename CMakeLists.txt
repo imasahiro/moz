@@ -53,7 +53,7 @@ add_executable(moz_stat ${STAT_SRC})
 add_executable(moz_dump ${DUMP_SRC})
 add_executable(mozc ${MOZ_SRC} ${COMPILER_SRC})
 if(${CMAKE_BUILD_TYPE} STREQUAL "Small")
-    add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC} ${NODE_SRC} ${COMPILER_SRC})
+    add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC} ${NODE_SRC} src/cli/main.c)
 endif()
 
 target_link_libraries(nez node)
