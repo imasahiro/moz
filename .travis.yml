@@ -36,7 +36,7 @@ before_install:
     - cmake  --version
     - java  -version
     - javac -version
-    - ant  --version
+    - ant  -version
 script:
     - mkdir -p build install
     - cd build
