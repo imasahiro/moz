@@ -38,26 +38,27 @@ elseif(${CMAKE_BUILD_TYPE} STREQUAL "Small")
     add_definitions(-DNDEBUG)
 endif()
 
-
 set(NODE_SRC src/node/node.c)
 set(NEZ_SRC  src/libnez/ast.c src/libnez/memo.c src/libnez/symtable.c src/memory.c)
-set(MOZ_SRC  src/loader.c src/runtime.c src/cli/main.c src/vm1/mozvm1.c)
+set(MOZ_SRC  src/loader.c src/runtime.c src/vm1/mozvm1.c)
 set(STAT_SRC src/cli/stat.cpp)
 set(DUMP_SRC src/cli/dump.c)
 
 add_library(nez SHARED ${NEZ_SRC})
 add_library(node SHARED ${NODE_SRC})
 
-add_executable(moz ${MOZ_SRC})
+add_executable(moz ${MOZ_SRC} src/cli/main.c)
 add_executable(moz_stat ${STAT_SRC})
 add_executable(moz_dump ${DUMP_SRC})
+add_executable(mozc ${MOZ_SRC} src/cli/compiler.c)
 if(${CMAKE_BUILD_TYPE} STREQUAL "Small")
-    add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC} ${NODE_SRC})
+    add_executable(moz_all ${MOZ_SRC} ${NEZ_SRC} ${NODE_SRC} ${COMPILER_SRC})
 endif()
 
 target_link_libraries(nez node)
 target_link_libraries(moz nez)
 target_link_libraries(moz_dump nez)
+target_link_libraries(mozc nez)
 
 add_custom_command(OUTPUT vm_core.c vm_inst.h
     COMMAND ruby
@@ -74,6 +75,23 @@ add_custom_target(generate_vm_core DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c")
 
 add_dependencies(moz generate_vm_core)
+
+add_custom_command(OUTPUT nez.moz
+    COMMAND ruby
+    "${CMAKE_CURRENT_SOURCE_DIR}/tool/vmgen.rb"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vm1/instruction.def"
+    "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c"
+    "${CMAKE_CURRENT_BINARY_DIR}/vm_inst.h"
+    DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vm1/instruction.def"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tool/vmgen.rb"
+)
+
+add_custom_target(generate_vm_core DEPENDS
+    "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c")
+
+add_dependencies(moz generate_vm_core)
+
 
 check_type_size("void *" SIZEOF_VOIDP)
 check_type_size(long     SIZEOF_LONG)
