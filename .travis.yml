@@ -3,13 +3,11 @@ sudo: false
 compiler:
     - gcc
 
-jdk:
-    - oraclejdk8
-
 env:
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6
     - COMPILER=clang++-3.6 CCOMPILER=clang-3.6 JIT=1
     - COMPILER=g++-4.9     CCOMPILER=gcc-4.9
+
 addons:
     apt:
         sources:
@@ -29,6 +27,7 @@ addons:
             - ant
 
 before_install:
+    - jdk_switcher use oraclejdk8
     - export CXX=$COMPILER
     - export CC=$CCOMPILER
     - $CC  --version
