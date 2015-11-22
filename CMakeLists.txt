@@ -79,10 +79,9 @@ add_dependencies(moz generate_vm_core)
 add_custom_command(OUTPUT 
     "${CMAKE_CURRENT_SOURCE_DIR}/nez/nez.jar"
     COMMAND ant -buildfile "${CMAKE_CURRENT_SOURCE_DIR}/nez/build.xml"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${COMPILER_SRC}"
+    DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/nez/build.xml")
-add_custom_target(generate_nez_jar DEPENDS
-    "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c")
+add_custom_target(generate_nez_jar)
 
 ## generate nez.moz
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/nez.moz"
