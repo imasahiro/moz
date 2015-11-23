@@ -13,7 +13,6 @@ typedef unsigned attribute_t;
 typedef struct compiler {
     moz_runtime_t *R;
     ARRAY(decl_ptr_t) decls;
-    ARRAY(expr_ptr_t) invokes;
 } moz_compiler_t;
 
 static inline int tag_equal(Node *node, const char *tag)
@@ -155,11 +154,19 @@ static void _compile_List(moz_compiler_t *C, Node *node, ARRAY(expr_ptr_t) *list
 
 static expr_t *compile_Invoke(moz_compiler_t *C, Node *node)
 {
+    unsigned len;
     Invoke_t *e = EXPR_ALLOC(Invoke);
+    decl_t **decl, **end;
     e->name.str = node->pos;
-    e->name.len = node->len;
-    e->decl = NULL;
-    ARRAY_add(expr_ptr_t, &C->invokes, &e->base);
+    e->name.len = len = node->len;
+    FOR_EACH_ARRAY(C->decls, decl, end) {
+        if (len == (*decl)->name.len) {
+            if (strncmp(e->name.str, (*decl)->name.str, len) == 0) {
+                e->decl = *decl;
+                (*decl)->refc++;
+            }
+        }
+    }
     return (expr_t *)e;
 }
 static expr_t *compile_Any(moz_compiler_t *C, Node *node)
@@ -177,6 +184,19 @@ static expr_t *compile_Str(moz_compiler_t *C, Node *node)
         ARRAY_add(uint8_t, &e->list, node->pos[i]);
     }
     return (expr_t *)e;
+}
+static expr_t *compile_InvokeOrStr(moz_compiler_t *C, Node *node)
+{
+    unsigned len = node->len;
+    decl_t **decl, **end;
+    FOR_EACH_ARRAY(C->decls, decl, end) {
+        if (len == (*decl)->name.len) {
+            if (strncmp(node->pos, (*decl)->name.str, len) == 0) {
+                return compile_Invoke(C, node);
+            }
+        }
+    }
+    return compile_Str(C, node);
 }
 static expr_t *compile_Byte(moz_compiler_t *C, Node *node)
 {
@@ -459,8 +479,8 @@ static expr_t *compile_expression(moz_compiler_t *C, Node *node)
     if (tag_equal(node, "Character")) {
         return compile_Byte(C, node);
     }
-    if (tag_equal(node, "Str")) {
-        return compile_Str(C, node);
+    if (tag_equal(node, "String")) {
+        return compile_InvokeOrStr(C, node);
     }
     if (tag_equal(node, "Class")) {
         return compile_Set(C, node);
@@ -547,34 +567,10 @@ static expr_t *compile_expression(moz_compiler_t *C, Node *node)
     assert(0 && "unreachable");
 }
 
-static void compile_production(moz_compiler_t *C, Node *node)
+static void compile_production(moz_compiler_t *C, Node *node, decl_t *decl)
 {
-    decl_t *decl = decl_new();
-    assert(Node_length(node) == 3);
-    decl_set_name(decl, Node_get(node, 1));
-    fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
-    Node_print(node, C->R->C.tags);
     decl->body = compile_expression(C, Node_get(node, 2));
-    ARRAY_add(decl_ptr_t, &C->decls, decl);
-}
-
-/* link */
-static void moz_ast_link(moz_compiler_t *C)
-{
-    expr_t **x, **e1;
-    FOR_EACH_ARRAY(C->invokes, x, e1) {
-        Invoke_t *expr = (Invoke_t *) *x;
-        unsigned len = expr->name.len;
-        decl_t **decl, **e2;
-        FOR_EACH_ARRAY(C->decls, decl, e2) {
-            if (len == (*decl)->name.len) {
-                if (strncmp(expr->name.str, (*decl)->name.str, len) == 0) {
-                    expr->decl = *decl;
-                    (*decl)->refc++;
-                }
-            }
-        }
-    }
+    decl->body->refc++;
 }
 
 /* dump */
@@ -819,29 +815,44 @@ static void moz_ir_optimize(moz_compiler_t *C)
 static void moz_bytecode_emit(moz_compiler_t *C, const char *output_file)
 {
 }
-
-void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
+static void moz_ast_prepare(moz_compiler_t *C, Node *node)
 {
     unsigned i, decl_size = Node_length(node);
+
+    for (i = 0; i < decl_size; i++) {
+        Node *child = Node_get(node, i);
+        if (tag_equal(child, "Production")) {
+            decl_t *decl = decl_new();
+            assert(Node_length(child) == 3);
+            decl_set_name(decl, Node_get(child, 1));
+            fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
+            Node_print(child, C->R->C.tags);
+            ARRAY_add(decl_ptr_t, &C->decls, decl);
+        }
+    }
+}
+void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
+{
+    unsigned i, decl_index = 0, decl_size = Node_length(node);
     moz_compiler_t C;
     C.R = R;
     ARRAY_init(decl_ptr_t, &C.decls, decl_size);
-    ARRAY_init(expr_ptr_t, &C.invokes, 0);
 
+    moz_ast_prepare(&C, node);
     for (i = 0; i < decl_size; i++) {
-        Node *decl = Node_get(node, i);
-        if (tag_equal(decl, "Comment")) {
-            compile_comment(&C, decl);
+        Node *child = Node_get(node, i);
+        if (tag_equal(child, "Comment")) {
+            compile_comment(&C, child);
         }
-        if (tag_equal(decl, "Production")) {
-            compile_production(&C, decl);
+        if (tag_equal(child, "Production")) {
+            decl_t *decl = ARRAY_get(decl_ptr_t, &C.decls, decl_index++);
+            compile_production(&C, child, decl);
         }
-        if (tag_equal(decl, "Format")) {
-            compile_format(&C, decl);
+        if (tag_equal(child, "Format")) {
+            compile_format(&C, child);
         }
     }
     ARRAY_get(decl_ptr_t, &C.decls, 0)->refc++;
-    moz_ast_link(&C);
     moz_ast_optimize(&C);
     moz_ast_dump(&C);
     moz_ir_compile(&C);
