@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <sys/time.h>
 #include "nez_moz.h"
+#include "compiler/compiler.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,9 +68,7 @@ int main(int argc, char *const argv[])
     if (parsed == 0) {
         Node *node = ast_get_parsed_node(L.R->ast);
         if (node) {
-#ifdef NODE_USE_NODE_PRINT
-            Node_print(node, L.R->C.tags);
-#endif
+            moz_compiler_compile(output_file, L.R, node);
             NODE_GC_RELEASE(node);
         }
     }

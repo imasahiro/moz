@@ -43,7 +43,7 @@ set(NEZ_SRC  src/libnez/ast.c src/libnez/memo.c src/libnez/symtable.c src/memory
 set(MOZ_SRC  src/loader.c src/runtime.c src/vm1/mozvm1.c)
 set(STAT_SRC src/cli/stat.cpp)
 set(DUMP_SRC src/cli/dump.c)
-set(COMPILER_SRC src/cli/compiler.c)
+set(COMPILER_SRC src/cli/mozc.c src/compiler/compiler.c)
 
 add_library(nez SHARED ${NEZ_SRC})
 add_library(node SHARED ${NODE_SRC})
