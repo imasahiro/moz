@@ -7,13 +7,13 @@
 extern "C" {
 #endif
 
-
 typedef unsigned attribute_t;
 // #define DECL_ATTRIBUTE_PUBLIC (1 << 0)
 
 typedef struct compiler {
     moz_runtime_t *R;
     ARRAY(decl_ptr_t) decls;
+    ARRAY(expr_ptr_t) invokes;
 } moz_compiler_t;
 
 static inline int tag_equal(Node *node, const char *tag)
@@ -27,153 +27,6 @@ static inline int tag_equal(Node *node, const char *tag)
     }
     len = pstring_length(node->tag);
     return len == strlen(tag) && strncmp(node->tag, tag, len) == 0;
-}
-
-/* decl */
-static decl_t *decl_new()
-{
-    decl_t *decl = VM_CALLOC(1, sizeof(*decl));
-    return decl;
-}
-
-static void decl_set_name(decl_t *decl, Node *node)
-{
-    assert(tag_equal(node, "Name") || tag_equal(node, "String"));
-    decl->name.str = node->pos;
-    decl->name.len = node->len;
-}
-static void name_set(name_t *name, Node *node)
-{
-    assert(tag_equal(node, "Name"));
-    name->str = node->pos;
-    name->len = node->len;
-}
-
-/* compiler */
-static void compile_comment(moz_compiler_t *C, Node *node)
-{
-    // Node_print(node, C->R->C.tags);
-}
-
-static void compile_format(moz_compiler_t *C, Node *node)
-{
-    // Node_print(node, C->R->C.tags);
-}
-
-static expr_t *compile_expression(moz_compiler_t *C, Node *node);
-
-static inline expr_t *_EXPR_ALLOC(size_t size, expr_type_t type)
-{
-    expr_t *e = (expr_t *)VM_CALLOC(1, size);
-    e->refc = 0;
-    e->type = type;
-    return e;
-}
-
-#define EXPR_ALLOC(T) ((T##_t *) _EXPR_ALLOC(sizeof(T##_t), T))
-
-static void _compile_List(moz_compiler_t *C, Node *node, ARRAY(expr_ptr_t) *list)
-{
-    unsigned i, len = Node_length(node);
-    ARRAY_init(expr_ptr_t, list, len);
-    for (i = 0; i < len; i++) {
-        Node *child = Node_get(node, i);
-        expr_t *expr = compile_expression(C, child);
-        ARRAY_add(expr_ptr_t, list, expr);
-    }
-}
-
-static expr_t *compile_Invoke(moz_compiler_t *C, Node *node)
-{
-    Invoke_t *e = EXPR_ALLOC(Invoke);
-    e->v.name.str = node->pos;
-    e->v.name.len = node->len;
-    return (expr_t *)e;
-}
-static expr_t *compile_Any(moz_compiler_t *C, Node *node)
-{
-    Any_t *e = EXPR_ALLOC(Any);
-    return (expr_t *)e;
-}
-static expr_t *compile_Str(moz_compiler_t *C, Node *node)
-{
-    unsigned i, len = node->len;
-    Str_t *e = EXPR_ALLOC(Str);
-    assert(node->len > 0);
-    ARRAY_init(uint8_t, &e->list, len);
-    for (i = 0; i < len; i++) {
-        ARRAY_add(uint8_t, &e->list, node->pos[i]);
-    }
-    return (expr_t *)e;
-}
-static expr_t *compile_Byte(moz_compiler_t *C, Node *node)
-{
-    assert(Node_length(node) == 0);
-    if (node->len == 1) {
-        Byte_t *byte = EXPR_ALLOC(Byte);
-        byte->byte = node->pos[0];
-        return &byte->base;
-    }
-    else {
-        return compile_Str(C, node);
-    }
-}
-
-static unsigned to_hex(uint8_t c)
-{
-    if(c >= '0' && c <= '9') return c - '0';
-    else if(c >= 'a' && c <= 'f') return c - 'a' + 10;
-    else if(c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-static unsigned parseUnicode4(const uint8_t *p)
-{
-    unsigned data = 0;
-    data  = to_hex(*p++) * 4096;
-    data += to_hex(*p++) *  256;
-    data += to_hex(*p++) *   16;
-    data += to_hex(*p++) *    1;
-    return data;
-}
-
-static unsigned parseClass(const uint8_t *p)
-{
-    uint8_t c = *p++;
-    unsigned data = 0;
-    if (c == '\\') {
-        c = *p++;
-        switch (c) {
-        case '-':
-            return (unsigned) '-';
-        case ']':
-            return (unsigned) ']';
-        case '\\':
-            return (unsigned) '\\';
-        case 'b':
-            return (unsigned) '\b';
-        case 'f':
-            return (unsigned) '\f';
-        case 'v':
-            return (unsigned) '\v';
-        case 'n':
-            return (unsigned) '\n';
-        case 'r':
-            return (unsigned) '\r';
-        case 't':
-            return (unsigned) '\t';
-        case 'x':
-            c = to_hex(*p++);
-            c = c << 8 | to_hex(*p);
-            return (unsigned) c;
-        case 'u':
-            data = parseUnicode4(p);
-            assert(0 && "TODO");
-            return data;
-            break;
-        }
-    }
-    return (unsigned) c;
 }
 
 static char *write_char(char *p, unsigned char ch)
@@ -244,6 +97,157 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = '\0';
 }
 
+
+/* decl */
+static decl_t *decl_new()
+{
+    decl_t *decl = VM_CALLOC(1, sizeof(*decl));
+    return decl;
+}
+
+static void decl_set_name(decl_t *decl, Node *node)
+{
+    assert(tag_equal(node, "Name") || tag_equal(node, "String"));
+    decl->name.str = node->pos;
+    decl->name.len = node->len;
+}
+static void name_set(name_t *name, Node *node)
+{
+    assert(tag_equal(node, "Name"));
+    name->str = node->pos;
+    name->len = node->len;
+}
+
+/* compiler */
+static void compile_comment(moz_compiler_t *C, Node *node)
+{
+    // Node_print(node, C->R->C.tags);
+}
+
+static void compile_format(moz_compiler_t *C, Node *node)
+{
+    // Node_print(node, C->R->C.tags);
+}
+
+static expr_t *compile_expression(moz_compiler_t *C, Node *node);
+
+static inline expr_t *_EXPR_ALLOC(size_t size, expr_type_t type)
+{
+    expr_t *e = (expr_t *)VM_CALLOC(1, size);
+    e->refc = 0;
+    e->type = type;
+    return e;
+}
+
+#define EXPR_ALLOC(T) ((T##_t *) _EXPR_ALLOC(sizeof(T##_t), T))
+
+static void _compile_List(moz_compiler_t *C, Node *node, ARRAY(expr_ptr_t) *list)
+{
+    unsigned i, len = Node_length(node);
+    ARRAY_init(expr_ptr_t, list, len);
+    for (i = 0; i < len; i++) {
+        Node *child = Node_get(node, i);
+        expr_t *expr = compile_expression(C, child);
+        ARRAY_add(expr_ptr_t, list, expr);
+        expr->refc++;
+    }
+}
+
+static expr_t *compile_Invoke(moz_compiler_t *C, Node *node)
+{
+    Invoke_t *e = EXPR_ALLOC(Invoke);
+    e->name.str = node->pos;
+    e->name.len = node->len;
+    e->decl = NULL;
+    ARRAY_add(expr_ptr_t, &C->invokes, &e->base);
+    return (expr_t *)e;
+}
+static expr_t *compile_Any(moz_compiler_t *C, Node *node)
+{
+    Any_t *e = EXPR_ALLOC(Any);
+    return (expr_t *)e;
+}
+static expr_t *compile_Str(moz_compiler_t *C, Node *node)
+{
+    unsigned i, len = node->len;
+    Str_t *e = EXPR_ALLOC(Str);
+    assert(node->len > 0);
+    ARRAY_init(uint8_t, &e->list, len);
+    for (i = 0; i < len; i++) {
+        ARRAY_add(uint8_t, &e->list, node->pos[i]);
+    }
+    return (expr_t *)e;
+}
+static expr_t *compile_Byte(moz_compiler_t *C, Node *node)
+{
+    assert(Node_length(node) == 0);
+    if (node->len == 1 || (node->len == 2 && node->pos[0] == '\\')) {
+        Byte_t *byte = EXPR_ALLOC(Byte);
+        byte->byte = node->pos[0];
+        return &byte->base;
+    }
+    else {
+        return compile_Str(C, node);
+    }
+}
+
+static unsigned to_hex(uint8_t c)
+{
+    if(c >= '0' && c <= '9') return c - '0';
+    else if(c >= 'a' && c <= 'f') return c - 'a' + 10;
+    else if(c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static unsigned parseUnicode4(const uint8_t *p)
+{
+    unsigned data = 0;
+    data  = to_hex(*p++) * 4096;
+    data += to_hex(*p++) *  256;
+    data += to_hex(*p++) *   16;
+    data += to_hex(*p++) *    1;
+    return data;
+}
+
+static unsigned parseClass(const uint8_t *p)
+{
+    uint8_t c = *p++;
+    unsigned data = 0;
+    if (c == '\\') {
+        c = *p++;
+        switch (c) {
+        case '-':
+            return (unsigned) '-';
+        case ']':
+            return (unsigned) ']';
+        case '\\':
+            return (unsigned) '\\';
+        case 'b':
+            return (unsigned) '\b';
+        case 'f':
+            return (unsigned) '\f';
+        case 'v':
+            return (unsigned) '\v';
+        case 'n':
+            return (unsigned) '\n';
+        case 'r':
+            return (unsigned) '\r';
+        case 't':
+            return (unsigned) '\t';
+        case 'x':
+            c = to_hex(*p++);
+            c = c << 8 | to_hex(*p);
+            return (unsigned) c;
+        case 'u':
+            data = parseUnicode4(p);
+            assert(0 && "TODO");
+            return data;
+            break;
+        }
+    }
+    return (unsigned) c;
+}
+
 static expr_t *compile_Set(moz_compiler_t *C, Node *node)
 {
     unsigned i, len = Node_length(node);
@@ -274,9 +278,11 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
             assert(0 && "unreachable");
         }
     }
+#if DUMP_SET
     char buf[1024] = {};
     dump_set(&e->set, buf);
     fprintf(stderr, "%s\n", buf);
+#endif
     return (expr_t *)e;
 }
 static expr_t *compile_And(moz_compiler_t *C, Node *node)
@@ -284,6 +290,7 @@ static expr_t *compile_And(moz_compiler_t *C, Node *node)
     And_t *e = EXPR_ALLOC(And);
     assert(Node_length(node) == 1);
     e->expr = compile_expression(C, Node_get(node, 0));
+    e->expr->refc++;
     return (expr_t *)e;
 }
 static expr_t *compile_Choice(moz_compiler_t *C, Node *node)
@@ -309,6 +316,7 @@ static expr_t *compile_Not(moz_compiler_t *C, Node *node)
     Not_t *e = EXPR_ALLOC(Not);
     assert(Node_length(node) == 1);
     e->expr = compile_expression(C, Node_get(node, 0));
+    e->expr->refc++;
     return (expr_t *)e;
 }
 static expr_t *compile_Option(moz_compiler_t *C, Node *node)
@@ -316,6 +324,7 @@ static expr_t *compile_Option(moz_compiler_t *C, Node *node)
     Option_t *e = EXPR_ALLOC(Option);
     assert(Node_length(node) == 1);
     e->expr = compile_expression(C, Node_get(node, 0));
+    e->expr->refc++;
     return (expr_t *)e;
 }
 static expr_t *compile_Sequence(moz_compiler_t *C, Node *node)
@@ -364,6 +373,7 @@ static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
 {
     Tnew_t *e = EXPR_ALLOC(Tnew);
     e->expr = compile_expression(C, Node_get(node, 0));
+    e->expr->refc++;
     return (expr_t *)e;
 }
 static expr_t *compile_Treplace(moz_compiler_t *C, Node *node)
@@ -548,12 +558,275 @@ static void compile_production(moz_compiler_t *C, Node *node)
     ARRAY_add(decl_ptr_t, &C->decls, decl);
 }
 
+/* link */
+static void moz_ast_link(moz_compiler_t *C)
+{
+    expr_t **x, **e1;
+    FOR_EACH_ARRAY(C->invokes, x, e1) {
+        Invoke_t *expr = (Invoke_t *) *x;
+        unsigned len = expr->name.len;
+        decl_t **decl, **e2;
+        FOR_EACH_ARRAY(C->decls, decl, e2) {
+            if (len == (*decl)->name.len) {
+                if (strncmp(expr->name.str, (*decl)->name.str, len) == 0) {
+                    expr->decl = *decl;
+                    (*decl)->refc++;
+                }
+            }
+        }
+    }
+}
+
+/* dump */
+static const char *ast_name[] = {
+#define DEFINE_NAME(NAME, DUMP, OPT) #NAME,
+    FOR_EACH_TYPE(DEFINE_NAME)
+#undef DFINE_NAME
+};
+
+static void moz_expr_dump(int level, expr_t *e);
+static void fprint_indent(int level)
+{
+    while (level-- > 0) {
+        fprintf(stdout, "  ");
+    }
+}
+
+static void moz_Expr_dump(int level, expr_t *e)
+{
+    fprint_indent(level);
+    fprintf(stdout, "%s\n", ast_name[e->type]);
+}
+
+static void moz_Name_dump(int level, expr_t *e)
+{
+    struct Name_t {
+        expr_t base;
+        name_t name;
+    };
+    struct Name_t *expr = (struct Name_t *)e;
+    fprint_indent(level);
+    fprintf(stdout, "%s(%.*s)\n", ast_name[e->type],
+            expr->name.len, expr->name.str);
+}
+
+static void moz_Unary_dump(int level, expr_t *e)
+{
+    struct Unary_t *expr = (struct Unary_t *)e;
+    fprint_indent(level);
+    fprintf(stdout, "%s[\n", ast_name[e->type]);
+    moz_expr_dump(level + 1, expr->expr);
+    fprint_indent(level);
+    fprintf(stdout, "]\n");
+}
+
+static void moz_NameUnary_dump(int level, expr_t *e)
+{
+    struct NameUnary_t {
+        expr_t base;
+        name_t name;
+        expr_t *expr;
+    };
+    struct NameUnary_t *expr = (struct NameUnary_t *)e;
+    fprint_indent(level);
+    fprintf(stdout, "%s(%.*s) [\n", ast_name[e->type],
+            expr->name.len, expr->name.str);
+    moz_expr_dump(level + 1, expr->expr);
+    fprint_indent(level);
+    fprintf(stdout, "]\n");
+}
+
+static void moz_List_dump(int level, expr_t *e)
+{
+    expr_t **x, **end;
+    struct List_t *expr = (struct List_t *)e;
+    fprint_indent(level);
+    fprintf(stdout, "%s[\n", ast_name[e->type]);
+    FOR_EACH_ARRAY(expr->list, x, end) {
+        moz_expr_dump(level + 1, *x);
+    }
+    fprint_indent(level);
+    fprintf(stdout, "]\n");
+}
+
+static void moz_Byte_dump(int level, expr_t *e)
+{
+    Byte_t *expr = (Byte_t *) e;
+    fprint_indent(level);
+    fprintf(stdout, "%s('%c')\n", ast_name[e->type], expr->byte);
+}
+
+static void moz_Str_dump(int level, expr_t *e)
+{
+    Str_t *expr = (Str_t *) e;
+    fprint_indent(level);
+    fprintf(stdout, "%s('%s')\n", ast_name[e->type], ARRAY_BEGIN(expr->list));
+}
+
+static void moz_Set_dump(int level, expr_t *e)
+{
+    Set_t *expr = (Set_t *) e;
+    char buf[1024];
+    dump_set(&expr->set, buf);
+    fprint_indent(level);
+    fprintf(stdout, "%s([%s])\n", ast_name[e->type], buf);
+}
+
+static void moz_decl_dump(int level, decl_t *decl)
+{
+    fprint_indent(level);
+    fprintf(stdout, "decl(%ld) (%.*s) {\n", decl->refc,
+            decl->name.len, decl->name.str);
+    moz_expr_dump(level + 1, decl->body);
+    fprint_indent(level);
+    fprintf(stdout, "}\n");
+}
+
+typedef void (*f_dump)(int level, expr_t *);
+static void moz_expr_dump(int level, expr_t *e)
+{
+    f_dump dump[] = {
+#define F_DUMP_DECL(NAME, DUMP, OPT) moz_##DUMP##_dump,
+        FOR_EACH_TYPE(F_DUMP_DECL)
+#undef  F_DUMP_DECL
+    };
+    dump[e->type](level, e);
+}
+
+static void moz_ast_dump(moz_compiler_t *C)
+{
+    decl_t **decl, **end;
+    FOR_EACH_ARRAY(C->decls, decl, end) {
+        if ((*decl)->refc > 0) {
+            moz_decl_dump(0, *decl);
+        }
+    }
+}
+
+/* optimize */
+static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e);
+
+static void moz_Expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    /* do nothing */
+}
+
+static void moz_Unary_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Unary_t *expr = (Unary_t *) e;
+    moz_expr_optimize(e, &expr->expr, expr->expr);
+}
+
+static void moz_List_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    List_t *expr = (List_t *) e;
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(expr->list, x, end) {
+        moz_expr_optimize(e, x, *x);
+    }
+}
+
+static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Invoke_t *expr = (Invoke_t *)e;
+    if (expr->decl != NULL) {
+        expr_t *target = expr->decl->body;
+        switch (target->type) {
+        case Empty:
+        case Any:
+        case Byte:
+        case Str:
+        case Set:
+        case Fail:
+            *ref = target;
+            e->refc--;
+            expr->decl->refc--;
+            target->refc++;
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+static void moz_Not_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Unary_t *expr = (Unary_t *) e;
+    moz_expr_optimize(e, &expr->expr, expr->expr);
+}
+
+static void moz_Option_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Unary_t *expr = (Unary_t *) e;
+    moz_expr_optimize(e, &expr->expr, expr->expr);
+}
+
+static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Sequence_t *expr = (Sequence_t *) e;
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(expr->list, x, end) {
+        moz_expr_optimize(e, x, *x);
+    }
+}
+
+static void moz_Repetition_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Repetition_t *expr = (Repetition_t *) e;
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(expr->list, x, end) {
+        moz_expr_optimize(e, x, *x);
+    }
+}
+
+static void moz_Repetition1_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Repetition1_t *expr = (Repetition1_t *) e;
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(expr->list, x, end) {
+        moz_expr_optimize(e, x, *x);
+    }
+}
+
+typedef void (*f_optimize)(expr_t *parent, expr_t **ref, expr_t *e);
+static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    f_optimize optimize[] = {
+#define F_OPTIMIZE_DECL(NAME, DUMP, OPT) moz_##OPT##_optimize,
+        FOR_EACH_TYPE(F_OPTIMIZE_DECL)
+#undef  F_OPTIMIZE_DECL
+    };
+    optimize[e->type](parent, ref, e);
+}
+
+static void moz_ast_optimize(moz_compiler_t *C)
+{
+    decl_t **decl, **end;
+    FOR_EACH_ARRAY(C->decls, decl, end) {
+        moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+    }
+}
+
+/* compile */
+static void moz_ir_compile(moz_compiler_t *C)
+{
+}
+
+static void moz_ir_optimize(moz_compiler_t *C)
+{
+}
+
+static void moz_bytecode_emit(moz_compiler_t *C, const char *output_file)
+{
+}
+
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
 {
     unsigned i, decl_size = Node_length(node);
     moz_compiler_t C;
     C.R = R;
     ARRAY_init(decl_ptr_t, &C.decls, decl_size);
+    ARRAY_init(expr_ptr_t, &C.invokes, 0);
 
     for (i = 0; i < decl_size; i++) {
         Node *decl = Node_get(node, i);
@@ -566,9 +839,14 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
         if (tag_equal(decl, "Format")) {
             compile_format(&C, decl);
         }
-        // compile_decl(decl);
-        // Node_print(decl, R->C.tags);
     }
+    ARRAY_get(decl_ptr_t, &C.decls, 0)->refc++;
+    moz_ast_link(&C);
+    moz_ast_optimize(&C);
+    moz_ast_dump(&C);
+    moz_ir_compile(&C);
+    moz_ir_optimize(&C);
+    moz_bytecode_emit(&C, output_file);
 }
 
 #ifdef __cplusplus

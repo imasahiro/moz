@@ -7,39 +7,43 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define FOR_EACH_TYPE(OP) \
+  OP(Empty, Expr, Expr) \
+  OP(Invoke, Name, Invoke) \
+  OP(Any, Expr, Expr) \
+  OP(Byte, Byte, Expr) \
+  OP(Str, Str, Expr) \
+  OP(Set, Set, Expr) \
+  OP(And, Unary, Unary) \
+  OP(Choice, List, List) \
+  OP(Fail, Expr, Expr) \
+  OP(Not, Unary, Not) \
+  OP(Option, Unary, Option) \
+  OP(Sequence, List, Sequence) \
+  OP(Repetition, List, Repetition) \
+  OP(Repetition1, List, Repetition1) \
+  OP(Tcapture, Expr, Expr) \
+  OP(Tdetree, Expr, Expr) \
+  OP(Tlfold, Expr, Expr) \
+  OP(Tlink, Expr, Expr) \
+  OP(Tnew, Unary, Unary) \
+  OP(Treplace, Expr, Expr) \
+  OP(Ttag, Name, Expr) \
+  OP(Xblock, Unary, Unary) \
+  OP(Xexists, Name, Expr) \
+  OP(Xif, Expr, Expr) \
+  OP(Xis, Name, Expr) \
+  OP(Xisa, Name, Expr) \
+  OP(Xon, Expr, Expr) \
+  OP(Xmatch, Expr, Expr) \
+  OP(Xlocal, NameUnary, Expr/*FIXME*/) \
+  OP(Xsymbol, NameUnary, Expr/*FIXME*/)
 
 typedef enum expr_type {
-  Empty,
-  Invoke,
-  Any,
-  Byte,
-  Str,
-  Set,
-  And,
-  Choice,
-  Fail,
-  Not,
-  Option,
-  Sequence,
-  Repetition,
-  Repetition1,
-  Tcapture,
-  Tdetree,
-  Tlfold,
-  Tlink,
-  Tnew,
-  Treplace,
-  Ttag,
-  Unary,
-  Xblock,
-  Xexists,
-  Xif,
-  Xis,
-  Xisa,
-  Xlocal,
-  Xmatch,
-  Xon,
-  Xsymbol
+#define DEFINE_ENUM(NAME, DUMP, OPT) NAME,
+    FOR_EACH_TYPE(DEFINE_ENUM)
+#undef DEFINE_ENUM
+    MAX_TYPE
 } expr_type_t;
 
 typedef struct name {
@@ -73,12 +77,20 @@ DEF_ARRAY_STRUCT0(uint8_t, unsigned);
 DEF_ARRAY_T(uint8_t);
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
+typedef struct Unary_t {
+    expr_t base;
+    expr_t *expr;
+} Unary_t;
+
+typedef struct List_t {
+    expr_t base;
+    ARRAY(expr_ptr_t) list;
+} List_t;
+
 typedef struct Invoke_t {
     expr_t base;
-    union {
-        name_t name;
-        decl_t *decl;
-    } v;
+    name_t name;
+    decl_t *decl;
 } Invoke_t;
 
 typedef struct Any_t {
