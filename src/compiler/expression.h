@@ -4,6 +4,10 @@
 #ifndef MOZ_COMPILER_EXPRESSION_H
 #define MOZ_COMPILER_EXPRESSION_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum expr_type {
   Empty,
   Invoke,
@@ -212,5 +216,9 @@ typedef struct Xsymbol_t {
     name_t name;
     expr_t *expr;
 } Xsymbol_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */

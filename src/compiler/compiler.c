@@ -3,6 +3,11 @@
 #include "core/pstring.h"
 #include <assert.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 typedef unsigned attribute_t;
 // #define DECL_ATTRIBUTE_PUBLIC (1 << 0)
 
@@ -565,3 +570,7 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
         // Node_print(decl, R->C.tags);
     }
 }
+
+#ifdef __cplusplus
+}
+#endif

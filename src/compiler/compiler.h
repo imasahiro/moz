@@ -4,5 +4,14 @@
 #ifndef MOZ_COMPILER_H
 #define MOZ_COMPILER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* end of include guard */
