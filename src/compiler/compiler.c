@@ -96,6 +96,43 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = '\0';
 }
 
+static bool isByteOrSet(expr_t *e)
+{
+    return e->type == Byte || e->type == Set;
+}
+
+static bool isPatternMatchOnly(expr_t *e)
+{
+    expr_t **x, **end;
+    switch (e->type) {
+    case Empty:
+    case Any:
+    case Byte:
+    case Str:
+    case Set:
+    case Fail:
+        return true;
+    case Invoke:
+        return false; /* TODO */
+    case And:
+    case Not:
+    case Option:
+        return isPatternMatchOnly(((Unary_t *)e)->expr);
+    case Choice:
+    case Sequence:
+    case Repetition:
+    case Repetition1:
+        FOR_EACH_ARRAY(((List_t *)e)->list, x, end) {
+            if (!isPatternMatchOnly(*x)) {
+                return false;
+            }
+        }
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
 
 /* decl */
 static decl_t *decl_new()
@@ -787,11 +824,6 @@ static void moz_Option_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     moz_expr_optimize(e, &expr->expr, expr->expr);
 }
 
-static bool isByteOrSet(expr_t *e)
-{
-    return e->type == Byte || e->type == Set;
-}
-
 static bool canByteMapOptimize(Choice_t *e)
 {
     expr_t **x, **end;
@@ -868,11 +900,41 @@ static void moz_Choice_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     }
 }
 
+static void moz_Sequence_do_flatten(Sequence_t *e, int offset, Sequence_t *seq)
+{
+    /*
+     * expr   = [A, B, seq, C, D]
+     * seq    = [X, Y, Z]
+     * offset = 2
+     * -> expr = [A, B, X, Y, Z, C, D]
+     *    seq  = deleted
+     */
+    expr_t **x, **end;
+    ARRAY_remove(expr_ptr_t, &e->list, offset);
+    int i = 0;
+    FOR_EACH_ARRAY(seq->list, x, end) {
+        ARRAY_insert(expr_ptr_t, &e->list, offset + i++, *x);
+    }
+    ARRAY_dispose(expr_ptr_t, &seq->list);
+}
+
+static void moz_Sequence_flatten(Sequence_t *e)
+{
+    int i = 0;
+    for (i = 0; i < (int)ARRAY_size(e->list); i++) {
+        expr_t *child = ARRAY_get(expr_ptr_t, &e->list, i);
+        if (child->type == Sequence && isPatternMatchOnly(child)) {
+            moz_Sequence_do_flatten(e, i, (Sequence_t *)child);
+        }
+    }
+}
+
 static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
 {
     Sequence_t *expr = (Sequence_t *) e;
     expr_t **x, **end;
     int i;
+
     FOR_EACH_ARRAY(expr->list, x, end) {
         moz_expr_optimize(e, x, *x);
     }
@@ -882,6 +944,7 @@ static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
             ARRAY_remove(expr_ptr_t, &expr->list, i);
         }
     }
+    moz_Sequence_flatten(expr);
     if (ARRAY_size(expr->list) == 1) {
         *ref = ARRAY_get(expr_ptr_t, &expr->list, 0);
         ARRAY_dispose(expr_ptr_t, &expr->list);
