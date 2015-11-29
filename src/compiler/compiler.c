@@ -338,7 +338,7 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
             }
             data[i * 2 + 0] = ch1;
             data[i * 2 + 1] = ch2;
-       }
+        }
         else {
             assert(0 && "unreachable");
         }
@@ -641,7 +641,7 @@ static void compile_production(moz_compiler_t *C, Node *node, decl_t *decl)
 /* dump */
 static const char *ast_name[] = {
 #define DEFINE_NAME(NAME, DUMP, OPT) #NAME,
-    FOR_EACH_TYPE(DEFINE_NAME)
+    FOR_EACH_BASE_AST(DEFINE_NAME)
 #undef DFINE_NAME
 };
 
@@ -745,7 +745,7 @@ static void moz_expr_dump(int level, expr_t *e)
 {
     f_dump dump[] = {
 #define F_DUMP_DECL(NAME, DUMP, OPT) moz_##DUMP##_dump,
-        FOR_EACH_TYPE(F_DUMP_DECL)
+        FOR_EACH_BASE_AST(F_DUMP_DECL)
 #undef  F_DUMP_DECL
     };
     dump[e->type](level, e);
@@ -1033,7 +1033,7 @@ static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
 {
     f_optimize optimize[] = {
 #define F_OPTIMIZE_DECL(NAME, DUMP, OPT) moz_##OPT##_optimize,
-        FOR_EACH_TYPE(F_OPTIMIZE_DECL)
+        FOR_EACH_BASE_AST(F_OPTIMIZE_DECL)
 #undef  F_OPTIMIZE_DECL
     };
     optimize[e->type](parent, ref, e);

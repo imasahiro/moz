@@ -7,7 +7,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define FOR_EACH_TYPE(OP) \
+#define FOR_EACH_BASE_AST(OP) \
   OP(Empty, Expr, Expr) \
   OP(Invoke, Name, Invoke) \
   OP(Any, Expr, Expr) \
@@ -41,7 +41,7 @@ extern "C" {
 
 typedef enum expr_type {
 #define DEFINE_ENUM(NAME, DUMP, OPT) NAME,
-    FOR_EACH_TYPE(DEFINE_ENUM)
+    FOR_EACH_BASE_AST(DEFINE_ENUM)
 #undef DEFINE_ENUM
     MAX_TYPE
 } expr_type_t;
