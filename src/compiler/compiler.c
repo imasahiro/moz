@@ -956,6 +956,11 @@ static void _moz_Sequence_optimize(Sequence_t *e)
             moz_Sequence_do_flatten(e, i, seq);
         }
 
+        /*
+         * e = [A, "hello", ' ', "world", B]
+         * -> e = [A, "hello ", Str3, B]
+         * -> e = [A, "hello world", B]
+         */
         while (child->type == Str && i + 1 < (int)ARRAY_size(e->list)) {
             Str_t *s1 = (Str_t *) child;
             expr_t *child2 = ARRAY_get(expr_ptr_t, &e->list, i + 1);
