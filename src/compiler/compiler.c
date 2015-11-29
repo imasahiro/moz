@@ -277,7 +277,6 @@ static unsigned parseUnicode4(const uint8_t *p)
 static unsigned parseClass(const uint8_t *p)
 {
     uint8_t c = *p++;
-    unsigned data = 0;
     if (c == '\\') {
         c = *p++;
         switch (c) {
@@ -304,10 +303,7 @@ static unsigned parseClass(const uint8_t *p)
             c = c << 8 | to_hex(*p);
             return (unsigned) c;
         case 'u':
-            data = parseUnicode4(p);
-            assert(0 && "TODO");
-            return data;
-            break;
+            return parseUnicode4(p);
         }
     }
     return (unsigned) c;
@@ -318,10 +314,14 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
     unsigned i, len = Node_length(node);
     Set_t *e = EXPR_ALLOC(Set);
     bitset_init(&e->set);
+    unsigned data[len * 2];
+    assert(len > 0);
+    memset(data, 0, sizeof(unsigned) * len * 2);
     for (i = 0; i < len; i++) {
         Node *child = Node_get(node, i);
         if (tag_equal(child, "Class")) {
             unsigned ch = parseClass((const uint8_t *)child->pos);
+            data[i * 2 + 0] = data[i * 2 + 1] = ch;
             bitset_set(&e->set, ch);
         }
         else if (tag_equal(child, "List")) {
@@ -335,12 +335,19 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
                 ch1 = ch2;
                 ch2 = tmp;
             }
-            for (; ch1 <= ch2; ch1++) {
-                bitset_set(&e->set, ch1);
-            }
-        }
+       }
         else {
             assert(0 && "unreachable");
+        }
+    }
+    for (i = 0; i < len; i++) {
+        unsigned ch1 = data[i * 2 + 0];
+        unsigned ch2 = data[i * 2 + 1];
+        if (ch1 > 256 || ch2 > 256) {
+            assert(0 && "unicode char class is not supported");
+        }
+        for (; ch1 <= ch2; ch1++) {
+            bitset_set(&e->set, ch1);
         }
     }
 #if DUMP_SET
@@ -581,7 +588,7 @@ static expr_t *compile_expression(moz_compiler_t *C, Node *node)
     if (tag_equal(node, "New")) {
         return compile_Tnew(C, node);
     }
-    if (tag_equal(node, "Treplace")) {
+    if (tag_equal(node, "Replace")) {
         return compile_Treplace(C, node);
     }
     if (tag_equal(node, "Tagging")) {
@@ -1057,7 +1064,7 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
             decl_t *decl = decl_new();
             assert(Node_length(child) == 3);
             decl_set_name(decl, Node_get(child, 1));
-            // fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
+            fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
             // Node_print(child, C->R->C.tags);
             ARRAY_add(decl_ptr_t, &C->decls, decl);
         }
