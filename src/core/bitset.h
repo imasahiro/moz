@@ -66,6 +66,30 @@ static inline int bitset_get(bitset_t *set, unsigned index)
     return (set->data[index / BITS] & mask) != 0;
 }
 
+static inline void bitset_and(bitset_t *set1, bitset_t *set2)
+{
+    unsigned i;
+    for (i = 0; i < 256 / BITS; i++) {
+        set1->data[i] &= set2->data[i];
+    }
+}
+
+static inline void bitset_or(bitset_t *set1, bitset_t *set2)
+{
+    unsigned i;
+    for (i = 0; i < 256 / BITS; i++) {
+        set1->data[i] |= set2->data[i];
+    }
+}
+
+static inline void bitset_flip(bitset_t *set)
+{
+    unsigned i;
+    for (i = 0; i < 256 / BITS; i++) {
+        set->data[i] = ~(set->data[i]);
+    }
+}
+
 #if 0
 #include <stdio.h>
 int main(int argc, char const* argv[])
