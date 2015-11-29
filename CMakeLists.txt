@@ -89,10 +89,10 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/nez.moz"
     "${CMAKE_CURRENT_SOURCE_DIR}/nez/nez.jar"
     compile
     -p
-    "${CMAKE_CURRENT_SOURCE_DIR}/nez-grammar/lib/nez.nez"
+    "${CMAKE_CURRENT_SOURCE_DIR}/nez-language/lib/nez.nez"
     DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/nez/nez.jar"
-    "${CMAKE_CURRENT_SOURCE_DIR}/nez-grammar/lib/nez.nez")
+    "${CMAKE_CURRENT_SOURCE_DIR}/nez-language/lib/nez.nez")
 add_custom_target(generate_nez_moz DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/nez.moz")
 
@@ -105,7 +105,7 @@ add_custom_command(OUTPUT
     "${CMAKE_CURRENT_BINARY_DIR}/nez_moz.h"
     DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/nez.moz"
-    "${CMAKE_CURRENT_SOURCE_DIR}/nez-grammar/lib/nez.nez")
+    "${CMAKE_CURRENT_SOURCE_DIR}/nez-language/lib/nez.nez")
 add_custom_target(generate_nez_moz_h DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/nez_moz.h")
 

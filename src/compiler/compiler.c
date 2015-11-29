@@ -619,6 +619,7 @@ static expr_t *compile_expression(moz_compiler_t *C, Node *node)
     }
     Node_print(node, C->R->C.tags);
     assert(0 && "unreachable");
+    return NULL;
 }
 
 static void compile_production(moz_compiler_t *C, Node *node, decl_t *decl)
