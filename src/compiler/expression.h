@@ -82,6 +82,11 @@ typedef struct Unary_t {
     expr_t *expr;
 } Unary_t;
 
+typedef struct Name_t {
+    expr_t base;
+    name_t name;
+} Name_t;
+
 typedef struct NameUnary_t {
     expr_t base;
     name_t name;

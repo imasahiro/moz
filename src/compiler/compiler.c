@@ -661,11 +661,7 @@ static void moz_Expr_dump(int level, expr_t *e)
 
 static void moz_Name_dump(int level, expr_t *e)
 {
-    struct Name_t {
-        expr_t base;
-        name_t name;
-    };
-    struct Name_t *expr = (struct Name_t *)e;
+    Name_t *expr = (Name_t *)e;
     fprint_indent(level);
     fprintf(stdout, "%s(%.*s)\n", ast_name[e->type],
             expr->name.len, expr->name.str);
@@ -673,7 +669,7 @@ static void moz_Name_dump(int level, expr_t *e)
 
 static void moz_Unary_dump(int level, expr_t *e)
 {
-    struct Unary_t *expr = (struct Unary_t *)e;
+    Unary_t *expr = (Unary_t *)e;
     fprint_indent(level);
     fprintf(stdout, "%s[\n", ast_name[e->type]);
     moz_expr_dump(level + 1, expr->expr);
@@ -683,7 +679,7 @@ static void moz_Unary_dump(int level, expr_t *e)
 
 static void moz_NameUnary_dump(int level, expr_t *e)
 {
-    struct NameUnary_t *expr = (struct NameUnary_t *)e;
+    NameUnary_t *expr = (NameUnary_t *)e;
     fprint_indent(level);
     fprintf(stdout, "%s(%.*s) [\n", ast_name[e->type],
             expr->name.len, expr->name.str);
