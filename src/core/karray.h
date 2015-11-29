@@ -92,6 +92,19 @@ static inline void ARRAY_##T##_remove(ARRAY(T) *a, int idx) {\
     assert(a->size > 0); \
     memmove(a->list+idx, a->list + idx + 1, sizeof(T) * (a->size - idx - 1));\
     a->size -= 1;\
+}\
+__attribute__((unused))\
+static inline void ARRAY_##T##_insert(ARRAY(T) *a, int idx, ValueType v) {\
+    assert((int)a->size >= idx && idx >= 0); \
+    if ((int)a->size == idx) { \
+        ARRAY_##T##_add(a, v); \
+    } \
+    else { \
+        ARRAY_##T##_ensureSize(a, 1);\
+        memmove(a->list + idx + 1, a->list + idx, sizeof(T) * (a->size - idx));\
+        a->size += 1;\
+        ARRAY_##T##_set(a, idx, v);\
+    } \
 }
 
 #define DEF_ARRAY_OP(T)\
@@ -116,13 +129,14 @@ DEF_ARRAY_OP__(T, T)
 #define DEF_ARRAY_T_OP(T)           DEF_ARRAY_S_T(T); DEF_ARRAY_OP(T)
 #define DEF_ARRAY_T_OP_NOPOINTER(T) DEF_ARRAY_S_T(T); DEF_ARRAY_OP_NOPOINTER(T)
 
-#define ARRAY_get(T, a, idx)    ARRAY_##T##_get(a, idx)
-#define ARRAY_set(T, a, idx, v) ARRAY_##T##_set(a, idx, v)
-#define ARRAY_add(T, a, v)      ARRAY_##T##_add(a, v)
-#define ARRAY_remove(T, a, n)   ARRAY_##T##_remove(a, n)
-#define ARRAY_dispose(T, a)     ARRAY_##T##_dispose(a)
-#define ARRAY_init(T, a, s)     ARRAY_init_##T (a, s)
-#define ARRAY_pop(T, a)         ARRAY_get(T, (a), (--(a)->size))
+#define ARRAY_get(T, a, idx)     ARRAY_##T##_get(a, idx)
+#define ARRAY_set(T, a, idx, v)  ARRAY_##T##_set(a, idx, v)
+#define ARRAY_add(T, a, v)       ARRAY_##T##_add(a, v)
+#define ARRAY_insert(T, a, n, v) ARRAY_##T##_insert(a, n, v)
+#define ARRAY_remove(T, a, n)    ARRAY_##T##_remove(a, n)
+#define ARRAY_dispose(T, a)      ARRAY_##T##_dispose(a)
+#define ARRAY_init(T, a, s)      ARRAY_init_##T (a, s)
+#define ARRAY_pop(T, a)          ARRAY_get(T, (a), (--(a)->size))
 #define ARRAY_ensureSize(T, a, size) ARRAY_##T##_ensureSize(a, size)
 #define ARRAY_n(a, n)  ((a).list+n)
 #define ARRAY_size(a)  ((a).size)
