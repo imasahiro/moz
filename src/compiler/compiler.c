@@ -335,6 +335,8 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
                 ch1 = ch2;
                 ch2 = tmp;
             }
+            data[i * 2 + 0] = ch1;
+            data[i * 2 + 1] = ch2;
        }
         else {
             assert(0 && "unreachable");
