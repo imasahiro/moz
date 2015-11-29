@@ -25,7 +25,7 @@ extern "C" {
   OP(Tcapture, Expr, Expr) \
   OP(Tdetree, Expr, Expr) \
   OP(Tlfold, Expr, Expr) \
-  OP(Tlink, Expr, Expr) \
+  OP(Tlink, NameUnary, NameUnary) \
   OP(Tnew, Unary, Unary) \
   OP(Treplace, Expr, Expr) \
   OP(Ttag, Name, Expr) \
@@ -36,8 +36,8 @@ extern "C" {
   OP(Xisa, Name, Expr) \
   OP(Xon, Expr, Expr) \
   OP(Xmatch, Expr, Expr) \
-  OP(Xlocal, NameUnary, Expr/*FIXME*/) \
-  OP(Xsymbol, NameUnary, Expr/*FIXME*/)
+  OP(Xlocal, NameUnary,  NameUnary) \
+  OP(Xsymbol, NameUnary, NameUnary)
 
 typedef enum expr_type {
 #define DEFINE_ENUM(NAME, DUMP, OPT) NAME,
@@ -81,6 +81,12 @@ typedef struct Unary_t {
     expr_t base;
     expr_t *expr;
 } Unary_t;
+
+typedef struct NameUnary_t {
+    expr_t base;
+    name_t name;
+    expr_t *expr;
+} NameUnary_t;
 
 typedef struct List_t {
     expr_t base;
@@ -169,6 +175,8 @@ typedef struct Tlfold_t {
 
 typedef struct Tlink_t {
     expr_t base;
+    name_t name;
+    expr_t *expr;
 } Tlink_t;
 
 typedef struct Tnew_t {

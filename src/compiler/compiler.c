@@ -386,7 +386,19 @@ static expr_t *compile_Tlfold(moz_compiler_t *C, Node *node)
 static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
 {
     Tlink_t *e = EXPR_ALLOC(Tlink);
-    assert(0 && "TODO");
+    Node *child = NULL;
+    if (Node_length(node) == 1) {
+        e->name.str = NULL;
+        e->name.len = 0;
+        child = Node_get(node, 0);
+    }
+    else {
+        Node *label = Node_get(node, 0);
+        e->name.str = label->pos;
+        e->name.len = label->len;
+        child = Node_get(node, 1);
+    }
+    e->expr = compile_expression(C, child);
     return (expr_t *)e;
 }
 static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
@@ -521,7 +533,7 @@ static expr_t *compile_expression(moz_compiler_t *C, Node *node)
     if (tag_equal(node, "Tlfold")) {
         return compile_Tlfold(C, node);
     }
-    if (tag_equal(node, "Link")) {
+    if (tag_equal(node, "Link") || tag_equal(node, "label")) {
         return compile_Tlink(C, node);
     }
     if (tag_equal(node, "New")) {
@@ -618,11 +630,6 @@ static void moz_Unary_dump(int level, expr_t *e)
 
 static void moz_NameUnary_dump(int level, expr_t *e)
 {
-    struct NameUnary_t {
-        expr_t base;
-        name_t name;
-        expr_t *expr;
-    };
     struct NameUnary_t *expr = (struct NameUnary_t *)e;
     fprint_indent(level);
     fprintf(stdout, "%s(%.*s) [\n", ast_name[e->type],
@@ -671,8 +678,9 @@ static void moz_Set_dump(int level, expr_t *e)
 static void moz_decl_dump(int level, decl_t *decl)
 {
     fprint_indent(level);
-    fprintf(stdout, "decl(%ld) (%.*s) {\n", decl->refc,
-            decl->name.len, decl->name.str);
+    fprintf(stdout, "decl %.*s (refc=%ld) {\n",
+            decl->name.len, decl->name.str,
+            decl->refc);
     moz_expr_dump(level + 1, decl->body);
     fprint_indent(level);
     fprintf(stdout, "}\n");
@@ -692,11 +700,13 @@ static void moz_expr_dump(int level, expr_t *e)
 static void moz_ast_dump(moz_compiler_t *C)
 {
     decl_t **decl, **end;
+    fprintf(stderr, "------------\n");
     FOR_EACH_ARRAY(C->decls, decl, end) {
         if ((*decl)->refc > 0) {
             moz_decl_dump(0, *decl);
         }
     }
+    fprintf(stderr, "------------\n");
 }
 
 /* optimize */
@@ -705,6 +715,12 @@ static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e);
 static void moz_Expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
 {
     /* do nothing */
+}
+
+static void moz_NameUnary_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    NameUnary_t *expr = (NameUnary_t *) e;
+    moz_expr_optimize(e, &expr->expr, expr->expr);
 }
 
 static void moz_Unary_optimize(expr_t *parent, expr_t **ref, expr_t *e)
@@ -722,23 +738,35 @@ static void moz_List_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     }
 }
 
+static void moz_ast_do_inline(expr_t **ref, Invoke_t *expr)
+{
+    decl_t *decl = expr->decl;
+    *ref = decl->body;
+    expr->base.refc--;
+    decl->refc--;
+    decl->body->refc++;
+}
+
 static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
 {
     Invoke_t *expr = (Invoke_t *)e;
     if (expr->decl != NULL) {
-        expr_t *target = expr->decl->body;
-        switch (target->type) {
+        decl_t *decl = expr->decl;
+        if (decl->refc == 1) {
+            asm volatile("int3");
+            moz_ast_do_inline(ref, expr);
+            return;
+        }
+        assert(decl->body != NULL);
+        switch (decl->body->type) {
         case Empty:
         case Any:
         case Byte:
         case Str:
         case Set:
         case Fail:
-            *ref = target;
-            e->refc--;
-            expr->decl->refc--;
-            target->refc++;
-            break;
+            moz_ast_do_inline(ref, expr);
+            return;
         default:
             break;
         }
@@ -831,6 +859,7 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
         }
     }
 }
+
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
 {
     unsigned i, decl_index = 0, decl_size = Node_length(node);
