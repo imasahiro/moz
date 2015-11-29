@@ -2,6 +2,7 @@
 #include "expression.h"
 #include "core/pstring.h"
 #include <assert.h>
+#define MOZC_USE_AST_INLINING 1
 
 #ifdef __cplusplus
 extern "C" {
@@ -805,7 +806,8 @@ static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     Invoke_t *expr = (Invoke_t *)e;
     if (expr->decl != NULL) {
         decl_t *decl = expr->decl;
-        if (decl->refc == 1 || isPatternMatchOnly(decl->body)) {
+        if (MOZC_USE_AST_INLINING &&
+                (decl->refc == 1 || isPatternMatchOnly(decl->body))) {
             moz_ast_do_inline(ref, expr);
             return;
         }
@@ -1053,17 +1055,7 @@ static void moz_ast_optimize(moz_compiler_t *C)
 }
 
 /* compile */
-static void moz_ir_compile(moz_compiler_t *C)
-{
-}
 
-static void moz_ir_optimize(moz_compiler_t *C)
-{
-}
-
-static void moz_bytecode_emit(moz_compiler_t *C, const char *output_file)
-{
-}
 static void moz_ast_prepare(moz_compiler_t *C, Node *node)
 {
     unsigned i, decl_size = Node_length(node);
@@ -1079,6 +1071,21 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
             ARRAY_add(decl_ptr_t, &C->decls, decl);
         }
     }
+    if (ARRAY_size(C->decls) > 0) {
+        ARRAY_get(decl_ptr_t, &C->decls, 0)->refc++;
+    }
+}
+
+static void moz_ir_compile(moz_compiler_t *C)
+{
+}
+
+static void moz_ir_optimize(moz_compiler_t *C)
+{
+}
+
+static void moz_bytecode_emit(moz_compiler_t *C, const char *output_file)
+{
 }
 
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
@@ -1102,7 +1109,6 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
             compile_format(&C, child);
         }
     }
-    ARRAY_get(decl_ptr_t, &C.decls, 0)->refc++;
     moz_ast_optimize(&C);
     moz_ast_dump(&C);
     moz_ir_compile(&C);
