@@ -15,7 +15,7 @@ extern "C" {
   OP(Str, Str, Expr) \
   OP(Set, Set, Expr) \
   OP(And, Unary, Unary) \
-  OP(Choice, List, List) \
+  OP(Choice, List, Choice) \
   OP(Fail, Expr, Expr) \
   OP(Not, Unary, Not) \
   OP(Option, Unary, Option) \

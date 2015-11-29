@@ -198,12 +198,20 @@ static expr_t *compile_InvokeOrStr(moz_compiler_t *C, Node *node)
     }
     return compile_Str(C, node);
 }
+static expr_t *compile_Empty(moz_compiler_t *C, Node *node)
+{
+    Empty_t *e = EXPR_ALLOC(Empty);
+    return (expr_t *)e;
+}
 static expr_t *compile_Byte(moz_compiler_t *C, Node *node)
 {
     assert(Node_length(node) == 0);
-    if (node->len == 1 || (node->len == 2 && node->pos[0] == '\\')) {
+    if (node->len == 0) {
+        return compile_Empty(C, node);
+    }
+    else if (node->len == 1 || (node->len == 2 && node->pos[0] == '\\')) {
         Byte_t *byte = EXPR_ALLOC(Byte);
-        byte->byte = node->pos[0];
+        byte->byte = (uint8_t)node->pos[0];
         return &byte->base;
     }
     else {
@@ -319,12 +327,7 @@ static expr_t *compile_Choice(moz_compiler_t *C, Node *node)
     _compile_List(C, node, &e->list);
     return (expr_t *)e;
 }
-static expr_t *compile_Empty(moz_compiler_t *C, Node *node)
-{
-    Empty_t *e = EXPR_ALLOC(Empty);
-    assert(0 && "TODO");
-    return (expr_t *)e;
-}
+
 static expr_t *compile_Fail(moz_compiler_t *C, Node *node)
 {
     Fail_t *e = EXPR_ALLOC(Fail);
@@ -672,7 +675,7 @@ static void moz_Set_dump(int level, expr_t *e)
     char buf[1024];
     dump_set(&expr->set, buf);
     fprint_indent(level);
-    fprintf(stdout, "%s([%s])\n", ast_name[e->type], buf);
+    fprintf(stdout, "%s(%s)\n", ast_name[e->type], buf);
 }
 
 static void moz_decl_dump(int level, decl_t *decl)
@@ -753,7 +756,6 @@ static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     if (expr->decl != NULL) {
         decl_t *decl = expr->decl;
         if (decl->refc == 1) {
-            asm volatile("int3");
             moz_ast_do_inline(ref, expr);
             return;
         }
@@ -785,12 +787,104 @@ static void moz_Option_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     moz_expr_optimize(e, &expr->expr, expr->expr);
 }
 
+static bool isByteOrSet(expr_t *e)
+{
+    return e->type == Byte || e->type == Set;
+}
+
+static bool canByteMapOptimize(Choice_t *e)
+{
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(e->list, x, end) {
+        expr_type_t type = (*x)->type;
+        switch (type) {
+        case Byte:
+        case Set:
+            break;
+        case Not:
+            if (isByteOrSet(((Not_t *)(*x))->expr)) {
+                break;
+            }
+            /* fallthrough */
+        default:
+            return false;
+        }
+    }
+    return true;
+}
+
+static void put_byte(bitset_t *set, Byte_t *e)
+{
+    bitset_set(set, e->byte);
+}
+
+static void put_set(bitset_t *set, Set_t *e)
+{
+    bitset_or(set, &e->set);
+}
+
+static void moz_Choice_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+{
+    Choice_t *expr = (Choice_t *) e;
+    bitset_t bitset;
+    moz_List_optimize(parent, ref, e);
+    if (ARRAY_size(expr->list) == 1) {
+        *ref = ARRAY_get(expr_ptr_t, &expr->list, 0);
+        ARRAY_dispose(expr_ptr_t, &expr->list);
+        return;
+    }
+    if (canByteMapOptimize(expr)) {
+        expr_t **x, **end;
+        Set_t *set = EXPR_ALLOC(Set);
+        bitset_init(&set->set);
+        FOR_EACH_ARRAY(expr->list, x, end) {
+            expr_t *child = *x;
+            expr_type_t type = child->type;
+            bool invert = false;
+            bitset_init(&bitset);
+            if (type == Not) {
+                Not_t *not = (Not_t *)(child);
+                assert(0 && "not tested");
+                child = not->expr;
+                type = child->type;
+                invert = true;
+            }
+            switch (type) {
+            case Byte:
+                put_byte(&set->set, (Byte_t *)(child));
+                break;
+            case Set:
+                put_set(&set->set, (Set_t *)(child));
+                break;
+            default:
+                break;
+            }
+            if (invert) {
+                bitset_flip(&bitset);
+            }
+            bitset_or(&set->set, &bitset);
+        }
+        *ref = (expr_t *)set;
+    }
+}
+
 static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
 {
     Sequence_t *expr = (Sequence_t *) e;
     expr_t **x, **end;
+    int i;
     FOR_EACH_ARRAY(expr->list, x, end) {
         moz_expr_optimize(e, x, *x);
+    }
+    for (i = ARRAY_size(expr->list) - 1; i >= 0; i--) {
+        expr_t *child = ARRAY_get(expr_ptr_t, &expr->list, i);
+        if (child->type == Empty) {
+            ARRAY_remove(expr_ptr_t, &expr->list, i);
+        }
+    }
+    if (ARRAY_size(expr->list) == 1) {
+        *ref = ARRAY_get(expr_ptr_t, &expr->list, 0);
+        ARRAY_dispose(expr_ptr_t, &expr->list);
     }
 }
 
