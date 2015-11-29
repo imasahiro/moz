@@ -921,7 +921,7 @@ static void moz_Sequence_do_flatten(Sequence_t *e, int offset, Sequence_t *seq)
      * seq    = [X, Y, Z]
      * offset = 2
      * -> expr = [A, B, X, Y, Z, C, D]
-     *    seq  = deleted
+     *    seq  = [X, Y, Z]
      */
     expr_t **x, **end;
     ARRAY_remove(expr_ptr_t, &e->list, offset);
@@ -929,7 +929,6 @@ static void moz_Sequence_do_flatten(Sequence_t *e, int offset, Sequence_t *seq)
     FOR_EACH_ARRAY(seq->list, x, end) {
         ARRAY_insert(expr_ptr_t, &e->list, offset + i++, *x);
     }
-    ARRAY_dispose(expr_ptr_t, &seq->list);
 }
 
 static expr_t *moz_Sequence_concatString(Str_t *s1, Str_t *s2)
@@ -1037,10 +1036,14 @@ static void moz_ast_optimize(moz_compiler_t *C)
 {
     decl_t **decl, **end;
     FOR_EACH_ARRAY(C->decls, decl, end) {
-        moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+        if ((*decl)->refc > 0) {
+            moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+        }
     }
     FOR_EACH_ARRAY(C->decls, decl, end) {
-        moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+        if ((*decl)->refc > 0) {
+            moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+        }
     }
 }
 
@@ -1066,7 +1069,7 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
             decl_t *decl = decl_new();
             assert(Node_length(child) == 3);
             decl_set_name(decl, Node_get(child, 1));
-            fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
+            // fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
             // Node_print(child, C->R->C.tags);
             ARRAY_add(decl_ptr_t, &C->decls, decl);
         }
