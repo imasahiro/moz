@@ -378,11 +378,11 @@ static inline Node *node_alloc()
 
 static inline void node_free(Node *o)
 {
-    assert(o->refc == 0);
+    assert(o->MOZ_RC_FIELD == 0);
 #ifdef DEBUG2
     memset(o, 0xa, sizeof(*o));
 #endif
-    o->refc = -1;
+    o->MOZ_RC_FIELD = -1;
 #ifdef MOZVM_USE_FREE_LIST
     o->tag = (const char *)free_list;
 #ifdef DEBUG2
@@ -403,7 +403,7 @@ void Node_sweep(Node *o)
 {
     // FIXME stack over flow
     unsigned i, len = Node_length(o);
-    assert(o->refc == 0);
+    assert(o->MOZ_RC_FIELD == 0);
     for (i = 0; i < len; i++) {
         Node *node= Node_get(o, i);
         if (node) {

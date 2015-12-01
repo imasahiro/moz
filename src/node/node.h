@@ -1,5 +1,6 @@
 #include "core/karray.h"
 #include "mozvm_config.h"
+#include "core/reference_count.h"
 #include <assert.h>
 
 #ifndef NODE_H
@@ -27,16 +28,11 @@ DEF_ARRAY_T(NodePtr);
 // #define NODE_GC_WRITE(DST, SRC) *(DST) = (SRC)
 
 #elif defined(MOZVM_MEMORY_USE_RCGC)
-#define NODE_GC_HEADER  long refc
-#define NODE_GC_INIT(O) (O)->refc = 0
-#define NODE_GC_RETAIN(O)  (O)->refc++
-#define NODE_GC_RELEASE(O) do {\
-    assert((O)->refc > 0);\
-    (O)->refc--; \
-    if ((O)->refc == 0) { \
-        Node_sweep((O)); \
-    } \
-} while (0)
+
+#define NODE_GC_HEADER     MOZ_RC_HEADER
+#define NODE_GC_INIT(O)    MOZ_RC_INIT(O)
+#define NODE_GC_RETAIN(O)  MOZ_RC_RETAIN(O)
+#define NODE_GC_RELEASE(O) MOZ_RC_RELEASE(O, Node_sweep)
 
 #if 0
 #define NODE_GC_WRITE(DST, SRC) do {\

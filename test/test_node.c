@@ -19,7 +19,7 @@ int main(int argc, char const* argv[])
     Node_print(root, tags);
 #endif
 #ifdef MOZVM_MEMORY_USE_RCGC
-    assert(root->refc == 1);
+    assert(root->MOZ_RC_FIELD == 1);
 #endif
     NODE_GC_RELEASE(root);
     NodeManager_dispose();

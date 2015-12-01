@@ -63,13 +63,13 @@ typedef struct name {
 } name_t;
 
 typedef struct decl {
-    MOZ_RC_HEADER;
+    long refc;
     name_t name;
     struct expr *body;
 } decl_t;
 
 typedef struct expr {
-    MOZ_RC_HEADER;
+    long refc;
     expr_type_t type;
 } expr_t;
 
