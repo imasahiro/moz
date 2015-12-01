@@ -642,6 +642,7 @@ static void compile_production(moz_compiler_t *C, Node *node, decl_t *decl)
 static const char *ast_name[] = {
 #define DEFINE_NAME(NAME, DUMP, OPT) #NAME,
     FOR_EACH_BASE_AST(DEFINE_NAME)
+    FOR_EACH_EXTRA_AST(DEFINE_NAME)
 #undef DFINE_NAME
 };
 
@@ -742,6 +743,7 @@ static void moz_expr_dump(int level, expr_t *e)
     f_dump dump[] = {
 #define F_DUMP_DECL(NAME, DUMP, OPT) moz_##DUMP##_dump,
         FOR_EACH_BASE_AST(F_DUMP_DECL)
+        FOR_EACH_EXTRA_AST(F_DUMP_DECL)
 #undef  F_DUMP_DECL
     };
     dump[e->type](level, e);
@@ -760,31 +762,31 @@ static void moz_ast_dump(moz_compiler_t *C)
 }
 
 /* optimize */
-static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e);
+static void moz_expr_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e);
 
-static void moz_Expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Expr_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     /* do nothing */
 }
 
-static void moz_NameUnary_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_NameUnary_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     NameUnary_t *expr = (NameUnary_t *) e;
-    moz_expr_optimize(e, &expr->expr, expr->expr);
+    moz_expr_optimize(C, e, &expr->expr, expr->expr);
 }
 
-static void moz_Unary_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Unary_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Unary_t *expr = (Unary_t *) e;
-    moz_expr_optimize(e, &expr->expr, expr->expr);
+    moz_expr_optimize(C, e, &expr->expr, expr->expr);
 }
 
-static void _moz_List_optimize(expr_t *e)
+static void _moz_List_optimize(moz_compiler_t *C, expr_t *e)
 {
     List_t *expr = (List_t *) e;
     expr_t **x, **end;
     FOR_EACH_ARRAY(expr->list, x, end) {
-        moz_expr_optimize(e, x, *x);
+        moz_expr_optimize(C, e, x, *x);
     }
 }
 
@@ -797,7 +799,7 @@ static void moz_ast_do_inline(expr_t **ref, Invoke_t *expr)
     decl->body->refc++;
 }
 
-static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Invoke_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Invoke_t *expr = (Invoke_t *)e;
     if (expr->decl != NULL) {
@@ -823,19 +825,19 @@ static void moz_Invoke_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     }
 }
 
-static void moz_Not_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Not_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Unary_t *expr = (Unary_t *) e;
-    moz_expr_optimize(e, &expr->expr, expr->expr);
+    moz_expr_optimize(C, e, &expr->expr, expr->expr);
 }
 
-static void moz_Option_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Option_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Unary_t *expr = (Unary_t *) e;
-    moz_expr_optimize(e, &expr->expr, expr->expr);
+    moz_expr_optimize(C, e, &expr->expr, expr->expr);
 }
 
-static bool canByteMapOptimize(Choice_t *e)
+static bool applyByteMapOptimization(Choice_t *e)
 {
     expr_t **x, **end;
     FOR_EACH_ARRAY(e->list, x, end) {
@@ -866,19 +868,19 @@ static void put_set(bitset_t *set, Set_t *e)
     bitset_or(set, &e->set);
 }
 
-static void moz_Choice_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Choice_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Choice_t *expr = (Choice_t *) e;
     bitset_t bitset;
     expr_t **x, **end;
-    _moz_List_optimize(e);
+    _moz_List_optimize(C, e);
 
     if (ARRAY_size(expr->list) == 1) {
         *ref = ARRAY_get(expr_ptr_t, &expr->list, 0);
         ARRAY_dispose(expr_ptr_t, &expr->list);
         return;
     }
-    if (canByteMapOptimize(expr)) {
+    if (applyByteMapOptimization(expr)) {
         Set_t *set = EXPR_ALLOC(Set);
         bitset_init(&set->set);
         FOR_EACH_ARRAY(expr->list, x, end) {
@@ -922,8 +924,8 @@ static void moz_Sequence_do_flatten(Sequence_t *e, int offset, Sequence_t *seq)
      *    seq  = [X, Y, Z]
      */
     expr_t **x, **end;
-    ARRAY_remove(expr_ptr_t, &e->list, offset);
     int i = 0;
+    ARRAY_remove(expr_ptr_t, &e->list, offset);
     FOR_EACH_ARRAY(seq->list, x, end) {
         ARRAY_insert(expr_ptr_t, &e->list, offset + i++, *x);
     }
@@ -943,7 +945,7 @@ static expr_t *moz_Sequence_concatString(Str_t *s1, Str_t *s2)
     return (expr_t *)s3;
 }
 
-static void _moz_Sequence_optimize(Sequence_t *e)
+static void _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
 {
     int i = 0;
     for (i = 0; i < (int)ARRAY_size(e->list); i++) {
@@ -978,20 +980,38 @@ static void _moz_Sequence_optimize(Sequence_t *e)
                 break;
             }
         }
+        /*
+         * e = [A, Not(Byte('4'), Any, C]
+         * -> e = [A, Set[^4], C]
+         */
+        if (child->type == Not && i + 1 < (int)ARRAY_size(e->list)) {
+            Not_t *not = (Not_t *)(child);
+            expr_t *child2 = ARRAY_get(expr_ptr_t, &e->list, i + 1);
+            if (not->expr->type == Byte && child2->type == Any) {
+                Byte_t *byte = (Byte_t *)not->expr;
+                Set_t *set = EXPR_ALLOC(Set);
+                bitset_init(&set->set);
+                bitset_set(&set->set, byte->byte);
+                bitset_flip(&set->set);
+                ARRAY_set(expr_ptr_t, &e->list, i, (expr_t *)set);
+                ARRAY_remove(expr_ptr_t, &e->list, i + 1);
+
+            }
+        }
     }
 }
 
-static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Sequence_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Sequence_t *expr = (Sequence_t *) e;
     int i;
 
     expr_t **x, **end;
     FOR_EACH_ARRAY(expr->list, x, end) {
-        moz_expr_optimize(e, x, *x);
+        moz_expr_optimize(C, e, x, *x);
     }
 
-    _moz_Sequence_optimize(expr);
+    _moz_Sequence_optimize(C, expr);
 
     for (i = ARRAY_size(expr->list) - 1; i >= 0; i--) {
         expr_t *child = ARRAY_get(expr_ptr_t, &expr->list, i);
@@ -1006,33 +1026,34 @@ static void moz_Sequence_optimize(expr_t *parent, expr_t **ref, expr_t *e)
     }
 }
 
-static void moz_Repetition_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Repetition_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Repetition_t *expr = (Repetition_t *) e;
     expr_t **x, **end;
     FOR_EACH_ARRAY(expr->list, x, end) {
-        moz_expr_optimize(e, x, *x);
+        moz_expr_optimize(C, e, x, *x);
     }
 }
 
-static void moz_Repetition1_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+static void moz_Repetition1_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Repetition1_t *expr = (Repetition1_t *) e;
     expr_t **x, **end;
     FOR_EACH_ARRAY(expr->list, x, end) {
-        moz_expr_optimize(e, x, *x);
+        moz_expr_optimize(C, e, x, *x);
     }
 }
 
-typedef void (*f_optimize)(expr_t *parent, expr_t **ref, expr_t *e);
-static void moz_expr_optimize(expr_t *parent, expr_t **ref, expr_t *e)
+typedef void (*f_optimize)(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e);
+static void moz_expr_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     f_optimize optimize[] = {
 #define F_OPTIMIZE_DECL(NAME, DUMP, OPT) moz_##OPT##_optimize,
         FOR_EACH_BASE_AST(F_OPTIMIZE_DECL)
+        FOR_EACH_EXTRA_AST(F_OPTIMIZE_DECL)
 #undef  F_OPTIMIZE_DECL
     };
-    optimize[e->type](parent, ref, e);
+    optimize[e->type](C, parent, ref, e);
 }
 
 static void moz_ast_optimize(moz_compiler_t *C)
@@ -1040,12 +1061,12 @@ static void moz_ast_optimize(moz_compiler_t *C)
     decl_t **decl, **end;
     FOR_EACH_ARRAY(C->decls, decl, end) {
         if ((*decl)->refc > 0) {
-            moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+            moz_expr_optimize(C, NULL, &(*decl)->body, (*decl)->body);
         }
     }
     FOR_EACH_ARRAY(C->decls, decl, end) {
         if ((*decl)->refc > 0) {
-            moz_expr_optimize(NULL, &(*decl)->body, (*decl)->body);
+            moz_expr_optimize(C, NULL, &(*decl)->body, (*decl)->body);
         }
     }
 }

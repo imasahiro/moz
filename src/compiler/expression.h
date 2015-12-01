@@ -1,5 +1,6 @@
 #include "core/karray.h"
 #include "core/bitset.h"
+#include "core/reference_count.h"
 
 #ifndef MOZ_COMPILER_EXPRESSION_H
 #define MOZ_COMPILER_EXPRESSION_H
@@ -7,41 +8,51 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #define FOR_EACH_BASE_AST(OP) \
-  OP(Empty, Expr, Expr) \
-  OP(Invoke, Name, Invoke) \
-  OP(Any, Expr, Expr) \
-  OP(Byte, Byte, Expr) \
-  OP(Str, Str, Expr) \
-  OP(Set, Set, Expr) \
-  OP(And, Unary, Unary) \
-  OP(Choice, List, Choice) \
-  OP(Fail, Expr, Expr) \
-  OP(Not, Unary, Not) \
-  OP(Option, Unary, Option) \
-  OP(Sequence, List, Sequence) \
-  OP(Repetition, List, Repetition) \
-  OP(Repetition1, List, Repetition1) \
-  OP(Tcapture, Expr, Expr) \
-  OP(Tdetree, Expr, Expr) \
-  OP(Tlfold, Expr, Expr) \
-  OP(Tlink, NameUnary, NameUnary) \
-  OP(Tnew, Unary, Unary) \
-  OP(Treplace, Expr, Expr) \
-  OP(Ttag, Name, Expr) \
-  OP(Xblock, Unary, Unary) \
-  OP(Xexists, Name, Expr) \
-  OP(Xif, Expr, Expr) \
-  OP(Xis, Name, Expr) \
-  OP(Xisa, Name, Expr) \
-  OP(Xon, Expr, Expr) \
-  OP(Xmatch, Expr, Expr) \
-  OP(Xlocal, NameUnary,  NameUnary) \
-  OP(Xsymbol, NameUnary, NameUnary)
+    OP(Empty, Expr, Expr) \
+    OP(Invoke, Name, Invoke) \
+    OP(Any, Expr, Expr) \
+    OP(Byte, Byte, Expr) \
+    OP(Str, Str, Expr) \
+    OP(Set, Set, Expr) \
+    OP(And, Unary, Unary) \
+    OP(Choice, List, Choice) \
+    OP(Fail, Expr, Expr) \
+    OP(Not, Unary, Not) \
+    OP(Option, Unary, Option) \
+    OP(Sequence, List, Sequence) \
+    OP(Repetition, List, Repetition) \
+    OP(Repetition1, List, Repetition1) \
+    OP(Tcapture, Expr, Expr) \
+    OP(Tdetree, Expr, Expr) \
+    OP(Tlfold, Expr, Expr) \
+    OP(Tlink, NameUnary, NameUnary) \
+    OP(Tnew, Unary, Unary) \
+    OP(Treplace, Expr, Expr) \
+    OP(Ttag, Name, Expr) \
+    OP(Xblock, Unary, Unary) \
+    OP(Xexists, Name, Expr) \
+    OP(Xif, Expr, Expr) \
+    OP(Xis, Name, Expr) \
+    OP(Xisa, Name, Expr) \
+    OP(Xon, Expr, Expr) \
+    OP(Xmatch, Expr, Expr) \
+    OP(Xlocal, NameUnary,  NameUnary) \
+    OP(Xsymbol, NameUnary, NameUnary)
+
+#define FOR_EACH_EXTRA_AST(OP) \
+    OP(Pattern, Unary, Unary) \
+    OP(RByte, Byte, Expr) \
+    OP(RStr, Str, Expr) \
+    OP(RSet, Set, Expr) \
+    OP(RUByte, Byte, Expr) \
+    OP(RUSet, Set, Expr)
 
 typedef enum expr_type {
 #define DEFINE_ENUM(NAME, DUMP, OPT) NAME,
     FOR_EACH_BASE_AST(DEFINE_ENUM)
+    FOR_EACH_EXTRA_AST(DEFINE_ENUM)
 #undef DEFINE_ENUM
     MAX_TYPE
 } expr_type_t;
@@ -52,13 +63,13 @@ typedef struct name {
 } name_t;
 
 typedef struct decl {
-    long refc;
+    MOZ_RC_HEADER;
     name_t name;
     struct expr *body;
 } decl_t;
 
 typedef struct expr {
-    long refc;
+    MOZ_RC_HEADER;
     expr_type_t type;
 } expr_t;
 
@@ -122,6 +133,25 @@ typedef struct Set_t {
     expr_t base;
     bitset_t set;
 } Set_t;
+
+typedef struct RByte_t {
+    expr_t base;
+    uint8_t byte;
+} RByte_t;
+
+typedef struct RStr_t {
+    expr_t base;
+    ARRAY(uint8_t) list;
+} RStr_t;
+
+typedef struct RSet_t {
+    expr_t base;
+    bitset_t set;
+} RSet_t;
+
+typedef struct Pattern_t {
+    expr_t base;
+} Pattern_t;
 
 typedef struct And_t {
     expr_t base;
