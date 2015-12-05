@@ -1,8 +1,10 @@
+#include "mozvm.h"
 #include "compiler.h"
 #include "expression.h"
 #include "core/pstring.h"
 #include <assert.h>
 #define MOZC_USE_AST_INLINING 1
+#include "ir.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1093,8 +1095,183 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
     }
 }
 
-static void moz_ir_compile(moz_compiler_t *C)
+typedef struct moz_state_t {
+    void *p;
+} moz_state_t;
+
+typedef void (*f_to_ir)(moz_compiler_t *C, moz_state_t *S, expr_t *e);
+static void moz_expr_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e);
+
+static void moz_Empty_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
 {
+    assert(0 && "TODO");
+}
+
+static void moz_Invoke_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Any_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Byte_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Str_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Set_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    moz_expr_dump(0, e);
+    assert(0 && "TODO");
+}
+
+static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Repetition1_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Tcapture_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Tdetree_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Tlfold_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Ttag_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xblock_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xexists_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xif_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xis_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xisa_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xon_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xmatch_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xlocal_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_Xsymbol_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    assert(0 && "TODO");
+}
+
+static void moz_expr_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
+{
+    f_to_ir translate[] = {
+#define F_IR_DECL(NAME, DUMP, OPT) moz_##NAME##_to_ir,
+        FOR_EACH_BASE_AST(F_IR_DECL)
+#undef  F_IR_DECL
+    };
+    translate[e->type](C, S, e);
+}
+
+static void moz_ast_to_ir(moz_compiler_t *C)
+{
+    decl_t **decl, **end;
+    moz_state_t state = {};
+    FOR_EACH_ARRAY(C->decls, decl, end) {
+        if ((*decl)->refc > 0) {
+            moz_expr_to_ir(C, &state, (*decl)->body);
+        }
+    }
 }
 
 static void moz_ir_optimize(moz_compiler_t *C)
@@ -1128,7 +1305,7 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
     }
     moz_ast_optimize(&C);
     moz_ast_dump(&C);
-    moz_ir_compile(&C);
+    moz_ast_to_ir(&C);
     moz_ir_optimize(&C);
     moz_bytecode_emit(&C, output_file);
 }

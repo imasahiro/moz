@@ -151,6 +151,9 @@ typedef struct RSet_t {
 
 typedef struct Pattern_t {
     expr_t base;
+    expr_t *expr;
+    ARRAY(expr_ptr_t) exits;
+    ARRAY(expr_ptr_t) states;
 } Pattern_t;
 
 typedef struct And_t {
