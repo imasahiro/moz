@@ -55,6 +55,11 @@ typedef struct pstring_t {
     char str[1];
 } pstring_t;
 
+static inline pstring_t *pstring_get_raw(const char *s)
+{
+    return CONTAINER_OF(s, pstring_t, str);
+}
+
 static inline const char *pstring_alloc(const char *t, unsigned len)
 {
     pstring_t *str = (pstring_t *) VM_MALLOC(sizeof(pstring_t) + len + 1);
@@ -73,20 +78,20 @@ static inline const char *pstring_alloc2(unsigned len)
 
 static inline void pstring_delete(const char *s)
 {
-    pstring_t *str = CONTAINER_OF(s, pstring_t, str);
+    pstring_t *str = pstring_get_raw(s);
     VM_FREE(str);
 }
 
 static inline unsigned pstring_length(const char *s)
 {
-    pstring_t *str = CONTAINER_OF(s, pstring_t, str);
+    pstring_t *str = pstring_get_raw(s);
     return str->len;
 }
 
 static inline int pstring_equal(const char *p1, const char *p2)
 {
-    pstring_t *s1 = CONTAINER_OF(p1, pstring_t, str);
-    pstring_t *s2 = CONTAINER_OF(p2, pstring_t, str);
+    pstring_t *s1 = pstring_get_raw(p1);
+    pstring_t *s2 = pstring_get_raw(p2);
     if (s1->len != s2->len) {
         return 0;
     }

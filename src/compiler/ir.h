@@ -1,162 +1,228 @@
 #ifndef MOZIR_H
 #define MOZIR_H
 
-#define VMIR_BASE unsigned id
+#define FOR_EACH_IR(OP) \
+    OP(ILabel) \
+    OP(IExit) \
+    OP(IJump) \
+    OP(ITableJump) \
+    OP(IInvoke) \
+    OP(IRet) \
+    OP(IAny) \
+    OP(INAny) \
+    OP(IByte) \
+    OP(IStr) \
+    OP(ISet) \
+    OP(IUByte) \
+    OP(IUSet) \
+    OP(IRByte) \
+    OP(IRStr) \
+    OP(IRSet) \
+    OP(IRUByte) \
+    OP(IRUSet) \
+    OP(ILookup) \
+    OP(IMemo) \
+    OP(IMemoFail) \
+    OP(ITStart) \
+    OP(ITCommit) \
+    OP(ITAbort) \
+    OP(ITPush) \
+    OP(ITPop) \
+    OP(ITFoldL) \
+    OP(ITNew) \
+    OP(ITCapture) \
+    OP(ITTag) \
+    OP(ITReplace) \
+    OP(ITLookup) \
+    OP(ITMemo) \
+    OP(ISOpen) \
+    OP(ISClose) \
+    OP(ISMask) \
+    OP(ISDef) \
+    OP(ISIsDef) \
+    OP(ISExists) \
+    OP(ISMatch) \
+    OP(ISIs) \
+    OP(ISIsa)
 
-struct ILabel {
+typedef enum ir_type {
+#define DEFINE_ENUM(NAME) NAME,
+    FOR_EACH_IR(DEFINE_ENUM)
+#undef DEFINE_ENUM
+    MAX_IR
+} ir_type_t;
+
+#define VMIR_BASE IR_t base
+
+typedef struct IR {
+    unsigned id;
+    struct IR *next;
+} IR_t;
+
+static inline void _IR_next(IR_t *ir1, IR_t *ir2)
+{
+    ir1->next = ir2;
+}
+
+#define IR_next(IR1, IR2) _IR_next((IR_t *)IR1, (IR_t *)IR2)
+
+typedef struct ILabel {
     VMIR_BASE;
 } ILabel_t;
 
-struct IExit {
+typedef struct IExit {
     VMIR_BASE;
     uint8_t exitStatus;
 } IExit_t;
 
-struct IJump {
+typedef struct IJump {
     VMIR_BASE;
     mozaddr_t jumpAddr;
 } IJump_t;
 
-struct ITableJump {
+typedef struct ITableJump {
     VMIR_BASE;
     uint16_t tblId;
 } ITableJump_t;
 
-struct IInvoke {
+typedef struct IInvoke {
     VMIR_BASE;
-    mozaddr_t productAddr;
+    union val {
+        decl_t *decl;
+        mozaddr_t addr;
+    } v;
 } IInvoke_t;
 
-struct IRet {
+typedef struct IRet {
     VMIR_BASE;
 } IRet_t;
 
-struct IAny {
+typedef struct IAny {
     VMIR_BASE;
 } IAny_t;
 
-struct INAny {
+typedef struct INAny {
     VMIR_BASE;
 } INAny_t;
 
-struct IByte {
+typedef struct IByte {
     VMIR_BASE;
     uint8_t byte;
 } IByte_t;
 
-struct IStr {
+typedef struct IStr {
     VMIR_BASE;
     STRING_t strId;
 } IStr_t;
 
-struct ISet {
+typedef struct ISet {
     VMIR_BASE;
     BITSET_t setId;
 } ISet_t;
 
-struct IUByte {
+typedef struct IUByte {
     VMIR_BASE;
     unsigned byte;
 } IUByte_t;
 
-struct IUSet {
+typedef struct IUSet {
     VMIR_BASE;
     BITSET_t setId;
 } IUSet_t;
 
-struct IRByte {
+typedef struct IRByte {
     VMIR_BASE;
     uint8_t byte;
 } IRByte_t;
 
-struct IRStr {
+typedef struct IRStr {
     VMIR_BASE;
     STRING_t strId;
 } IRStr_t;
 
-struct IRSet {
+typedef struct IRSet {
     VMIR_BASE;
     BITSET_t setId;
 } IRSet_t;
 
-struct IRUByte {
+typedef struct IRUByte {
     VMIR_BASE;
     unsigned byte;
 } IRUByte_t;
 
-struct IRUSet {
+typedef struct IRUSet {
     VMIR_BASE;
     BITSET_t setId;
 } IRUSet_t;
 
-struct ILookup {
+typedef struct ILookup {
     VMIR_BASE;
     uint8_t state;
     uint16_t memoId;
     mozaddr_t skip;
 } ILookup_t;
 
-struct IMemo {
+typedef struct IMemo {
     VMIR_BASE;
     uint8_t state;
     uint16_t memoId;
 } IMemo_t;
 
-struct IMemoFail {
+typedef struct IMemoFail {
     VMIR_BASE;
     uint8_t state;
     uint16_t memoId;
 } IMemoFail_t;
 
-struct ITStart {
+typedef struct ITStart {
     VMIR_BASE;
 } ITStart_t;
 
-struct ITCommit {
+typedef struct ITCommit {
     VMIR_BASE;
     TAG_t tagId;
 } ITCommit_t;
 
-struct ITAbort {
+typedef struct ITAbort {
     VMIR_BASE;
 } ITAbort_t;
 
-struct ITPush {
+typedef struct ITPush {
     VMIR_BASE;
 } ITPush_t;
 
-struct ITPop {
+typedef struct ITPop {
     VMIR_BASE;
     TAG_t tagId;
 } ITPop_t;
 
-struct ITFoldL {
+typedef struct ITFoldL {
     VMIR_BASE;
     int8_t shift;
     TAG_t tagId;
 } ITFoldL_t;
 
-struct ITNew {
+typedef struct ITNew {
     VMIR_BASE;
     int8_t shift;
 } ITNew_t;
 
-struct ITCapture {
+typedef struct ITCapture {
     VMIR_BASE;
     int8_t shift;
 } ITCapture_t;
 
-struct ITTag {
+typedef struct ITTag {
     VMIR_BASE;
     TAG_t tagId;
 } ITTag_t;
 
-struct ITReplace {
+typedef struct ITReplace {
     VMIR_BASE;
     STRING_t strId;
 } ITReplace_t;
 
-struct ITLookup {
+typedef struct ITLookup {
     VMIR_BASE;
     uint8_t state;
     TAG_t tagId;
@@ -164,52 +230,52 @@ struct ITLookup {
     mozaddr_t skip;
 } ITLookup_t;
 
-struct ITMemo {
+typedef struct ITMemo {
     VMIR_BASE;
     uint8_t state;
     uint16_t memoId;
 } ITMemo_t;
 
-struct ISOpen {
+typedef struct ISOpen {
     VMIR_BASE;
 } ISOpen_t;
 
-struct ISClose {
+typedef struct ISClose {
     VMIR_BASE;
 } ISClose_t;
 
-struct ISMask {
+typedef struct ISMask {
     VMIR_BASE;
     TAG_t tagId;
 } ISMask_t;
 
-struct ISDef {
+typedef struct ISDef {
     VMIR_BASE;
     TAG_t tagId;
 } ISDef_t;
 
-struct ISIsDef {
+typedef struct ISIsDef {
     VMIR_BASE;
     TAG_t tagId;
     STRING_t strId;
 } ISIsDef_t;
 
-struct ISExists {
+typedef struct ISExists {
     VMIR_BASE;
     TAG_t tagId;
 } ISExists_t;
 
-struct ISMatch {
+typedef struct ISMatch {
     VMIR_BASE;
     TAG_t tagId;
 } ISMatch_t;
 
-struct ISIs {
+typedef struct ISIs {
     VMIR_BASE;
     TAG_t tagId;
 } ISIs_t;
 
-struct ISIsa {
+typedef struct ISIsa {
     VMIR_BASE;
     TAG_t tagId;
 } ISIsa_t;
