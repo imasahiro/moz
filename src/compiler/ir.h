@@ -77,7 +77,10 @@ typedef struct IExit {
 
 typedef struct IJump {
     VMIR_BASE;
-    mozaddr_t jumpAddr;
+    union target {
+        mozaddr_t jumpAddr;
+        ILabel_t *label;
+    } v;
 } IJump_t;
 
 typedef struct ITableJump {

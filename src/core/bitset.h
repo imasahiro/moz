@@ -90,6 +90,16 @@ static inline void bitset_flip(bitset_t *set)
     }
 }
 
+static inline void bitset_copy(bitset_t *set1, bitset_t *set2)
+{
+    memcpy(set1, set2, sizeof(*set1));
+}
+
+static inline bool bitset_equal(bitset_t *set1, bitset_t *set2)
+{
+    return memcmp(set1, set2, sizeof(*set1)) == 0;
+}
+
 #if 0
 #include <stdio.h>
 int main(int argc, char const* argv[])

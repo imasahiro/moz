@@ -19,17 +19,22 @@ DEF_ARRAY_STRUCT0(pstring_ptr_t, unsigned);
 DEF_ARRAY_T(pstring_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(pstring_ptr_t);
 
+DEF_ARRAY_STRUCT0(bitset_t, unsigned);
+DEF_ARRAY_T(bitset_t);
+DEF_ARRAY_OP(bitset_t);
+
 typedef struct compiler {
     moz_runtime_t *R;
     ARRAY(decl_ptr_t) decls;
     ARRAY(pstring_ptr_t) strs;
+    ARRAY(bitset_t) sets;
 } moz_compiler_t;
 
 static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
 {
     pstring_t **x;
     unsigned i = 0;
-    unsigned maxStrSize = ARRAY_size(C->strs);
+    unsigned max = ARRAY_size(C->strs);
     char *s = (char *)ARRAY_BEGIN(*str);
     FOR_EACH_ARRAY_(C->strs, x, i) {
         if ((*x)->len == ARRAY_size(*str)) {
@@ -40,13 +45,24 @@ static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
     }
     const char *newStr = pstring_alloc(s, ARRAY_size(*str));
     ARRAY_add(pstring_ptr_t, &C->strs, pstring_get_raw(newStr));
-    return maxStrSize;
+    return max;
 }
 
 static BITSET_t moz_compiler_get_set(moz_compiler_t *C, bitset_t *set)
 {
-    asm volatile("int3");
-    return 0;
+    bitset_t tmp;
+    bitset_t *x;
+    unsigned i = 0;
+    unsigned max = ARRAY_size(C->sets);
+    FOR_EACH_ARRAY_(C->sets, x, i) {
+        if (bitset_equal(set, x)) {
+            return i;
+        }
+    }
+    bitset_copy(&tmp, set);
+    ARRAY_add(bitset_t, &C->sets, &tmp);
+    return max;
+
 }
 
 static TAG_t moz_compiler_get_tag(moz_compiler_t *C, name_t *name)
@@ -1144,14 +1160,18 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
 }
 
 typedef struct moz_state_t {
-    ILabel_t *next;
     ILabel_t *fail;
-    ILabel_t *cont;
+    // ILabel_t *cont;
 } moz_state_t;
 
 typedef void (*f_to_ir)(moz_compiler_t *C, moz_state_t *S, expr_t *e);
 
 static void moz_expr_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e);
+
+#define TODO(E) do { \
+    moz_expr_dump(0, (expr_t *)(E)); \
+    assert(0 && "TODO"); \
+} while (0)
 
 static void moz_Empty_to_ir(moz_compiler_t *C, moz_state_t *S, Empty_t *e)
 {
@@ -1188,36 +1208,50 @@ static void moz_Set_to_ir(moz_compiler_t *C, moz_state_t *S, Set_t *e)
     ir->setId = moz_compiler_get_set(C, &e->set);
 }
 
-static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, And_t *e)
-{
-    assert(0 && "TODO");
-}
-
 static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, Fail_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
+}
+
+static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, And_t *e)
+{
+    TODO(e);
 }
 
 static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
 {
-    assert(0 && "TODO");
+    /**
+     * Not(E1)
+     * parent_state(FAIL)
+     * L_head:
+     *  E1, next, fail
+     * L_next:
+     *  goto FAIL
+     *
+     * L_fail:
+     *  goto NEXT;
+     */
+    moz_state_t state = {};
+    // state.next = IR_ALLOC(ILabel);
+    // state.fail = S->fail;
+    moz_expr_to_ir(C, &state, e->expr);
 }
 
 static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
 {
     /**
      * Sequence(E1, E2, E3)
-     * parent_state = (NEXT, FAIL, CONT)
+     * parent_state = (NEXT, FAIL)
      * L_head:
      *  E1, next1, FAIL
      * L_next1:
@@ -1225,24 +1259,41 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
      * L_next2:
      *  E3, next3, FAIL
      * L_next3:
-     * L_fail:
+     *  goto NEXT;
+     * PARENT_FAIL:
      */
     moz_state_t state = {};
-    state.next = IR_ALLOC(ILabel);
-    state.fail = IR_ALLOC(ILabel);
-    state.cont = state.next;
-    moz_expr_dump(0, (expr_t *)e);
-    assert(0 && "TODO");
+    expr_t **x, **end;
+    state.fail = S->fail;
+    FOR_EACH_ARRAY(e->list, x, end) {
+        moz_expr_to_ir(C, &state, *x);
+    }
 }
 
 static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t *e)
 {
+    /**
+     * Repetition(E1, E2, E3)
+     * L_head
+     *  E1, next1, L_fail
+     * L_next1
+     *  E2, next2, L_fail
+     * L_next2
+     *  E3, next3, L_fail
+     * L_next3
+     *  goto L_head
+     * L_fail
+     */
+
     moz_state_t state = {};
     expr_t **x, **end;
+    IJump_t *jump = IR_ALLOC(IJump);
+    ILabel_t *head = IR_ALLOC(ILabel);
     FOR_EACH_ARRAY(e->list, x, end) {
         moz_expr_to_ir(C, &state, *x);
     }
-    assert(0 && "TODO");
+    jump->v.label = head;
+    (void)jump;
 }
 
 static void moz_Repetition1_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition1_t *e)
@@ -1256,32 +1307,32 @@ static void moz_Repetition1_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition1
 
 static void moz_Tcapture_to_ir(moz_compiler_t *C, moz_state_t *S, Tcapture_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Tdetree_to_ir(moz_compiler_t *C, moz_state_t *S, Tdetree_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Tlfold_to_ir(moz_compiler_t *C, moz_state_t *S, Tlfold_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, Treplace_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Ttag_to_ir(moz_compiler_t *C, moz_state_t *S, Ttag_t *e)
@@ -1292,47 +1343,47 @@ static void moz_Ttag_to_ir(moz_compiler_t *C, moz_state_t *S, Ttag_t *e)
 
 static void moz_Xblock_to_ir(moz_compiler_t *C, moz_state_t *S, Xblock_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xexists_to_ir(moz_compiler_t *C, moz_state_t *S, Xexists_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xif_to_ir(moz_compiler_t *C, moz_state_t *S, Xif_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xis_to_ir(moz_compiler_t *C, moz_state_t *S, Xis_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xisa_to_ir(moz_compiler_t *C, moz_state_t *S, Xisa_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xon_to_ir(moz_compiler_t *C, moz_state_t *S, Xon_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xmatch_to_ir(moz_compiler_t *C, moz_state_t *S, Xmatch_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xlocal_to_ir(moz_compiler_t *C, moz_state_t *S, Xlocal_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_Xsymbol_to_ir(moz_compiler_t *C, moz_state_t *S, Xsymbol_t *e)
 {
-    assert(0 && "TODO");
+    TODO(e);
 }
 
 static void moz_expr_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
@@ -1357,10 +1408,8 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
      * L_fail: L
      */
     ILabel_t *head = IR_ALLOC(ILabel);
-    state.next = IR_ALLOC(ILabel);
     state.fail = IR_ALLOC(ILabel);
-    state.cont = state.next;
-    IR_next(head, state.next);
+    // IR_next(head, state.next);
     moz_expr_to_ir(C, &state, decl->body);
 }
 
@@ -1389,6 +1438,7 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
     C.R = R;
     ARRAY_init(decl_ptr_t, &C.decls, decl_size);
     ARRAY_init(pstring_ptr_t, &C.strs, 1);
+    ARRAY_init(bitset_t, &C.sets, 1);
 
     moz_ast_prepare(&C, node);
     for (i = 0; i < decl_size; i++) {
