@@ -313,7 +313,6 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
     moz_state_copy(&state, S);
     for (i = 0; i < ARRAY_size(e->list); i++) {
         blocks[i] = moz_compiler_create_block(C);
-        fprintf(stderr, "choice %u BB%d\n", i, block_id(blocks[i]));
     }
     blocks[i] = S->fail;
     next = moz_compiler_create_block(C);
@@ -326,6 +325,7 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
         moz_expr_to_ir(C, &state, *x);
         moz_compiler_link(C, &state, state.cur, state.next);
     }
+    moz_compiler_set_label(C, S, state.next);
 }
 
 static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, Fail_t *e)
@@ -506,6 +506,8 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
         moz_expr_to_ir(C, &state, *x);
         moz_compiler_link(C, &state, state.cur, blocks[i + 1]);
     }
+    moz_compiler_set_label(C, &state, fail);
+    moz_compiler_link(C, &state, state.cur, S->fail);
     moz_compiler_set_label(C, S, state.next);
 }
 
@@ -614,9 +616,6 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
     moz_state_init(C, S);
     moz_compiler_set_label(C, S, S->head);
     moz_expr_to_ir(C, S, decl->body);
-    if (S->cur != S->next) {
-        moz_compiler_link(C, S, S->cur, S->next);
-    }
     moz_compiler_set_label(C, S, S->next);
     moz_compiler_add(C, S, IR_ALLOC(IRet, S));
 
