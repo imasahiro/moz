@@ -39,11 +39,11 @@ static int block_id(block_t *bb)
     return bb->id;
 }
 
-// static unsigned block_size(block_t *bb)
-// {
-//     return ARRAY_size(bb->insts);
-// }
-//
+static unsigned block_size(block_t *bb)
+{
+    return ARRAY_size(bb->insts);
+}
+
 // static void block_delete(block_t *bb)
 // {
 //     ARRAY_dispose(IR_ptr_t, &bb->insts);
@@ -97,19 +97,19 @@ static void block_append(block_t *bb, IR_t *inst)
 // {
 //     ARRAY_remove_element(IR_ptr_t, &bb->insts, inst);
 // }
-//
-// static IR_t *block_get(block_t *bb, int i)
-// {
-//     return ARRAY_get(IR_ptr_t, &bb->insts, i);
-// }
-//
-// static IR_t *block_get_last(block_t *bb)
-// {
-//     unsigned size = block_size(bb);
-//     if (size == 0) {
-//         return NULL;
-//     }
-//     return block_get(bb, size - 1);
-// }
+
+static IR_t *block_get(block_t *bb, int i)
+{
+    return ARRAY_get(IR_ptr_t, &bb->insts, i);
+}
+
+static IR_t *block_get_last(block_t *bb)
+{
+    unsigned size = block_size(bb);
+    if (size == 0) {
+        return NULL;
+    }
+    return block_get(bb, size - 1);
+}
 
 #endif /* end of include guard */

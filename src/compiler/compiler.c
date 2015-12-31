@@ -222,12 +222,14 @@ static void moz_compiler_set_fail(moz_compiler_t *C, block_t *BB, block_t *failB
 
 static void moz_compiler_add(moz_compiler_t *C, moz_state_t *S, IR_t *ir)
 {
+    IR_t *last = block_get_last(S->cur);
+    assert(last == NULL || last->type != IJump);
     block_append(S->cur, ir);
 }
 
 static void moz_compiler_link(moz_compiler_t *C, moz_state_t *S, block_t *BB1, block_t *BB2)
 {
-    assert(BB1 == BB2); // In most case, this is bug.
+    assert(BB1 != BB2); // In most case, this is bug.
     IJump_t *ir = IR_ALLOC_T(IJump);
     ir->v.target = BB2;
     moz_compiler_add(C, S, (IR_t *)ir);
@@ -302,6 +304,7 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
     moz_state_copy(&state, S);
     for (i = 0; i < ARRAY_size(e->list); i++) {
         blocks[i] = moz_compiler_create_block(C);
+        fprintf(stderr, "choice %u BB%d\n", i, block_id(blocks[i]));
     }
     blocks[i] = S->fail;
 
@@ -309,11 +312,11 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
     FOR_EACH_ARRAY_(e->list, x, i) {
         state.next = S->next;
         moz_compiler_set_fail(C, blocks[i], blocks[i + 1]);
-        moz_compiler_link(C, &state, state.cur, blocks[i]);
         moz_compiler_set_label(C, &state, blocks[i]);
         moz_expr_to_ir(C, &state, *x);
+        moz_compiler_link(C, &state, state.cur, S->next);
     }
-    moz_compiler_set_label(C, &state, S->next);
+    moz_compiler_set_label(C, &state, S->cur);
 }
 
 static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, Fail_t *e)
@@ -622,9 +625,6 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
     moz_compiler_set_label(C, S, S->head);
     moz_compiler_set_fail(C, S->head, S->fail);
     moz_expr_to_ir(C, S, decl->body);
-    if (S->cur != S->next) {
-        moz_compiler_link(C, S, S->cur, S->next);
-    }
 
     moz_compiler_set_label(C, S, S->next);
     moz_compiler_add(C, S, IR_ALLOC(IRet));
@@ -649,19 +649,26 @@ static void moz_ir_optimize(moz_compiler_t *C)
 
 static void moz_block_dump(block_t *BB)
 {
-    block_t **I, **E;
+    block_t **I;
     IR_t **x, **e;
+    unsigned i;
     fprintf(stderr, "BB%d", block_id(BB));
 
     fprintf(stderr, " pred=[");
-    FOR_EACH_ARRAY(BB->preds, I, E) {
-        fprintf(stderr, "BB%d ", block_id(*I));
+    FOR_EACH_ARRAY_(BB->preds, I, i) {
+        if (i > 0) {
+            fprintf(stderr, ", ");
+        }
+        fprintf(stderr, "BB%d", block_id(*I));
     }
     fprintf(stderr, "]");
 
     fprintf(stderr, " succ=[");
-    FOR_EACH_ARRAY(BB->succs, I, E) {
-        fprintf(stderr, "BB%d ", block_id(*I));
+    FOR_EACH_ARRAY_(BB->succs, I, i) {
+        if (i > 0) {
+            fprintf(stderr, " ,");
+        }
+        fprintf(stderr, "BB%d", block_id(*I));
     }
     fprintf(stderr, "]");
     if (BB->fail) {
