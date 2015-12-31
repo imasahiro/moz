@@ -94,6 +94,18 @@ static inline void ARRAY_##T##_remove(ARRAY(T) *a, int idx) {\
     a->size -= 1;\
 }\
 __attribute__((unused))\
+static inline void ARRAY_##T##_remove2(ARRAY(T) *a, ValueType o) {\
+    assert(a->size > 0); \
+    int i; \
+    for (i = 0; i < (int)a->size; i++) { \
+        ValueType v = ARRAY_##T##_get(a, i); \
+        if (v == o) { \
+            ARRAY_##T##_remove(a, i); \
+            break; \
+        } \
+    } \
+}\
+__attribute__((unused))\
 static inline void ARRAY_##T##_insert(ARRAY(T) *a, int idx, ValueType v) {\
     assert((int)a->size >= idx && idx >= 0); \
     if ((int)a->size == idx) { \
@@ -134,6 +146,7 @@ DEF_ARRAY_OP__(T, T)
 #define ARRAY_add(T, a, v)       ARRAY_##T##_add(a, v)
 #define ARRAY_insert(T, a, n, v) ARRAY_##T##_insert(a, n, v)
 #define ARRAY_remove(T, a, n)    ARRAY_##T##_remove(a, n)
+#define ARRAY_remove_element(T, a, o) ARRAY_##T##_remove2(a, o)
 #define ARRAY_dispose(T, a)      ARRAY_##T##_dispose(a)
 #define ARRAY_init(T, a, s)      ARRAY_init_##T (a, s)
 #define ARRAY_pop(T, a)          ARRAY_get(T, (a), (--(a)->size))

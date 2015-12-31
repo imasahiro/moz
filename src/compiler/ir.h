@@ -8,6 +8,9 @@
     OP(ITableJump) \
     OP(IInvoke) \
     OP(IRet) \
+    OP(IFail) \
+    OP(IPLoad) \
+    OP(IPStore) \
     OP(IAny) \
     OP(INAny) \
     OP(IByte) \
@@ -56,7 +59,10 @@ typedef enum ir_type {
 
 typedef struct IR {
     unsigned id;
+    ir_type_t type;
+    struct block_t *parent;
     struct IR *next;
+    struct IR *fail;
 } IR_t;
 
 static inline void _IR_next(IR_t *ir1, IR_t *ir2)
@@ -79,7 +85,7 @@ typedef struct IJump {
     VMIR_BASE;
     union target {
         mozaddr_t jumpAddr;
-        ILabel_t *label;
+        struct block_t *target;
     } v;
 } IJump_t;
 
@@ -96,9 +102,21 @@ typedef struct IInvoke {
     } v;
 } IInvoke_t;
 
+typedef struct IPLoad {
+    VMIR_BASE;
+} IPLoad_t;
+
+typedef struct IPStore {
+    VMIR_BASE;
+} IPStore_t;
+
 typedef struct IRet {
     VMIR_BASE;
 } IRet_t;
+
+typedef struct IFail {
+    VMIR_BASE;
+} IFail_t;
 
 typedef struct IAny {
     VMIR_BASE;
