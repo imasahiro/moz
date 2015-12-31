@@ -173,30 +173,38 @@ static const char *IR_TYPE_NAME[] = {
 #undef DEFINE_IR_NAME
 };
 
-static IR_t *_IR_ALLOC(size_t size, ir_type_t type)
+static IR_t *_IR_ALLOC(size_t size, ir_type_t type, moz_state_t *S)
 {
     IR_t *ir = (IR_t *)VM_CALLOC(1, size);
     ir->id = _MAX_IR_ID++;
     ir->type = type;
-    ir->next = NULL;
+    ir->fail = S->fail;
+    if (type != IJump) {
+        block_link(S->cur, S->fail);
+    }
     return ir;
 }
 
-#define IR_ALLOC(T)   _IR_ALLOC(sizeof(T##_t), T)
-#define IR_ALLOC_T(T) ((T##_t *) IR_ALLOC(T))
+#define IR_ALLOC(T, S)   _IR_ALLOC(sizeof(T##_t), T, S)
+#define IR_ALLOC_T(T, S) ((T##_t *) IR_ALLOC(T, S))
 
-static block_t *moz_compiler_create_block(moz_compiler_t *C)
+static block_t *moz_compiler_create_named_block(moz_compiler_t *C, const char *name)
 {
-    block_t *BB = block_new();
+    block_t *BB = block_new(name);
     ARRAY_add(block_ptr_t, &C->blocks, BB);
     return BB;
 }
 
+static block_t *moz_compiler_create_block(moz_compiler_t *C)
+{
+    return moz_compiler_create_named_block(C, NULL);
+}
+
 static void moz_state_init(moz_compiler_t *C, moz_state_t *S)
 {
-    S->head = moz_compiler_create_block(C);
-    S->next = moz_compiler_create_block(C);
-    S->fail = moz_compiler_create_block(C);
+    S->head = moz_compiler_create_named_block(C, "head");
+    S->next = moz_compiler_create_named_block(C, "exit");
+    S->fail = moz_compiler_create_named_block(C, "fail");
     S->cur = S->head;
 }
 
@@ -213,12 +221,12 @@ static void moz_compiler_set_label(moz_compiler_t *C, moz_state_t *S, block_t *B
     S->cur = BB;
 }
 
-static void moz_compiler_set_fail(moz_compiler_t *C, block_t *BB, block_t *failBB)
-{
-    assert(BB->fail == NULL);
-    block_link(BB, failBB);
-    BB->fail = failBB;
-}
+// static void moz_compiler_set_fail(moz_compiler_t *C, block_t *BB, block_t *failBB)
+// {
+//     assert(BB->fail == NULL);
+//     block_link(BB, failBB);
+//     BB->fail = failBB;
+// }
 
 static void moz_compiler_add(moz_compiler_t *C, moz_state_t *S, IR_t *ir)
 {
@@ -230,7 +238,7 @@ static void moz_compiler_add(moz_compiler_t *C, moz_state_t *S, IR_t *ir)
 static void moz_compiler_link(moz_compiler_t *C, moz_state_t *S, block_t *BB1, block_t *BB2)
 {
     assert(BB1 != BB2); // In most case, this is bug.
-    IJump_t *ir = IR_ALLOC_T(IJump);
+    IJump_t *ir = IR_ALLOC_T(IJump, S);
     ir->v.target = BB2;
     moz_compiler_add(C, S, (IR_t *)ir);
     block_link(BB1, BB2);
@@ -253,34 +261,34 @@ static void moz_Empty_to_ir(moz_compiler_t *C, moz_state_t *S, Empty_t *e)
 
 static void moz_Invoke_to_ir(moz_compiler_t *C, moz_state_t *S, Invoke_t *e)
 {
-    IInvoke_t *ir = IR_ALLOC_T(IInvoke);
+    IInvoke_t *ir = IR_ALLOC_T(IInvoke, S);
     ir->v.decl = e->decl;
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Any_to_ir(moz_compiler_t *C, moz_state_t *S, Any_t *e)
 {
-    IAny_t *ir = IR_ALLOC_T(IAny);
+    IAny_t *ir = IR_ALLOC_T(IAny, S);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Byte_to_ir(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
 {
-    IByte_t *ir = IR_ALLOC_T(IByte);
+    IByte_t *ir = IR_ALLOC_T(IByte, S);
     ir->byte = e->byte;
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Str_to_ir(moz_compiler_t *C, moz_state_t *S, Str_t *e)
 {
-    IStr_t *ir = IR_ALLOC_T(IStr);
+    IStr_t *ir = IR_ALLOC_T(IStr, S);
     ir->strId = moz_compiler_get_string(C, &e->list);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Set_to_ir(moz_compiler_t *C, moz_state_t *S, Set_t *e)
 {
-    ISet_t *ir = IR_ALLOC_T(ISet);
+    ISet_t *ir = IR_ALLOC_T(ISet, S);
     ir->setId = moz_compiler_get_set(C, &e->set);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
@@ -313,7 +321,7 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
     moz_compiler_link(C, &state, state.cur, blocks[0]);
     FOR_EACH_ARRAY_(e->list, x, i) {
         state.next = next;
-        moz_compiler_set_fail(C, blocks[i], blocks[i + 1]);
+        state.fail = blocks[i + 1];
         moz_compiler_set_label(C, &state, blocks[i]);
         moz_expr_to_ir(C, &state, *x);
         moz_compiler_link(C, &state, state.cur, state.next);
@@ -322,7 +330,7 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
 
 static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, Fail_t *e)
 {
-    IJump_t *ir = IR_ALLOC_T(IJump);
+    IJump_t *ir = IR_ALLOC_T(IJump, S);
     ir->v.target = S->fail;
     moz_compiler_add(C, S, (IR_t *)ir);
 }
@@ -342,35 +350,36 @@ static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, And_t *e)
      */
     moz_state_t state;
     moz_state_copy(&state, S);
-    state.next = moz_compiler_create_block(C);
-    state.fail = moz_compiler_create_block(C);
+    block_t *head = moz_compiler_create_block(C);
+    block_t *next = moz_compiler_create_block(C);
+    block_t *fail = moz_compiler_create_block(C);
 
-    moz_compiler_add(C, &state, IR_ALLOC(IPStore));
+    moz_compiler_link(C, &state, state.cur, head);
+    state.next = next;
+    state.fail = fail;
+    moz_compiler_set_label(C, &state, head);
+
+    moz_compiler_add(C, &state, IR_ALLOC(IPStore, &state));
     moz_expr_to_ir(C, &state, e->expr);
+    moz_compiler_link(C, &state, state.cur, state.next);
 
     moz_compiler_set_label(C, &state, state.next);
-    moz_compiler_add(C, &state, IR_ALLOC(IPLoad));
-    {
-        IJump_t *ir = IR_ALLOC_T(IJump);
-        ir->v.target = S->next;
-        moz_compiler_add(C, &state, (IR_t *)ir);
-    }
-    block_link(state.next, S->next);
+    state.fail = S->fail;
+    moz_compiler_add(C, &state, IR_ALLOC(IPLoad, &state));
+    state.fail = fail;
 
-    moz_compiler_set_label(C, S, state.fail);
-    {
-        IJump_t *ir = IR_ALLOC_T(IJump);
-        ir->v.target = S->fail;
-        moz_compiler_add(C, &state, (IR_t *)ir);
-    }
-    block_link(state.fail, S->fail);
-    TODO(e);
+    moz_compiler_set_label(C, &state, state.fail);
+    moz_compiler_link(C, &state, state.fail, S->fail);
+
+    moz_compiler_set_label(C, S, state.next);
 }
 
 static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
 {
     /**
      * Not(E1)
+     * L_current:
+     *  goto head;
      * L_head:
      *  PStore
      *  E1, next, fail
@@ -382,29 +391,30 @@ static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
      */
     moz_state_t state;
     moz_state_copy(&state, S);
-    state.next = moz_compiler_create_block(C);
-    state.fail = moz_compiler_create_block(C);
+    block_t *head = moz_compiler_create_block(C);
+    block_t *next = moz_compiler_create_block(C);
+    block_t *fail = moz_compiler_create_block(C);
 
-    moz_compiler_add(C, &state, IR_ALLOC(IPStore));
+    moz_compiler_link(C, &state, state.cur, head);
+    state.next = fail;
+    state.fail = next;
+    moz_compiler_set_label(C, &state, head);
+
+    moz_compiler_add(C, &state, IR_ALLOC(IPStore, &state));
     moz_expr_to_ir(C, &state, e->expr);
+    moz_compiler_link(C, &state, state.cur, state.next);
 
     moz_compiler_set_label(C, &state, state.next);
-    {
-        IJump_t *ir = IR_ALLOC_T(IJump);
-        ir->v.target = S->fail;
-        moz_compiler_add(C, &state, (IR_t *)ir);
-    }
-    block_link(state.next, S->fail);
+    moz_compiler_link(C, &state, state.next, S->fail);
 
-    moz_compiler_set_label(C, S, state.fail);
-    moz_compiler_add(C, &state, IR_ALLOC(IPLoad));
+    moz_compiler_set_label(C, &state, state.fail);
     {
-        IJump_t *ir = IR_ALLOC_T(IJump);
-        ir->v.target = S->next;
-        moz_compiler_add(C, &state, (IR_t *)ir);
+        block_t *cur_fail = state.fail;
+        state.fail = S->fail;
+        moz_compiler_add(C, &state, IR_ALLOC(IPLoad, &state));
+        state.fail = cur_fail;
     }
-    block_link(state.fail, S->next);
-    TODO(e);
+    moz_compiler_set_label(C, S, state.fail);
 }
 
 static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
@@ -455,7 +465,6 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
     FOR_EACH_ARRAY_(e->list, x, i) {
         moz_compiler_link(C, &state, state.cur, blocks[i]);
         moz_compiler_set_label(C, &state, blocks[i]);
-        moz_compiler_set_fail(C, blocks[i], state.fail);
         moz_expr_to_ir(C, &state, *x);
     }
     moz_compiler_link(C, &state, state.cur, state.next);
@@ -478,23 +487,25 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
      */
 
     unsigned i;
-    block_t *blocks[ARRAY_size(e->list) + 1];
+    block_t *blocks[ARRAY_size(e->list) + 1 + 1];
     moz_state_t state = {};
     expr_t **x;
-    block_t *head = S->cur;
+    block_t *fail;
 
     moz_state_copy(&state, S);
     for (i = 0; i < ARRAY_size(e->list); i++) {
         blocks[i] = moz_compiler_create_block(C);
     }
-    state.next = moz_compiler_create_block(C);
+    blocks[i] = S->cur;
+    fail = moz_compiler_create_block(C);
+    moz_compiler_link(C, &state, state.cur, blocks[0]);
+
     FOR_EACH_ARRAY_(e->list, x, i) {
-        moz_compiler_link(C, &state, state.cur, blocks[i]);
         moz_compiler_set_label(C, &state, blocks[i]);
-        moz_compiler_set_fail(C, blocks[i], state.next);
+        state.fail = fail;
         moz_expr_to_ir(C, &state, *x);
+        moz_compiler_link(C, &state, state.cur, blocks[i + 1]);
     }
-    moz_compiler_link(C, &state, state.cur, head);
     moz_compiler_set_label(C, S, state.next);
 }
 
@@ -530,7 +541,7 @@ static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, Treplace_t *e)
 
 static void moz_Ttag_to_ir(moz_compiler_t *C, moz_state_t *S, Ttag_t *e)
 {
-    ITTag_t *ir = IR_ALLOC_T(ITTag);
+    ITTag_t *ir = IR_ALLOC_T(ITTag, S);
     ir->tagId = moz_compiler_get_tag(C, &e->name);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
@@ -602,16 +613,15 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
     moz_state_t state, *S = &state;
     moz_state_init(C, S);
     moz_compiler_set_label(C, S, S->head);
-    moz_compiler_set_fail(C, S->head, S->fail);
     moz_expr_to_ir(C, S, decl->body);
     if (S->cur != S->next) {
         moz_compiler_link(C, S, S->cur, S->next);
     }
     moz_compiler_set_label(C, S, S->next);
-    moz_compiler_add(C, S, IR_ALLOC(IRet));
+    moz_compiler_add(C, S, IR_ALLOC(IRet, S));
 
     moz_compiler_set_label(C, S, S->fail);
-    moz_compiler_add(C, S, IR_ALLOC(IFail));
+    moz_compiler_add(C, S, IR_ALLOC(IFail, S));
 }
 
 static void moz_ast_to_ir(moz_compiler_t *C)
@@ -634,6 +644,9 @@ static void moz_block_dump(block_t *BB)
     IR_t **x, **e;
     unsigned i;
     fprintf(stderr, "BB%d", block_id(BB));
+    if (BB->name != NULL) {
+        fprintf(stderr, "(%s)", BB->name);
+    }
 
     fprintf(stderr, " pred=[");
     FOR_EACH_ARRAY_(BB->preds, I, i) {
@@ -652,20 +665,66 @@ static void moz_block_dump(block_t *BB)
         fprintf(stderr, "BB%d", block_id(*I));
     }
     fprintf(stderr, "]");
-    if (BB->fail) {
-        fprintf(stderr, " fail=BB%d", block_id(BB->fail));
-    }
 
     fprintf(stderr, "\n");
     FOR_EACH_ARRAY(BB->insts, x, e) {
         IR_t *ir = *x;
-        if (ir->type == IJump) {
-            IJump_t *jump = (IJump_t *)ir;
+        switch (ir->type) {
+        case IJump:
             fprintf(stderr, "  %03d %s BB%d\n", ir->id, IR_TYPE_NAME[ir->type],
-                    block_id(jump->v.target));
-        }
-        else {
+                    block_id(((IJump_t *)ir)->v.target));
+            break;
+        case ILabel:
+        case IExit:
+        case ITableJump:
+        case IRet:
             fprintf(stderr, "  %03d %s\n", ir->id, IR_TYPE_NAME[ir->type]);
+            break;
+        case IPLoad:
+        case IPStore:
+        case IFail:
+        case IInvoke:
+        case IAny:
+        case INAny:
+        case IByte:
+        case IStr:
+        case ISet:
+        case IUByte:
+        case IUSet:
+        case IRByte:
+        case IRStr:
+        case IRSet:
+        case IRUByte:
+        case IRUSet:
+        case ILookup:
+        case IMemo:
+        case IMemoFail:
+        case ITStart:
+        case ITCommit:
+        case ITAbort:
+        case ITPush:
+        case ITPop:
+        case ITFoldL:
+        case ITNew:
+        case ITCapture:
+        case ITTag:
+        case ITReplace:
+        case ITLookup:
+        case ITMemo:
+        case ISOpen:
+        case ISClose:
+        case ISMask:
+        case ISDef:
+        case ISIsDef:
+        case ISExists:
+        case ISMatch:
+        case ISIs:
+        case ISIsa:
+            fprintf(stderr, "  %03d %s fail=BB%d\n", ir->id,
+                    IR_TYPE_NAME[ir->type], block_id(ir->fail));
+            break;
+        default:
+            assert(0 && "unreachable");
         }
     }
 }

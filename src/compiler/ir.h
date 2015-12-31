@@ -61,16 +61,8 @@ typedef struct IR {
     unsigned id;
     ir_type_t type;
     struct block_t *parent;
-    struct IR *next;
-    struct IR *fail;
+    struct block_t *fail;
 } IR_t;
-
-static inline void _IR_next(IR_t *ir1, IR_t *ir2)
-{
-    ir1->next = ir2;
-}
-
-#define IR_next(IR1, IR2) _IR_next((IR_t *)IR1, (IR_t *)IR2)
 
 typedef struct ILabel {
     VMIR_BASE;

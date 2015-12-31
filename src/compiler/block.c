@@ -16,21 +16,21 @@ DEF_ARRAY_OP_NOPOINTER(block_ptr_t);
 
 struct block_t {
     unsigned id;
+    const char *name;
     ARRAY(IR_ptr_t) insts;
     ARRAY(block_ptr_t) preds;
     ARRAY(block_ptr_t) succs;
-    struct block_t *fail;
 };
 
 static unsigned max_block_id = 0;
-static block_t *block_new()
+static block_t *block_new(const char *name)
 {
     block_t *bb = (block_t *)VM_CALLOC(1, sizeof(*bb));
     bb->id = max_block_id++;
+    bb->name = name;
     ARRAY_init(IR_ptr_t, &bb->insts, 0);
     ARRAY_init(block_ptr_t, &bb->preds, 0);
     ARRAY_init(block_ptr_t, &bb->succs, 0);
-    bb->fail = NULL;
     return bb;
 }
 
