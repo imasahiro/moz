@@ -647,7 +647,7 @@ static void moz_block_dump(block_t *BB)
     fprintf(stderr, " succ=[");
     FOR_EACH_ARRAY_(BB->succs, I, i) {
         if (i > 0) {
-            fprintf(stderr, " ,");
+            fprintf(stderr, ", ");
         }
         fprintf(stderr, "BB%d", block_id(*I));
     }

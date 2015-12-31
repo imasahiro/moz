@@ -849,6 +849,15 @@ static expr_t *moz_Sequence_concatString(Str_t *s1, Str_t *s2)
     return (expr_t *)s3;
 }
 
+static expr_t *moz_Sequence_concatByte(Byte_t *b1, Byte_t *b2)
+{
+    Str_t *s3 = EXPR_ALLOC(Str);
+    ARRAY_init(uint8_t, &s3->list, 2);
+    ARRAY_add(uint8_t, &s3->list, b1->byte);
+    ARRAY_add(uint8_t, &s3->list, b2->byte);
+    return (expr_t *)s3;
+}
+
 static void _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
 {
     int i = 0;
@@ -861,8 +870,23 @@ static void _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
         }
 
         /*
+         * e = [A, 'X', 'Y'B]
+         * -> e = [A, "XY", B]
+         */
+        if (child->type == Byte && i + 1 < (int)ARRAY_size(e->list)) {
+            Byte_t *b1 = (Byte_t *) child;
+            expr_t *child2 = ARRAY_get(expr_ptr_t, &e->list, i + 1);
+            if (child2->type == Byte) {
+                Byte_t *b2 = (Byte_t *) child2;
+                child = moz_Sequence_concatByte(b1, b2);
+                ARRAY_set(expr_ptr_t, &e->list, i, child);
+                ARRAY_remove(expr_ptr_t, &e->list, i + 1);
+            }
+        }
+
+        /*
          * e = [A, "hello", ' ', "world", B]
-         * -> e = [A, "hello ", Str3, B]
+         * -> e = [A, "hello ", "world", B]
          * -> e = [A, "hello world", B]
          */
         while (child->type == Str && i + 1 < (int)ARRAY_size(e->list)) {
@@ -871,6 +895,7 @@ static void _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
             if (child2->type == Byte) {
                 Byte_t *byte = (Byte_t *) child2;
                 ARRAY_add(uint8_t, &s1->list, byte->byte);
+                ARRAY_remove(expr_ptr_t, &e->list, i + 1);
             }
             else if (child2->type == Str) {
                 Str_t *s2 = (Str_t *) child2;
