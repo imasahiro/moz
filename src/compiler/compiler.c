@@ -298,6 +298,7 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
      */
     unsigned i;
     block_t *blocks[ARRAY_size(e->list) + 1 + 1];
+    block_t *next;
     moz_state_t state = {};
     expr_t **x;
 
@@ -307,16 +308,16 @@ static void moz_Choice_to_ir(moz_compiler_t *C, moz_state_t *S, Choice_t *e)
         fprintf(stderr, "choice %u BB%d\n", i, block_id(blocks[i]));
     }
     blocks[i] = S->fail;
+    next = moz_compiler_create_block(C);
 
     moz_compiler_link(C, &state, state.cur, blocks[0]);
     FOR_EACH_ARRAY_(e->list, x, i) {
-        state.next = S->next;
+        state.next = next;
         moz_compiler_set_fail(C, blocks[i], blocks[i + 1]);
         moz_compiler_set_label(C, &state, blocks[i]);
         moz_expr_to_ir(C, &state, *x);
-        moz_compiler_link(C, &state, state.cur, S->next);
+        moz_compiler_link(C, &state, state.cur, state.next);
     }
-    moz_compiler_set_label(C, &state, S->cur);
 }
 
 static void moz_Fail_to_ir(moz_compiler_t *C, moz_state_t *S, Fail_t *e)
@@ -363,8 +364,7 @@ static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, And_t *e)
         moz_compiler_add(C, &state, (IR_t *)ir);
     }
     block_link(state.fail, S->fail);
-
-    moz_compiler_set_label(C, S, state.cur);
+    TODO(e);
 }
 
 static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
@@ -404,8 +404,7 @@ static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
         moz_compiler_add(C, &state, (IR_t *)ir);
     }
     block_link(state.fail, S->next);
-
-    moz_compiler_set_label(C, S, state.cur);
+    TODO(e);
 }
 
 static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
@@ -422,7 +421,8 @@ static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
     moz_state_copy(&state, S);
     state.next = state.fail = moz_compiler_create_block(C);
     moz_expr_to_ir(C, &state, e->expr);
-    moz_compiler_set_label(C, S, state.next);
+    moz_compiler_set_label(C, S, state.fail);
+    moz_compiler_link(C, &state, state.fail, state.next);
 }
 
 static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
@@ -442,11 +442,13 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
      */
 
     unsigned i;
-    block_t *blocks[ARRAY_size(e->list) + 1];
     expr_t **x;
     moz_state_t state = {};
+    block_t *blocks[ARRAY_size(e->list) + 1];
 
     moz_state_copy(&state, S);
+    state.next = moz_compiler_create_block(C);
+
     for (i = 0; i < ARRAY_size(e->list); i++) {
         blocks[i] = moz_compiler_create_block(C);
     }
@@ -456,9 +458,8 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
         moz_compiler_set_fail(C, blocks[i], state.fail);
         moz_expr_to_ir(C, &state, *x);
     }
-    moz_compiler_link(C, &state, state.cur, S->next);
-    moz_compiler_set_label(C, S, S->next);
-
+    moz_compiler_link(C, &state, state.cur, state.next);
+    moz_compiler_set_label(C, S, state.next);
 }
 
 static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t *e)
@@ -486,6 +487,7 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
     for (i = 0; i < ARRAY_size(e->list); i++) {
         blocks[i] = moz_compiler_create_block(C);
     }
+    state.next = moz_compiler_create_block(C);
     FOR_EACH_ARRAY_(e->list, x, i) {
         moz_compiler_link(C, &state, state.cur, blocks[i]);
         moz_compiler_set_label(C, &state, blocks[i]);
@@ -493,30 +495,7 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
         moz_expr_to_ir(C, &state, *x);
     }
     moz_compiler_link(C, &state, state.cur, head);
-    moz_compiler_set_label(C, S, S->next);
-}
-
-static void moz_Repetition1_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition1_t *e)
-{
-    unsigned i;
-    block_t *blocks[ARRAY_size(e->list) + 1];
-    moz_state_t state = {};
-    expr_t **x;
-    block_t *head = S->cur;
-
-    moz_state_copy(&state, S);
-    for (i = 0; i < ARRAY_size(e->list); i++) {
-        blocks[i] = moz_compiler_create_block(C);
-    }
-    FOR_EACH_ARRAY_(e->list, x, i) {
-        moz_compiler_link(C, &state, state.cur, blocks[i]);
-        moz_compiler_set_label(C, &state, blocks[i]);
-        moz_compiler_set_fail(C, blocks[i], state.next);
-        moz_expr_to_ir(C, &state, *x);
-    }
-    moz_compiler_link(C, &state, state.cur, head);
-    moz_compiler_set_label(C, S, S->next);
-    TODO(e);
+    moz_compiler_set_label(C, S, state.next);
 }
 
 static void moz_Tcapture_to_ir(moz_compiler_t *C, moz_state_t *S, Tcapture_t *e)
@@ -625,7 +604,9 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
     moz_compiler_set_label(C, S, S->head);
     moz_compiler_set_fail(C, S->head, S->fail);
     moz_expr_to_ir(C, S, decl->body);
-
+    if (S->cur != S->next) {
+        moz_compiler_link(C, S, S->cur, S->next);
+    }
     moz_compiler_set_label(C, S, S->next);
     moz_compiler_add(C, S, IR_ALLOC(IRet));
 

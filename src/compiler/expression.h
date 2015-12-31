@@ -23,7 +23,6 @@ extern "C" {
     OP(Option, Unary, Option) \
     OP(Sequence, List, Sequence) \
     OP(Repetition, List, Repetition) \
-    OP(Repetition1, List, Repetition1) \
     OP(Tcapture, Expr, Expr) \
     OP(Tdetree, Expr, Expr) \
     OP(Tlfold, Expr, Expr) \
@@ -193,11 +192,6 @@ typedef struct Repetition_t {
     expr_t base;
     ARRAY(expr_ptr_t) list;
 } Repetition_t;
-
-typedef struct Repetition1_t {
-    expr_t base;
-    ARRAY(expr_ptr_t) list;
-} Repetition1_t;
 
 typedef struct Tcapture_t {
     expr_t base;

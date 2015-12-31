@@ -23,7 +23,6 @@ static bool isPatternMatchOnly(expr_t *e)
     case Choice:
     case Sequence:
     case Repetition:
-    case Repetition1:
         FOR_EACH_ARRAY(((List_t *)e)->list, x, end) {
             if (!isPatternMatchOnly(*x)) {
                 return false;
@@ -313,9 +312,13 @@ static expr_t *compile_Repetition(moz_compiler_t *C, Node *node)
 }
 static expr_t *compile_Repetition1(moz_compiler_t *C, Node *node)
 {
-    Repetition1_t *e = EXPR_ALLOC(Repetition1);
-    assert(Node_length(node) == 1);
-    _compile_List(C, node, &e->list);
+    Sequence_t *e = EXPR_ALLOC(Sequence);
+    Repetition_t *rep = (Repetition_t *)compile_Repetition(C, node);
+    expr_t **x, **end;
+    FOR_EACH_ARRAY(rep->list, x, end) {
+        ARRAY_add(expr_ptr_t, &e->list, *x);
+    }
+    ARRAY_add(expr_ptr_t, &e->list, (expr_t *)rep);
     return (expr_t *)e;
 }
 static expr_t *compile_Tcapture(moz_compiler_t *C, Node *node)
@@ -930,15 +933,6 @@ static void moz_Sequence_optimize(moz_compiler_t *C, expr_t *parent, expr_t **re
 static void moz_Repetition_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
 {
     Repetition_t *expr = (Repetition_t *) e;
-    expr_t **x, **end;
-    FOR_EACH_ARRAY(expr->list, x, end) {
-        moz_expr_optimize(C, e, x, *x);
-    }
-}
-
-static void moz_Repetition1_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, expr_t *e)
-{
-    Repetition1_t *expr = (Repetition1_t *) e;
     expr_t **x, **end;
     FOR_EACH_ARRAY(expr->list, x, end) {
         moz_expr_optimize(C, e, x, *x);
