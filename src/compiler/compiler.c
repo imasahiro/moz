@@ -432,7 +432,6 @@ static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
     state.next = state.fail = moz_compiler_create_block(C);
     moz_expr_to_ir(C, &state, e->expr);
     moz_compiler_set_label(C, S, state.fail);
-    moz_compiler_link(C, &state, state.fail, state.next);
 }
 
 static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
@@ -533,7 +532,8 @@ static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
 {
-    TODO(e);
+    ITnew_t *ir = IR_ALLOC_T(ITnew, S);
+    moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, Treplace_t *e)
