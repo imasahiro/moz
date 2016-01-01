@@ -218,6 +218,7 @@ static void moz_state_copy(moz_state_t *dst, moz_state_t *src)
 
 static void moz_compiler_set_label(moz_compiler_t *C, moz_state_t *S, block_t *BB)
 {
+    fprintf(stderr, "set label BB%d -> BB%d\n", block_id(S->cur), block_id(BB));
     S->cur = BB;
 }
 
@@ -497,23 +498,23 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
         blocks[i] = moz_compiler_create_block(C);
     }
     blocks[i] = S->cur;
-    fail = moz_compiler_create_block(C);
+    fail = state.fail = moz_compiler_create_block(C);
     moz_compiler_link(C, &state, state.cur, blocks[0]);
 
     FOR_EACH_ARRAY_(e->list, x, i) {
         moz_compiler_set_label(C, &state, blocks[i]);
+        state.next = blocks[i + 1];
         state.fail = fail;
         moz_expr_to_ir(C, &state, *x);
         moz_compiler_link(C, &state, state.cur, blocks[i + 1]);
     }
-    moz_compiler_set_label(C, &state, fail);
-    moz_compiler_link(C, &state, state.cur, S->fail);
-    moz_compiler_set_label(C, S, state.next);
+    moz_compiler_set_label(C, S, fail);
 }
 
 static void moz_Tcapture_to_ir(moz_compiler_t *C, moz_state_t *S, Tcapture_t *e)
 {
-    TODO(e);
+    ITCapture_t *ir = IR_ALLOC_T(ITCapture, S);
+    moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Tdetree_to_ir(moz_compiler_t *C, moz_state_t *S, Tdetree_t *e)
@@ -533,8 +534,15 @@ static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
 {
+    /**
+     * Tnew(E1)
+     * L_head
+     *  Tnew
+     *  E1
+     */
     ITNew_t *ir = IR_ALLOC_T(ITNew, S);
     moz_compiler_add(C, S, (IR_t *)ir);
+    moz_expr_to_ir(C, S, e->expr);
 }
 
 static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, Treplace_t *e)
@@ -617,6 +625,8 @@ static void moz_decl_to_ir(moz_compiler_t *C, decl_t *decl)
     moz_state_init(C, S);
     moz_compiler_set_label(C, S, S->head);
     moz_expr_to_ir(C, S, decl->body);
+
+    moz_compiler_link(C, S, S->cur, S->next);
     moz_compiler_set_label(C, S, S->next);
     moz_compiler_add(C, S, IR_ALLOC(IRet, S));
 

@@ -360,7 +360,12 @@ static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
 static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
 {
     Tnew_t *e = EXPR_ALLOC(Tnew);
-    e->expr = compile_expression(C, Node_get(node, 0));
+    Sequence_t *seq = EXPR_ALLOC(Sequence);
+    Tcapture_t *cap = EXPR_ALLOC(Tcapture);
+    expr_t *body = compile_expression(C, Node_get(node, 0));
+    ARRAY_add(expr_ptr_t, &seq->list, body);
+    ARRAY_add(expr_ptr_t, &seq->list, (expr_t *)cap);
+    e->expr = (expr_t *)seq;
     e->expr->refc++;
     return (expr_t *)e;
 }
