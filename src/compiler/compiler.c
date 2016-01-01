@@ -6,6 +6,7 @@
 #define MOZC_USE_AST_INLINING 1
 #include "ir.h"
 #include "block.c"
+#include "worklist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -179,8 +180,8 @@ static IR_t *_IR_ALLOC(size_t size, ir_type_t type, moz_state_t *S)
     ir->id = _MAX_IR_ID++;
     ir->type = type;
     ir->fail = S->fail;
-    if (type != IJump) {
-        block_link(S->cur, S->fail);
+    if (S->fail && S->fail->name == NULL) {
+        block_set_name(S->fail, "handler");
     }
     return ir;
 }
@@ -433,6 +434,7 @@ static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
     moz_state_copy(&state, S);
     state.next = state.fail = moz_compiler_create_block(C);
     moz_expr_to_ir(C, &state, e->expr);
+    moz_compiler_link(C, &state, state.cur, state.fail);
     moz_compiler_set_label(C, S, state.fail);
 }
 
@@ -644,8 +646,107 @@ static void moz_ast_to_ir(moz_compiler_t *C)
     }
 }
 
+typedef moz_compiler_t *moz_compiler_ptr_t;
+DEF_WORK_LIST_TYPES(block_ptr_t, moz_compiler_ptr_t);
+DEF_WORK_LIST_OP(block_ptr_t, moz_compiler_ptr_t);
+
+static IR_t *block_get_terminator(block_t *bb)
+{
+    IR_t *ir;
+    if ((ir = block_get_last(bb)) != NULL) {
+        switch (ir->type) {
+        case IExit:
+        case IJump:
+        case ITableJump:
+        case IRet:
+        case IFail:
+            return ir;
+        default:
+            break;
+        }
+    }
+    return NULL;
+}
+
+static void remove_from_parent(moz_compiler_t *C, IR_t *inst, int do_free)
+{
+    block_t *BB = inst->parent;
+    ARRAY_remove_element(IR_ptr_t, &BB->insts, inst);
+    if (do_free) {
+        memset(inst, 0, sizeof(*inst));
+        VM_FREE(inst);
+    }
+}
+
+static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *bb)
+{
+    moz_compiler_t *C = W->context;
+    IR_t *inst;
+    if (ARRAY_size(bb->insts) == 0) {
+        // Skip this block because this block seems already removed.
+        return 0;
+    }
+    if (bb->name) {
+        // Skip special block such as entry block, exit block, fail block.
+        return 0;
+    }
+    fprintf(stderr, "cfg BB%d\n", bb->id);
+
+    inst = block_get_terminator(bb);
+    if (ARRAY_size(bb->succs) == 1) {
+        block_t *succ = block_get_succ(bb, 0);
+        /* Remove indirect jump
+         * [Before]       |[After]
+         * BB0: INST1     | BB0: INST1
+         *      ...       |      ...
+         *      IJump BB1 |      IJump BB2
+         * BB2: IJump BB2 | BB2: INST2
+         * BB1: INST2     |      ...
+         *      ...       |
+         */
+        if (ARRAY_size(bb->insts) == 1 && inst->type == IJump) {
+            block_t **I, **E;
+            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, succ);
+            block_unlink(bb, succ);
+            remove_from_parent(C, inst, 1);
+            FOR_EACH_ARRAY(bb->preds, I, E) {
+                block_t *pred = *I;
+                if (bb != pred) {
+                    inst = block_get_terminator(pred);
+                    assert(inst && inst->type == IJump);
+                    ((IJump_t *)inst)->v.target = succ;
+                    block_unlink(pred, bb);
+                    block_link(pred, succ);
+                    ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
+                    WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
+                }
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+static void worklist_init(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, moz_compiler_t *C)
+{
+    block_t **I, **E;
+    FOR_EACH_ARRAY(C->blocks, I, E) {
+        WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, *I);
+    }
+}
+
 static void moz_ir_optimize(moz_compiler_t *C)
 {
+    int modified = 1;
+    block_t **I, **E;
+    FOR_EACH_ARRAY(C->blocks, I, E) {
+        assert(block_get_terminator(*I) != NULL);
+    }
+    while (modified) {
+        modified = 0;
+        modified += WORK_LIST_apply(block_ptr_t, moz_compiler_ptr_t, C, worklist_init, simplify_cfg);
+    }
 }
 
 static void moz_block_dump(block_t *BB)
@@ -742,9 +843,11 @@ static void moz_block_dump(block_t *BB)
 static void moz_ir_dump(moz_compiler_t *C)
 {
     block_t **I, **E;
+    fprintf(stderr, "=================\n");
     FOR_EACH_ARRAY(C->blocks, I, E) {
         moz_block_dump(*I);
     }
+    fprintf(stderr, "=================\n");
 }
 
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
@@ -774,6 +877,7 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
     moz_ast_optimize(&C);
     moz_ast_dump(&C);
     moz_ast_to_ir(&C);
+    // moz_ir_dump(&C);
     moz_ir_optimize(&C);
     moz_ir_dump(&C);
     ARRAY_dispose(block_ptr_t, &C.blocks);

@@ -23,11 +23,17 @@ struct block_t {
 };
 
 static unsigned max_block_id = 0;
+
+static void block_set_name(block_t *bb, const char *name)
+{
+    bb->name = name;
+}
+
 static block_t *block_new(const char *name)
 {
     block_t *bb = (block_t *)VM_CALLOC(1, sizeof(*bb));
     bb->id = max_block_id++;
-    bb->name = name;
+    block_set_name(bb, name);
     ARRAY_init(IR_ptr_t, &bb->insts, 0);
     ARRAY_init(block_ptr_t, &bb->preds, 0);
     ARRAY_init(block_ptr_t, &bb->succs, 0);
@@ -52,40 +58,27 @@ static unsigned block_size(block_t *bb)
 //     VM_FREE(bb);
 // }
 
-static inline void ARRAY_block_ptr_t_add_once(ARRAY(block_ptr_t) *a, block_ptr_t o)
-{
-    int i;
-    for (i = 0; i < (int)a->size; i++) {
-        block_ptr_t v = ARRAY_block_ptr_t_get(a, i);
-        if (v == o) {
-            return;
-        }
-    }
-    ARRAY_block_ptr_t_add(a, o);
-}
-#define ARRAY_add_once(T, a, v)    ARRAY_##T##_add_once(a, v)
-
 static void block_link(block_t *pred, block_t *succ)
 {
     ARRAY_add_once(block_ptr_t, &pred->succs, succ);
     ARRAY_add_once(block_ptr_t, &succ->preds, pred);
 }
 
-// static block_t *block_get_succ(block_t *bb, unsigned idx)
-// {
-//     return ARRAY_get(block_ptr_t, &bb->succs, idx);
-// }
-//
-// static block_t *block_get_pred(block_t *bb, unsigned idx)
-// {
-//     return ARRAY_get(block_ptr_t, &bb->preds, idx);
-// }
-//
-// static void block_unlink(block_t *bb, block_t *child)
-// {
-//     ARRAY_remove_element(block_ptr_t, &bb->succs, child);
-//     ARRAY_remove_element(block_ptr_t, &child->preds, bb);
-// }
+static block_t *block_get_succ(block_t *bb, unsigned idx)
+{
+    return ARRAY_get(block_ptr_t, &bb->succs, idx);
+}
+
+static block_t *block_get_pred(block_t *bb, unsigned idx)
+{
+    return ARRAY_get(block_ptr_t, &bb->preds, idx);
+}
+
+static void block_unlink(block_t *bb, block_t *child)
+{
+    ARRAY_remove_element(block_ptr_t, &bb->succs, child);
+    ARRAY_remove_element(block_ptr_t, &child->preds, bb);
+}
 
 static void block_append(block_t *bb, IR_t *inst)
 {
@@ -93,10 +86,10 @@ static void block_append(block_t *bb, IR_t *inst)
     inst->parent = bb;
 }
 
-// static void block_remove(block_t *bb, IR_t *inst)
-// {
-//     ARRAY_remove_element(IR_ptr_t, &bb->insts, inst);
-// }
+static void block_remove(block_t *bb, IR_t *inst)
+{
+    ARRAY_remove_element(IR_ptr_t, &bb->insts, inst);
+}
 
 static IR_t *block_get(block_t *bb, int i)
 {
