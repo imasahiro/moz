@@ -233,6 +233,7 @@ static void moz_compiler_add(moz_compiler_t *C, moz_state_t *S, IR_t *ir)
     IR_t *last = block_get_last(S->cur);
     assert(last == NULL || last->type != IJump);
     block_append(S->cur, ir);
+    (void)last;
 }
 
 static void moz_compiler_link(moz_compiler_t *C, moz_state_t *S, block_t *BB1, block_t *BB2)
@@ -532,7 +533,7 @@ static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
 {
-    ITnew_t *ir = IR_ALLOC_T(ITnew, S);
+    ITNew_t *ir = IR_ALLOC_T(ITNew, S);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
