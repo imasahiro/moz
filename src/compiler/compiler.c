@@ -667,7 +667,7 @@ static void moz_Xsymbol_to_ir(moz_compiler_t *C, moz_state_t *S, Xsymbol_t *e)
 static void moz_expr_to_ir(moz_compiler_t *C, moz_state_t *S, expr_t *e)
 {
     f_to_ir translate[] = {
-#define F_IR_DECL(NAME, DUMP, OPT) (f_to_ir) moz_##NAME##_to_ir,
+#define F_IR_DECL(NAME, DUMP, OPT, SWEEP) (f_to_ir) moz_##NAME##_to_ir,
         FOR_EACH_BASE_AST(F_IR_DECL)
 #undef  F_IR_DECL
     };
@@ -700,7 +700,7 @@ static void moz_ast_to_ir(moz_compiler_t *C)
 {
     decl_t **decl, **e;
     FOR_EACH_ARRAY(C->decls, decl, e) {
-        if ((*decl)->refc > 0) {
+        if (MOZ_RC_COUNT(*decl) > 0) {
             moz_decl_to_ir(C, *decl);
         }
     }

@@ -10,49 +10,41 @@ extern "C" {
 #endif
 
 #define FOR_EACH_BASE_AST(OP) \
-    OP(Empty, Expr, Expr) \
-    OP(Invoke, Name, Invoke) \
-    OP(Any, Expr, Expr) \
-    OP(Byte, Byte, Expr) \
-    OP(Str, Str, Expr) \
-    OP(Set, Set, Expr) \
-    OP(And, Unary, Unary) \
-    OP(Choice, List, Choice) \
-    OP(Fail, Expr, Expr) \
-    OP(Not, Unary, Not) \
-    OP(Option, Unary, Option) \
-    OP(Sequence, List, Sequence) \
-    OP(Repetition, List, Repetition) \
-    OP(Tcapture, Expr, Expr) \
-    OP(Tdetree, Expr, Expr) \
-    OP(Tlfold, Expr, Expr) \
-    OP(Tlink, NameUnary, NameUnary) \
-    OP(Tnew, Unary, Unary) \
-    OP(Treplace, Expr, Expr) \
-    OP(Ttag, Name, Expr) \
-    OP(Xblock, Unary, Unary) \
-    OP(Xexists, Name, Expr) \
-    OP(Xif, Expr, Expr) \
-    OP(Xis, Name, Expr) \
-    OP(Xisa, Name, Expr) \
-    OP(Xon, Expr, Expr) \
-    OP(Xmatch, Expr, Expr) \
-    OP(Xlocal, NameUnary,  NameUnary) \
-    OP(Xsymbol, NameUnary, NameUnary)
-
-#define FOR_EACH_EXTRA_AST(OP) \
-    OP(Pattern, Unary, Unary) \
-    OP(RByte, Byte, Expr) \
-    OP(RStr, Str, Expr) \
-    OP(RSet, Set, Expr) \
-    OP(RUByte, Byte, Expr) \
-    OP(RUSet, Set, Expr)
+    OP(Empty, Expr, Expr, Expr) \
+    OP(Invoke, Name, Invoke, Invoke) \
+    OP(Any, Expr, Expr, Expr) \
+    OP(Byte, Byte, Expr, Expr) \
+    OP(Str, Str, Expr, Expr) \
+    OP(Set, Set, Expr, Expr) \
+    OP(And, Unary, Unary, Unary) \
+    OP(Choice, List, Choice, List) \
+    OP(Fail, Expr, Expr, Expr) \
+    OP(Not, Unary, Not, Unary) \
+    OP(Option, Unary, Option, Unary) \
+    OP(Sequence, List, Sequence, List) \
+    OP(Repetition, List, Repetition, List) \
+    OP(Tcapture, Expr, Expr, Expr) \
+    OP(Tdetree, Expr, Expr, Expr) \
+    OP(Tlfold, Expr, Expr, Expr) \
+    OP(Tlink, NameUnary, NameUnary, NameUnary) \
+    OP(Tnew, Unary, Unary, Unary) \
+    OP(Treplace, Expr, Expr, Expr) \
+    OP(Ttag, Name, Expr, Expr) \
+    OP(Xblock, Unary, Unary, Unary) \
+    OP(Xexists, Name, Expr, Expr) \
+    OP(Xif, Expr, Expr, Expr) \
+    OP(Xis, Name, Expr, Expr) \
+    OP(Xisa, Name, Expr, Expr) \
+    OP(Xon, Expr, Expr, Expr) \
+    OP(Xmatch, Expr, Expr, Expr) \
+    OP(Xlocal, NameUnary,  NameUnary, NameUnary) \
+    OP(Xsymbol, NameUnary, NameUnary, NameUnary)
 
 typedef enum expr_type {
-#define DEFINE_ENUM(NAME, DUMP, OPT) NAME,
+#define DEFINE_ENUM(NAME, DUMP, OPT, SWEEP) NAME,
     FOR_EACH_BASE_AST(DEFINE_ENUM)
-    FOR_EACH_EXTRA_AST(DEFINE_ENUM)
 #undef DEFINE_ENUM
+    DECL,
     MAX_TYPE
 } expr_type_t;
 
@@ -62,13 +54,14 @@ typedef struct name {
 } name_t;
 
 typedef struct decl {
-    long refc;
+    MOZ_RC_HEADER;
+    expr_type_t type;
     name_t name;
     struct expr *body;
 } decl_t;
 
 typedef struct expr {
-    long refc;
+    MOZ_RC_HEADER;
     expr_type_t type;
 } expr_t;
 
@@ -132,28 +125,6 @@ typedef struct Set_t {
     expr_t base;
     bitset_t set;
 } Set_t;
-
-typedef struct RByte_t {
-    expr_t base;
-    uint8_t byte;
-} RByte_t;
-
-typedef struct RStr_t {
-    expr_t base;
-    ARRAY(uint8_t) list;
-} RStr_t;
-
-typedef struct RSet_t {
-    expr_t base;
-    bitset_t set;
-} RSet_t;
-
-typedef struct Pattern_t {
-    expr_t base;
-    expr_t *expr;
-    ARRAY(expr_ptr_t) exits;
-    ARRAY(expr_ptr_t) states;
-} Pattern_t;
 
 typedef struct And_t {
     expr_t base;
