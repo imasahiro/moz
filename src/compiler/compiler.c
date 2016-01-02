@@ -761,8 +761,7 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
     fprintf(stderr, "cfg BB%d\n", bb->id);
 
     inst = block_get_terminator(bb);
-    if (ARRAY_size(bb->succs) == 1 && ARRAY_size(bb->preds) == 1) {
-        block_t *succ = block_get_succ(bb, 0);
+    if (ARRAY_size(bb->preds) == 1) {
         block_t *pred = block_get_pred(bb, 0);
         /* Remove indirect jump
          * [Before]         |[After]
@@ -770,24 +769,51 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
          *       ...        |       ...
          *       IJump BB   |       INST2
          * BB  : INST2      |       IJump succ
-         *       IJump succ | pred: INST3
+         *       IJump succ | succ: INST3
          * succ: INST3      |      ...
          *      ...         |
          */
-        if (inst->type == IJump) {
+        if (ARRAY_size(bb->succs) == 1 && inst->type == IJump) {
             IR_t **x, **e;
             IR_t *term = block_get_terminator(pred);
+            block_t *succ = block_get_succ(bb, 0);
             remove_from_parent(C, inst, 1);
             FOR_EACH_ARRAY(bb->insts, x, e) {
                 block_insert_before(pred, term, *x);
             }
             assert(term && term->type == IJump);
             ((IJump_t *)term)->v.target = succ;
+            block_set_type(pred, bb->type);
             block_unlink(bb, succ);
             block_unlink(pred, bb);
             block_link(pred, succ);
             WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
             WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, succ);
+            ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
+            return 1;
+        }
+        /* Merge exit block to predecessor block
+         * [Before]         |[After]
+         * pred: INST1      | pred: INST1
+         *       ...        |       ...
+         *       IJump BB   |       IRet
+         * BB  : IRet       |
+         *       IJump succ |
+         */
+        if (inst->type == IRet) {
+            IR_t **x, **e;
+            IR_t *term = block_get_terminator(pred);
+            assert(ARRAY_size(bb->succs) == 0 && block_is(bb, BLOCK_EXIT));
+
+            FOR_EACH_ARRAY(bb->insts, x, e) {
+                block_insert_before(pred, term, *x);
+            }
+            assert(term && term->type == IJump);
+            remove_from_parent(C, term, 1);
+
+            block_set_type(pred, bb->type);
+            block_unlink(pred, bb);
+            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
             ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
             return 1;
         }
