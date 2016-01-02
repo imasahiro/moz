@@ -23,6 +23,11 @@
     OP(IRSet) \
     OP(IRUByte) \
     OP(IRUSet) \
+    OP(IOByte) \
+    OP(IOStr) \
+    OP(IOSet) \
+    OP(IOUByte) \
+    OP(IOUSet) \
     OP(ILookup) \
     OP(IMemo) \
     OP(IMemoFail) \
@@ -167,6 +172,31 @@ typedef struct IRUSet {
     VMIR_BASE;
     BITSET_t setId;
 } IRUSet_t;
+
+typedef struct IOByte {
+    VMIR_BASE;
+    uint8_t byte;
+} IOByte_t;
+
+typedef struct IOStr {
+    VMIR_BASE;
+    STRING_t strId;
+} IOStr_t;
+
+typedef struct IOSet {
+    VMIR_BASE;
+    BITSET_t setId;
+} IOSet_t;
+
+typedef struct IOUByte {
+    VMIR_BASE;
+    unsigned byte;
+} IOUByte_t;
+
+typedef struct IOUSet {
+    VMIR_BASE;
+    BITSET_t setId;
+} IOUSet_t;
 
 typedef struct ILookup {
     VMIR_BASE;

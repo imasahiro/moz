@@ -417,6 +417,27 @@ static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
     moz_compiler_set_label(C, S, state.fail);
 }
 
+static void moz_Option_to_OSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
+{
+    IOSet_t *ir = IR_ALLOC_T(IOSet, S);
+    ir->setId = moz_compiler_get_set(C, &e->set);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+static void moz_Option_to_OStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
+{
+    IOStr_t *ir = IR_ALLOC_T(IOStr, S);
+    ir->strId = moz_compiler_get_string(C, &e->list);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+static void moz_Option_to_OByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
+{
+    IOByte_t *ir = IR_ALLOC_T(IOByte, S);
+    ir->byte = e->byte;
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
 static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
 {
     /**
@@ -428,6 +449,19 @@ static void moz_Option_to_ir(moz_compiler_t *C, moz_state_t *S, Option_t *e)
      *  goto next;
      */
     moz_state_t state = {};
+    switch (e->expr->type) {
+    case Set:
+        moz_Option_to_OSet(C, S, (Set_t *)e->expr);
+        return;
+    case Byte:
+        moz_Option_to_OByte(C, S, (Byte_t *)e->expr);
+        return;
+    case Str:
+        moz_Option_to_OStr(C, S, (Str_t *)e->expr);
+        return;
+    default:
+        break;
+    }
     moz_state_copy(&state, S);
     state.next = state.fail = moz_compiler_create_block(C);
     moz_expr_to_ir(C, &state, e->expr);
@@ -491,7 +525,6 @@ static void moz_Repetition_to_RByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e
     ir->byte = e->byte;
     moz_compiler_add(C, S, (IR_t *)ir);
 }
-
 
 static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t *e)
 {
@@ -705,7 +738,7 @@ static IR_t *block_get_terminator(block_t *bb)
 static void remove_from_parent(moz_compiler_t *C, IR_t *inst, int do_free)
 {
     block_t *BB = inst->parent;
-    ARRAY_remove_element(IR_ptr_t, &BB->insts, inst);
+    block_remove(BB, inst);
     if (do_free) {
         memset(inst, 0, sizeof(*inst));
         VM_FREE(inst);
@@ -851,6 +884,11 @@ static void moz_block_dump(block_t *BB)
         case IRSet:
         case IRUByte:
         case IRUSet:
+        case IOByte:
+        case IOStr:
+        case IOSet:
+        case IOUByte:
+        case IOUSet:
         case ILookup:
         case IMemo:
         case IMemoFail:
