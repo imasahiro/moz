@@ -471,6 +471,28 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
     moz_compiler_set_label(C, S, state.next);
 }
 
+static void moz_Repetition_to_RSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
+{
+    IRSet_t *ir = IR_ALLOC_T(IRSet, S);
+    ir->setId = moz_compiler_get_set(C, &e->set);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+static void moz_Repetition_to_RStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
+{
+    IRStr_t *ir = IR_ALLOC_T(IRStr, S);
+    ir->strId = moz_compiler_get_string(C, &e->list);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+static void moz_Repetition_to_RByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
+{
+    IRByte_t *ir = IR_ALLOC_T(IRByte, S);
+    ir->byte = e->byte;
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+
 static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t *e)
 {
     /**
@@ -485,12 +507,27 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
      *  goto L_head
      * L_fail
      */
-
     unsigned i;
     block_t *blocks[ARRAY_size(e->list) + 1 + 1];
     moz_state_t state = {};
     expr_t **x;
     block_t *fail;
+    if (ARRAY_size(e->list) == 1) {
+        expr_t *expr = ARRAY_get(expr_ptr_t, &e->list, 0);
+        switch (expr->type) {
+        case Set:
+            moz_Repetition_to_RSet(C, S, (Set_t *)expr);
+            return;
+        case Byte:
+            moz_Repetition_to_RByte(C, S, (Byte_t *)expr);
+            return;
+        case Str:
+            moz_Repetition_to_RStr(C, S, (Str_t *)expr);
+            return;
+        default:
+            break;
+        }
+    }
 
     moz_state_copy(&state, S);
     for (i = 0; i < ARRAY_size(e->list); i++) {
