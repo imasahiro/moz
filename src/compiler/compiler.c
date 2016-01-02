@@ -12,9 +12,6 @@
 extern "C" {
 #endif
 
-typedef unsigned attribute_t;
-// #define DECL_ATTRIBUTE_PUBLIC (1 << 0)
-
 typedef pstring_t *pstring_ptr_t;
 
 DEF_ARRAY_STRUCT0(pstring_ptr_t, unsigned);
@@ -180,8 +177,8 @@ static IR_t *_IR_ALLOC(size_t size, ir_type_t type, moz_state_t *S)
     ir->id = _MAX_IR_ID++;
     ir->type = type;
     ir->fail = S->fail;
-    if (S->fail && S->fail->name == NULL) {
-        block_set_name(S->fail, "handler");
+    if (S->fail && !block_is(S->fail, BLOCK_HANDLER)) {
+        block_set_type(S->fail, BLOCK_HANDLER);
     }
     return ir;
 }
@@ -189,23 +186,23 @@ static IR_t *_IR_ALLOC(size_t size, ir_type_t type, moz_state_t *S)
 #define IR_ALLOC(T, S)   _IR_ALLOC(sizeof(T##_t), T, S)
 #define IR_ALLOC_T(T, S) ((T##_t *) IR_ALLOC(T, S))
 
-static block_t *moz_compiler_create_named_block(moz_compiler_t *C, const char *name)
+static block_t *moz_compiler_create_named_block(moz_compiler_t *C, enum block_type type)
 {
-    block_t *BB = block_new(name);
+    block_t *BB = block_new(type);
     ARRAY_add(block_ptr_t, &C->blocks, BB);
     return BB;
 }
 
 static block_t *moz_compiler_create_block(moz_compiler_t *C)
 {
-    return moz_compiler_create_named_block(C, NULL);
+    return moz_compiler_create_named_block(C, BLOCK_DEFAULT);
 }
 
 static void moz_state_init(moz_compiler_t *C, moz_state_t *S)
 {
-    S->head = moz_compiler_create_named_block(C, "head");
-    S->next = moz_compiler_create_named_block(C, "exit");
-    S->fail = moz_compiler_create_named_block(C, "fail");
+    S->head = moz_compiler_create_named_block(C, BLOCK_ENTRY);
+    S->next = moz_compiler_create_named_block(C, BLOCK_EXIT);
+    S->fail = moz_compiler_create_named_block(C, BLOCK_FAIL);
     S->cur = S->head;
 }
 
@@ -686,41 +683,42 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
         // Skip this block because this block seems already removed.
         return 0;
     }
-    if (bb->name) {
-        // Skip special block such as entry block, exit block, fail block.
+    if (block_is(bb, BLOCK_ENTRY) || block_is(bb, BLOCK_FAIL) ||
+            block_is(bb, BLOCK_HANDLER)) {
+        // Skip special block such as entry block, fail block, handler block.
         return 0;
     }
     fprintf(stderr, "cfg BB%d\n", bb->id);
 
     inst = block_get_terminator(bb);
-    if (ARRAY_size(bb->succs) == 1) {
+    if (ARRAY_size(bb->succs) == 1 && ARRAY_size(bb->preds) == 1) {
         block_t *succ = block_get_succ(bb, 0);
+        block_t *pred = block_get_pred(bb, 0);
         /* Remove indirect jump
-         * [Before]       |[After]
-         * BB0: INST1     | BB0: INST1
-         *      ...       |      ...
-         *      IJump BB1 |      IJump BB2
-         * BB2: IJump BB2 | BB2: INST2
-         * BB1: INST2     |      ...
-         *      ...       |
+         * [Before]         |[After]
+         * pred: INST1      | pred: INST1
+         *       ...        |       ...
+         *       IJump BB   |       INST2
+         * BB  : INST2      |       IJump succ
+         *       IJump succ | pred: INST3
+         * succ: INST3      |      ...
+         *      ...         |
          */
-        if (ARRAY_size(bb->insts) == 1 && inst->type == IJump) {
-            block_t **I, **E;
-            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, succ);
-            block_unlink(bb, succ);
+        if (inst->type == IJump) {
+            IR_t **x, **e;
+            IR_t *term = block_get_terminator(pred);
             remove_from_parent(C, inst, 1);
-            FOR_EACH_ARRAY(bb->preds, I, E) {
-                block_t *pred = *I;
-                if (bb != pred) {
-                    inst = block_get_terminator(pred);
-                    assert(inst && inst->type == IJump);
-                    ((IJump_t *)inst)->v.target = succ;
-                    block_unlink(pred, bb);
-                    block_link(pred, succ);
-                    ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
-                    WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
-                }
+            FOR_EACH_ARRAY(bb->insts, x, e) {
+                block_insert_before(pred, term, *x);
             }
+            assert(term && term->type == IJump);
+            ((IJump_t *)term)->v.target = succ;
+            block_unlink(bb, succ);
+            block_unlink(pred, bb);
+            block_link(pred, succ);
+            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
+            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, succ);
+            ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
             return 1;
         }
     }
@@ -755,8 +753,17 @@ static void moz_block_dump(block_t *BB)
     IR_t **x, **e;
     unsigned i;
     fprintf(stderr, "BB%d", block_id(BB));
-    if (BB->name != NULL) {
-        fprintf(stderr, "(%s)", BB->name);
+    if (block_is(BB, BLOCK_ENTRY)) {
+        fprintf(stderr, "|entry");
+    }
+    if (block_is(BB, BLOCK_EXIT)) {
+        fprintf(stderr, "|exit");
+    }
+    if (block_is(BB, BLOCK_FAIL)) {
+        fprintf(stderr, "|fail");
+    }
+    if (block_is(BB, BLOCK_HANDLER)) {
+        fprintf(stderr, "|handler");
     }
 
     fprintf(stderr, " pred=[");
