@@ -1,3 +1,5 @@
+#include "expression.h"
+
 static bool isByteOrSet(expr_t *e)
 {
     return e->type == Byte || e->type == Set;
@@ -39,6 +41,7 @@ static bool isPatternMatchOnly(expr_t *e)
 static decl_t *decl_new()
 {
     decl_t *decl = VM_CALLOC(1, sizeof(*decl));
+    decl->refc = 0;
     return decl;
 }
 

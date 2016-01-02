@@ -216,16 +216,9 @@ static void moz_state_copy(moz_state_t *dst, moz_state_t *src)
 
 static void moz_compiler_set_label(moz_compiler_t *C, moz_state_t *S, block_t *BB)
 {
-    fprintf(stderr, "set label BB%d -> BB%d\n", block_id(S->cur), block_id(BB));
+    // fprintf(stderr, "set label BB%d -> BB%d\n", block_id(S->cur), block_id(BB));
     S->cur = BB;
 }
-
-// static void moz_compiler_set_fail(moz_compiler_t *C, block_t *BB, block_t *failBB)
-// {
-//     assert(BB->fail == NULL);
-//     block_link(BB, failBB);
-//     BB->fail = failBB;
-// }
 
 static void moz_compiler_add(moz_compiler_t *C, moz_state_t *S, IR_t *ir)
 {
@@ -242,7 +235,7 @@ static void moz_compiler_link(moz_compiler_t *C, moz_state_t *S, block_t *BB1, b
     ir->v.target = BB2;
     moz_compiler_add(C, S, (IR_t *)ir);
     block_link(BB1, BB2);
-    fprintf(stderr, "link BB%d -> BB%d\n", block_id(BB1), block_id(BB2));
+    // fprintf(stderr, "link BB%d -> BB%d\n", block_id(BB1), block_id(BB2));
 }
 
 typedef void (*f_to_ir)(moz_compiler_t *C, moz_state_t *S, expr_t *e);
@@ -758,7 +751,7 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
         // Skip special block such as entry block, fail block, handler block.
         return 0;
     }
-    fprintf(stderr, "cfg BB%d\n", bb->id);
+    // fprintf(stderr, "cfg BB%d\n", bb->id);
 
     inst = block_get_terminator(bb);
     if (ARRAY_size(bb->preds) == 1) {
