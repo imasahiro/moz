@@ -780,14 +780,64 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
     return 0;
 }
 
+static int remove_indirect_jump_handler(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *bb)
+{
+    moz_compiler_t *C = W->context;
 
-static void worklist_init(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, moz_compiler_t *C)
+    assert(block_is(bb, BLOCK_HANDLER));
+    if (ARRAY_size(bb->succs) == 1) {
+        IR_t *inst = block_get_terminator(bb);
+        block_t *succ = ARRAY_get(block_ptr_t, &bb->succs, 0);
+        block_ptr_t *I, *E;
+
+        /* Remove a handler that only have an indirect jump.
+         * [Before]             | [After]
+         *       INST1, fail=BB |       INST1, fail=succ
+         *       ...            |       ...
+         * BB  : IJump succ     |       IJump succ
+         * succ: INST3          | succ: INST3
+         *       ...            |      ...
+         */
+        if (ARRAY_size(bb->insts) != 1 || inst->type != IJump ||
+                ARRAY_size(succ->preds) != 1) {
+            return 0;
+        }
+        block_unlink(bb, succ);
+        remove_from_parent(C, inst, 1);
+        ARRAY_size(bb->insts) = 0;
+        ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
+        FOR_EACH_ARRAY(C->blocks, I, E) {
+            IR_t **x, **e;
+            FOR_EACH_ARRAY((*I)->insts, x, e) {
+                if ((*x)->fail == bb) {
+                    (*x)->fail = succ;
+                }
+            }
+        }
+        WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, succ);
+        return 1;
+    }
+    return 0;
+}
+
+static void add_all_blocks(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, moz_compiler_t *C)
 {
     block_t **I, **E;
     FOR_EACH_ARRAY(C->blocks, I, E) {
         WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, *I);
     }
 }
+
+static void add_handler_block(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, moz_compiler_t *C)
+{
+    block_t **I, **E;
+    FOR_EACH_ARRAY(C->blocks, I, E) {
+        if (block_is(*I, BLOCK_HANDLER)) {
+            WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, *I);
+        }
+    }
+}
+
 
 static void moz_ir_optimize(moz_compiler_t *C)
 {
@@ -798,7 +848,8 @@ static void moz_ir_optimize(moz_compiler_t *C)
     }
     while (modified) {
         modified = 0;
-        modified += WORK_LIST_apply(block_ptr_t, moz_compiler_ptr_t, C, worklist_init, simplify_cfg);
+        modified += WORK_LIST_apply(block_ptr_t, moz_compiler_ptr_t, C, add_all_blocks, simplify_cfg);
+        modified += WORK_LIST_apply(block_ptr_t, moz_compiler_ptr_t, C, add_handler_block, remove_indirect_jump_handler);
     }
 }
 
