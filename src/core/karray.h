@@ -60,12 +60,14 @@ struct ARRAY(T);\
 typedef struct ARRAY(T) ARRAY(T)
 
 #define DEF_ARRAY_OP__(T, ValueType)\
+__attribute__((unused))\
 static inline ARRAY(T) *ARRAY_init_##T (ARRAY(T) *a, size_t initsize) {\
     a->list = (T *) KJSON_MALLOC(sizeof(T)*initsize);\
     a->capacity  = initsize;\
     a->size  = 0;\
     return a;\
 }\
+__attribute__((unused))\
 static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
     size_t capacity = a->capacity; \
     if(a->size + size <= (unsigned long)a->capacity) {\
@@ -77,12 +79,14 @@ static inline void ARRAY_##T##_ensureSize(ARRAY(T) *a, size_t size) {\
     a->list = (T *)KJSON_REALLOC(a->list, sizeof(T) * a->capacity);\
     memset(a->list + capacity, 0, sizeof(T) * (a->capacity - capacity));\
 }\
+__attribute__((unused))\
 static inline void ARRAY_##T##_dispose(ARRAY(T) *a) {\
     KJSON_FREE(a->list);\
     a->size     = 0;\
     a->capacity = 0;\
     a->list     = NULL;\
 }\
+__attribute__((unused))\
 static inline void ARRAY_##T##_add(ARRAY(T) *a, ValueType v) {\
     ARRAY_##T##_ensureSize(a, 1);\
     ARRAY_##T##_set(a, a->size++, v);\

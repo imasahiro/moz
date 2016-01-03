@@ -3,7 +3,6 @@
 #include "expression.h"
 #include "core/pstring.h"
 #include <assert.h>
-#define MOZC_USE_AST_INLINING 1
 #include "ir.h"
 #include "block.c"
 #include "worklist.h"
@@ -12,30 +11,19 @@
 extern "C" {
 #endif
 
-typedef pstring_t *pstring_ptr_t;
-
-DEF_ARRAY_STRUCT0(pstring_ptr_t, unsigned);
-DEF_ARRAY_T(pstring_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(pstring_ptr_t);
-
-DEF_ARRAY_STRUCT0(bitset_t, unsigned);
-DEF_ARRAY_T(bitset_t);
 DEF_ARRAY_OP(bitset_t);
 
-typedef struct moz_state_t {
-    block_t *head;
-    block_t *cur;
-    block_t *next;
-    block_t *fail;
-} moz_state_t;
+DEF_ARRAY_OP_NOPOINTER(decl_ptr_t);
+DEF_ARRAY_OP_NOPOINTER(expr_ptr_t);
+// DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
-typedef struct compiler {
-    moz_runtime_t *R;
-    ARRAY(block_ptr_t) blocks;
-    ARRAY(decl_ptr_t) decls;
-    ARRAY(pstring_ptr_t) strs;
-    ARRAY(bitset_t) sets;
-} moz_compiler_t;
+typedef struct moz_state_t {
+    struct block_t *head;
+    struct block_t *cur;
+    struct block_t *next;
+    struct block_t *fail;
+} moz_state_t;
 
 static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
 {
@@ -77,89 +65,6 @@ static TAG_t moz_compiler_get_tag(moz_compiler_t *C, name_t *name)
     asm volatile("int3");
     return 0;
 }
-
-static inline int tag_equal(Node *node, const char *tag)
-{
-    unsigned len;
-    if (node->tag == NULL) {
-        return tag == NULL;
-    }
-    if (tag == NULL) {
-        return 0;
-    }
-    len = pstring_length(node->tag);
-    return len == strlen(tag) && strncmp(node->tag, tag, len) == 0;
-}
-
-static char *write_char(char *p, unsigned char ch)
-{
-    switch (ch) {
-    case '\\':
-        *p++ = '\\';
-        break;
-    case '\b':
-        *p++ = '\\';
-        *p++ = 'b';
-        break;
-    case '\f':
-        *p++ = '\\';
-        *p++ = 'f';
-        break;
-    case '\n':
-        *p++ = '\\';
-        *p++ = 'n';
-        break;
-    case '\r':
-        *p++ = '\\';
-        *p++ = 'r';
-        break;
-    case '\t':
-        *p++ = '\\';
-        *p++ = 't';
-        break;
-    default:
-        if (32 <= ch && ch <= 126) {
-            *p++ = ch;
-        }
-        else {
-            *p++ = '\\';
-            *p++ = "0123456789abcdef"[ch / 16];
-            *p++ = "0123456789abcdef"[ch % 16];
-        }
-    }
-    return p;
-}
-
-static void dump_set(bitset_t *set, char *buf)
-{
-    unsigned i, j;
-    *buf++ = '[';
-    for (i = 0; i < 256; i++) {
-        if (bitset_get(set, i)) {
-            buf = write_char(buf, i);
-            for (j = i + 1; j < 256; j++) {
-                if (!bitset_get(set, j)) {
-                    if (j == i + 1) {}
-                    else {
-                        *buf++ = '-';
-                        buf = write_char(buf, j - 1);
-                        i = j - 1;
-                    }
-                    break;
-                }
-            }
-            if (j == 256) {
-                *buf++ = '-';
-                buf = write_char(buf, j - 1);
-                break;
-            }
-        }
-    }
-    *buf++ = ']';
-    *buf++ = '\0';
-}
-
-#include "ast.c"
 
 /* compile */
 
@@ -995,29 +900,14 @@ static void moz_ir_dump(moz_compiler_t *C)
 
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
 {
-    unsigned i, decl_index = 0, decl_size = Node_length(node);
     moz_compiler_t C;
     C.R = R;
-    ARRAY_init(decl_ptr_t, &C.decls, decl_size);
+    ARRAY_init(decl_ptr_t, &C.decls, 1);
     ARRAY_init(pstring_ptr_t, &C.strs, 1);
     ARRAY_init(bitset_t, &C.sets, 1);
     ARRAY_init(block_ptr_t, &C.blocks, 1);
 
-    moz_ast_prepare(&C, node);
-    for (i = 0; i < decl_size; i++) {
-        Node *child = Node_get(node, i);
-        if (tag_equal(child, "Comment")) {
-            compile_comment(&C, child);
-        }
-        if (tag_equal(child, "Production")) {
-            decl_t *decl = ARRAY_get(decl_ptr_t, &C.decls, decl_index++);
-            compile_production(&C, child, decl);
-        }
-        if (tag_equal(child, "Format")) {
-            compile_format(&C, child);
-        }
-    }
-    moz_ast_optimize(&C);
+    moz_node_to_ast(&C, node);
     moz_ast_dump(&C);
     moz_ast_to_ir(&C);
     // moz_ir_dump(&C);

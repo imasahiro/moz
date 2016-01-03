@@ -1,4 +1,94 @@
-// AST
+#include "compiler.h"
+#include "expression.h"
+#define MOZC_USE_AST_INLINING 1
+
+DEF_ARRAY_OP_NOPOINTER(decl_ptr_t);
+DEF_ARRAY_OP_NOPOINTER(expr_ptr_t);
+DEF_ARRAY_OP_NOPOINTER(uint8_t);
+
+
+static inline int tag_equal(Node *node, const char *tag)
+{
+    unsigned len;
+    if (node->tag == NULL) {
+        return tag == NULL;
+    }
+    if (tag == NULL) {
+        return 0;
+    }
+    len = pstring_length(node->tag);
+    return len == strlen(tag) && strncmp(node->tag, tag, len) == 0;
+}
+
+static char *write_char(char *p, unsigned char ch)
+{
+    switch (ch) {
+    case '\\':
+        *p++ = '\\';
+        break;
+    case '\b':
+        *p++ = '\\';
+        *p++ = 'b';
+        break;
+    case '\f':
+        *p++ = '\\';
+        *p++ = 'f';
+        break;
+    case '\n':
+        *p++ = '\\';
+        *p++ = 'n';
+        break;
+    case '\r':
+        *p++ = '\\';
+        *p++ = 'r';
+        break;
+    case '\t':
+        *p++ = '\\';
+        *p++ = 't';
+        break;
+    default:
+        if (32 <= ch && ch <= 126) {
+            *p++ = ch;
+        }
+        else {
+            *p++ = '\\';
+            *p++ = "0123456789abcdef"[ch / 16];
+            *p++ = "0123456789abcdef"[ch % 16];
+        }
+    }
+    return p;
+}
+
+static void dump_set(bitset_t *set, char *buf)
+{
+    unsigned i, j;
+    *buf++ = '[';
+    for (i = 0; i < 256; i++) {
+        if (bitset_get(set, i)) {
+            buf = write_char(buf, i);
+            for (j = i + 1; j < 256; j++) {
+                if (!bitset_get(set, j)) {
+                    if (j == i + 1) {}
+                    else {
+                        *buf++ = '-';
+                        buf = write_char(buf, j - 1);
+                        i = j - 1;
+                    }
+                    break;
+                }
+            }
+            if (j == 256) {
+                *buf++ = '-';
+                buf = write_char(buf, j - 1);
+                break;
+            }
+        }
+    }
+    *buf++ = ']';
+    *buf++ = '\0';
+}
+
+
 static void moz_expr_sweep(expr_t *e);
 static void moz_decl_sweep(decl_t *decl);
 
@@ -591,7 +681,6 @@ static const char *ast_name[] = {
 #undef DEFINE_NAME
 };
 
-static void moz_expr_dump(int level, expr_t *e);
 static void fprint_indent(int level)
 {
     while (level-- > 0) {
@@ -682,7 +771,8 @@ static void moz_decl_dump(int level, decl_t *decl)
 }
 
 typedef void (*f_dump)(int level, expr_t *);
-static void moz_expr_dump(int level, expr_t *e)
+
+void moz_expr_dump(int level, expr_t *e)
 {
     f_dump dump[] = {
 #define F_DUMP_DECL(NAME, DUMP, OPT, SWEEP) moz_##DUMP##_dump,
@@ -692,7 +782,7 @@ static void moz_expr_dump(int level, expr_t *e)
     dump[e->type](level, e);
 }
 
-static void moz_ast_dump(moz_compiler_t *C)
+void moz_ast_dump(moz_compiler_t *C)
 {
     decl_t **decl, **end;
     fprintf(stderr, "------------\n");
@@ -1073,7 +1163,7 @@ static void moz_ast_remove_unused_decl(moz_compiler_t *C)
     }
 }
 
-static void moz_ast_optimize(moz_compiler_t *C)
+void moz_ast_optimize(moz_compiler_t *C)
 {
     int modified = 1;
     while (modified) {
@@ -1161,5 +1251,24 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
     }
     if (ARRAY_size(C->decls) > 0) {
         MOZ_RC_RETAIN(ARRAY_get(decl_ptr_t, &C->decls, 0));
+    }
+}
+
+void moz_node_to_ast(moz_compiler_t *C, Node *node)
+{
+    unsigned i, decl_index = 0, decl_size = Node_length(node);
+    moz_ast_prepare(C, node);
+    for (i = 0; i < decl_size; i++) {
+        Node *child = Node_get(node, i);
+        if (tag_equal(child, "Comment")) {
+            compile_comment(C, child);
+        }
+        if (tag_equal(child, "Production")) {
+            decl_t *decl = ARRAY_get(decl_ptr_t, &C->decls, decl_index++);
+            compile_production(C, child, decl);
+        }
+        if (tag_equal(child, "Format")) {
+            compile_format(C, child);
+        }
     }
 }

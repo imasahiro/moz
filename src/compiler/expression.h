@@ -1,6 +1,8 @@
 #include "core/karray.h"
 #include "core/bitset.h"
+#include "core/pstring.h"
 #include "core/reference_count.h"
+#include "compiler.h"
 
 #ifndef MOZ_COMPILER_EXPRESSION_H
 #define MOZ_COMPILER_EXPRESSION_H
@@ -8,6 +10,38 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef pstring_t *pstring_ptr_t;
+
+DEF_ARRAY_STRUCT0(pstring_ptr_t, unsigned);
+DEF_ARRAY_T(pstring_ptr_t);
+
+DEF_ARRAY_STRUCT0(bitset_t, unsigned);
+DEF_ARRAY_T(bitset_t);
+
+typedef struct decl *decl_ptr_t;
+typedef struct expr *expr_ptr_t;
+
+DEF_ARRAY_STRUCT0(decl_ptr_t, unsigned);
+DEF_ARRAY_T(decl_ptr_t);
+
+DEF_ARRAY_STRUCT0(expr_ptr_t, unsigned);
+DEF_ARRAY_T(expr_ptr_t);
+
+DEF_ARRAY_STRUCT0(uint8_t, unsigned);
+DEF_ARRAY_T(uint8_t);
+
+typedef struct block_t *block_ptr_t;
+DEF_ARRAY_STRUCT0(block_ptr_t, unsigned);
+DEF_ARRAY_T(block_ptr_t);
+
+struct compiler {
+    moz_runtime_t *R;
+    ARRAY(decl_ptr_t) decls;
+    ARRAY(block_ptr_t) blocks;
+    ARRAY(pstring_ptr_t) strs;
+    ARRAY(bitset_t) sets;
+};
 
 #define FOR_EACH_BASE_AST(OP) \
     OP(Empty, Expr, Expr, Expr) \
@@ -64,21 +98,6 @@ typedef struct expr {
     MOZ_RC_HEADER;
     expr_type_t type;
 } expr_t;
-
-typedef decl_t *decl_ptr_t;
-typedef expr_t *expr_ptr_t;
-
-DEF_ARRAY_STRUCT0(decl_ptr_t, unsigned);
-DEF_ARRAY_T(decl_ptr_t);
-DEF_ARRAY_OP_NOPOINTER(decl_ptr_t);
-
-DEF_ARRAY_STRUCT0(expr_ptr_t, unsigned);
-DEF_ARRAY_T(expr_ptr_t);
-DEF_ARRAY_OP_NOPOINTER(expr_ptr_t);
-
-DEF_ARRAY_STRUCT0(uint8_t, unsigned);
-DEF_ARRAY_T(uint8_t);
-DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
 typedef struct Unary_t {
     expr_t base;
@@ -239,6 +258,14 @@ typedef struct Xsymbol_t {
     name_t name;
     expr_t *expr;
 } Xsymbol_t;
+
+/* API */
+void moz_expr_dump(int level, expr_t *e);
+
+/* Internal API */
+void moz_node_to_ast(moz_compiler_t *C, Node *node);
+void moz_ast_optimize(moz_compiler_t *C);
+void moz_ast_dump(moz_compiler_t *C);
 
 #ifdef __cplusplus
 }

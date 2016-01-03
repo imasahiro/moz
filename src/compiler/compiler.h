@@ -10,6 +10,7 @@ extern "C" {
 
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node);
 
+typedef struct compiler moz_compiler_t;
 #ifdef __cplusplus
 }
 #endif

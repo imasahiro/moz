@@ -1,17 +1,16 @@
 #include "core/karray.h"
+#include "expression.h"
+
 #ifndef IR_BLOCK_H
 #define IR_BLOCK_H
 
 typedef struct block_t block_t;
-typedef block_t *block_ptr_t;
 typedef IR_t *IR_ptr_t;
 
 DEF_ARRAY_STRUCT0(IR_ptr_t, unsigned);
 DEF_ARRAY_T(IR_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(IR_ptr_t);
 
-DEF_ARRAY_STRUCT0(block_ptr_t, unsigned);
-DEF_ARRAY_T(block_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(block_ptr_t);
 
 enum block_type {
