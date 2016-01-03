@@ -16,7 +16,8 @@ DEF_ARRAY_OP(bitset_t);
 
 DEF_ARRAY_OP_NOPOINTER(decl_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(expr_ptr_t);
-// DEF_ARRAY_OP_NOPOINTER(uint8_t);
+
+#define OPTIMIZE /*optimize annotation*/
 
 typedef struct moz_state_t {
     struct block_t *head;
@@ -272,6 +273,12 @@ static void moz_And_to_ir(moz_compiler_t *C, moz_state_t *S, And_t *e)
     moz_compiler_set_label(C, S, state.next);
 }
 
+OPTIMIZE static void moz_Not_Any_to_NAny(moz_compiler_t *C, moz_state_t *S)
+{
+    INAny_t *ir = IR_ALLOC_T(INAny, S);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
 static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
 {
     /**
@@ -289,6 +296,11 @@ static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
      */
     moz_state_t state;
     moz_state_copy(&state, S);
+
+    if (e->expr->type == Any) {
+        moz_Not_Any_to_NAny(C, S);
+        return;
+    }
     block_t *head = moz_compiler_create_block(C);
     block_t *next = moz_compiler_create_block(C);
     block_t *fail = moz_compiler_create_block(C);
@@ -315,21 +327,21 @@ static void moz_Not_to_ir(moz_compiler_t *C, moz_state_t *S, Not_t *e)
     moz_compiler_set_label(C, S, state.fail);
 }
 
-static void moz_Option_to_OSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
+OPTIMIZE static void moz_Option_to_OSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
 {
     IOSet_t *ir = IR_ALLOC_T(IOSet, S);
     ir->setId = moz_compiler_get_set(C, &e->set);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
-static void moz_Option_to_OStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
+OPTIMIZE static void moz_Option_to_OStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
 {
     IOStr_t *ir = IR_ALLOC_T(IOStr, S);
     ir->strId = moz_compiler_get_string(C, &e->list);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
-static void moz_Option_to_OByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
+OPTIMIZE static void moz_Option_to_OByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
 {
     IOByte_t *ir = IR_ALLOC_T(IOByte, S);
     ir->byte = e->byte;
@@ -403,21 +415,21 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
     moz_compiler_set_label(C, S, state.next);
 }
 
-static void moz_Repetition_to_RSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
+OPTIMIZE static void moz_Repetition_to_RSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
 {
     IRSet_t *ir = IR_ALLOC_T(IRSet, S);
     ir->setId = moz_compiler_get_set(C, &e->set);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
-static void moz_Repetition_to_RStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
+OPTIMIZE static void moz_Repetition_to_RStr(moz_compiler_t *C, moz_state_t *S, Str_t *e)
 {
     IRStr_t *ir = IR_ALLOC_T(IRStr, S);
     ir->strId = moz_compiler_get_string(C, &e->list);
     moz_compiler_add(C, S, (IR_t *)ir);
 }
 
-static void moz_Repetition_to_RByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
+OPTIMIZE static void moz_Repetition_to_RByte(moz_compiler_t *C, moz_state_t *S, Byte_t *e)
 {
     IRByte_t *ir = IR_ALLOC_T(IRByte, S);
     ir->byte = e->byte;
