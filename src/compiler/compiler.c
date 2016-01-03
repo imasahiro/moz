@@ -2,11 +2,11 @@
 #include "compiler.h"
 #include "expression.h"
 #include "core/pstring.h"
-#include <assert.h>
 #include "ir.h"
-#include "block.c"
 #include "worklist.h"
 #include "dump.h"
+#include "block.c"
+#include <assert.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -483,6 +483,7 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
         blocks[i] = moz_compiler_create_block(C);
     }
     blocks[i] = S->cur;
+    block_set_type(S->cur, BLOCK_LOOP_HEAD);
     fail = state.fail = moz_compiler_create_block(C);
     moz_compiler_link(C, &state, state.cur, blocks[0]);
 
@@ -673,7 +674,9 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
         // Skip this block because this block seems already removed.
         return 0;
     }
-    if (block_is(bb, BLOCK_ENTRY) || block_is(bb, BLOCK_FAIL) ||
+    if (block_is(bb, BLOCK_ENTRY) ||
+            block_is(bb, BLOCK_FAIL) ||
+            block_is(bb, BLOCK_LOOP_HEAD) ||
             block_is(bb, BLOCK_HANDLER)) {
         // Skip special block such as entry block, fail block, handler block.
         return 0;
@@ -784,7 +787,7 @@ static int remove_indirect_jump_handler(WORK_LIST(block_ptr_t, moz_compiler_ptr_
     moz_compiler_t *C = W->context;
 
     assert(block_is(bb, BLOCK_HANDLER));
-    if (ARRAY_size(bb->succs) == 1) {
+    if (ARRAY_size(bb->succs) == 1 && ARRAY_size(bb->preds) == 0) {
         IR_t *inst = block_get_terminator(bb);
         block_t *succ = ARRAY_get(block_ptr_t, &bb->succs, 0);
         block_ptr_t *I, *E;
@@ -972,6 +975,9 @@ static void moz_block_dump(moz_compiler_t *C, block_t *BB)
     }
     if (block_is(BB, BLOCK_HANDLER)) {
         fprintf(stderr, "|handler");
+    }
+    if (block_is(BB, BLOCK_LOOP_HEAD)) {
+        fprintf(stderr, "|loop");
     }
 
     fprintf(stderr, " pred=[");

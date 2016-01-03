@@ -19,6 +19,7 @@ enum block_type {
     BLOCK_EXIT    = 1 << 2,
     BLOCK_FAIL    = 1 << 3,
     BLOCK_HANDLER = 1 << 4,
+    BLOCK_LOOP_HEAD = 1 << 5,
     BLOCK_DELETED = -1
 };
 
