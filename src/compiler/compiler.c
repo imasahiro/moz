@@ -891,25 +891,34 @@ static void moz_ir_dump(moz_compiler_t *C)
     fprintf(stderr, "=================\n");
 }
 
+moz_compiler_t *moz_compiler_init(moz_compiler_t *C, moz_runtime_t *R)
+{
+    C->R = R;
+    ARRAY_init(decl_ptr_t, &C->decls, 1);
+    ARRAY_init(pstring_ptr_t, &C->strs, 1);
+    ARRAY_init(bitset_t, &C->sets, 1);
+    ARRAY_init(block_ptr_t, &C->blocks, 1);
+    return C;
+}
+
+void moz_compiler_dispose(moz_compiler_t *C)
+{
+    ARRAY_dispose(block_ptr_t, &C->blocks);
+    ARRAY_dispose(pstring_ptr_t, &C->strs);
+    ARRAY_dispose(bitset_t, &C->sets);
+    ARRAY_dispose(decl_ptr_t, &C->decls);
+}
+
 void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
 {
     moz_compiler_t C;
-    C.R = R;
-    ARRAY_init(decl_ptr_t, &C.decls, 1);
-    ARRAY_init(pstring_ptr_t, &C.strs, 1);
-    ARRAY_init(bitset_t, &C.sets, 1);
-    ARRAY_init(block_ptr_t, &C.blocks, 1);
-
+    moz_compiler_init(&C, R);
     moz_node_to_ast(&C, node);
     moz_ast_dump(&C);
     moz_ast_to_ir(&C);
     moz_ir_optimize(&C);
     moz_ir_dump(&C);
-
-    ARRAY_dispose(block_ptr_t, &C.blocks);
-    ARRAY_dispose(pstring_ptr_t, &C.strs);
-    ARRAY_dispose(bitset_t, &C.sets);
-    ARRAY_dispose(decl_ptr_t, &C.decls);
+    moz_compiler_dispose(&C);
 }
 
 #ifdef __cplusplus
