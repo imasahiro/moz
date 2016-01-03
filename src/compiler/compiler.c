@@ -42,6 +42,7 @@ static unsigned moz_compiler_get_string_id(ARRAY(pstring_ptr_t) *ary, name_t *na
     ARRAY_add(pstring_ptr_t, ary, pstring_get_raw(newStr));
     return max;
 }
+static void moz_ir_dump(moz_compiler_t *C);
 
 static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
 {
@@ -704,7 +705,7 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
             int preds_size = ARRAY_size(bb->preds);
             int modified = 0;
 
-            FOR_EACH_ARRAY(bb->preds, I, E) {
+            FOR_EACH_ARRAY_R(bb->preds, I, E) {
                 block_t *pred = *I;
                 IR_t *term;
 

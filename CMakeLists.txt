@@ -141,6 +141,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
 #########################
 enable_testing()
 
+add_executable(test_array  test/test_array.c)
 add_executable(test_ast    test/test_ast.c)
 add_executable(test_objsize test/test_objsize.c)
 # add_executable(test_loader test/test_loader.c src/loader.c src/mozvm.c)
@@ -155,6 +156,7 @@ target_link_libraries(test_node    node)
 target_link_libraries(test_sym     nez)
 target_link_libraries(test_compiler nez)
 # target_link_libraries(test_loader nez)
+add_test(moz_test_array   test_array)
 add_test(moz_test_ast     test_ast)
 add_test(moz_test_objsize test_objsize)
 add_test(moz_test_memo    test_memo)

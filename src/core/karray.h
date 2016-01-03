@@ -198,6 +198,8 @@ DEF_ARRAY_OP__(T, T)
 #define FOR_EACH_ARRAY(a, x, e)\
     for(x = ARRAY_BEGIN(a), e = ARRAY_END(a); x != e; ++x)
 
+#define FOR_EACH_ARRAY_R(a, x, e)\
+    for(x = ARRAY_last(a), e = ARRAY_n(a, -1); x != e; --x)
 
 #ifdef __cplusplus
 }
