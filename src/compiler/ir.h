@@ -7,10 +7,10 @@
     OP(IJump) \
     OP(ITableJump) \
     OP(IInvoke) \
-    OP(IRet) \
-    OP(IFail) \
     OP(IPLoad) \
     OP(IPStore) \
+    OP(IRet) \
+    OP(IFail) \
     OP(IAny) \
     OP(INAny) \
     OP(IByte) \

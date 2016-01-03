@@ -155,6 +155,11 @@ void moz_decl_mark_as_top_level(decl_t *decl)
     MOZ_RC_RETAIN(decl);
 }
 
+static int moz_decl_use_once(decl_t *decl)
+{
+    return MOZ_RC_COUNT(decl) == 2;
+}
+
 /* compiler */
 static void compile_comment(moz_compiler_t *C, Node *node)
 {
@@ -286,6 +291,19 @@ static expr_t *moz_expr_new_Repetition(moz_compiler_t *C)
     return EXPR_ALLOC(Repetition);
 }
 
+static expr_t *moz_expr_new_Tpush(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Tpush);
+}
+
+static expr_t *moz_expr_new_Tpop(moz_compiler_t *C, const char *str, unsigned len)
+{
+    Tpop_t *e = EXPR_ALLOC_T(Tpop);
+    e->name.str = str;
+    e->name.len = len;
+    return (expr_t *)e;
+}
+
 static expr_t *moz_expr_new_Tcapture(moz_compiler_t *C)
 {
     return EXPR_ALLOC(Tcapture);
@@ -301,15 +319,6 @@ static expr_t *moz_expr_new_Tlfold(moz_compiler_t *C)
 {
     assert(0 && "TODO");
     return EXPR_ALLOC(Tlfold);
-}
-
-static expr_t *moz_expr_new_Tlink(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr)
-{
-    Tlink_t *e = EXPR_ALLOC_T(Tlink);
-    e->name.str = str;
-    e->name.len = len;
-    MOZ_RC_INIT_FIELD(e->expr, expr);
-    return (expr_t *)e;
 }
 
 static expr_t *moz_expr_new_Tnew(moz_compiler_t *C)
@@ -670,8 +679,10 @@ static expr_t *compile_Tlfold(moz_compiler_t *C, Node *node)
 static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
 {
     Node *child = NULL;
-    const char *str = NULL;
+    const char *str = "";
     unsigned len = 0;
+    Sequence_t *seq = (Sequence_t *)moz_expr_new_Sequence(C);
+
     if (Node_length(node) == 1) {
         child = Node_get(node, 0);
     }
@@ -681,7 +692,18 @@ static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
         len = label->len;
         child = Node_get(node, 1);
     }
-    return moz_expr_new_Tlink(C, str, len, compile_expression(C, child));
+    {
+        expr_t *push = moz_expr_new_Tpush(C);
+        expr_t *body = compile_expression(C, child);
+        expr_t *pop  = moz_expr_new_Tpop(C, str, len);
+        MOZ_RC_RETAIN(push);
+        MOZ_RC_RETAIN(body);
+        MOZ_RC_RETAIN(pop);
+        ARRAY_add(expr_ptr_t, &seq->list, push);
+        ARRAY_add(expr_ptr_t, &seq->list, body);
+        ARRAY_add(expr_ptr_t, &seq->list, pop);
+    }
+    return (expr_t *)seq;
 }
 
 static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
@@ -1032,7 +1054,7 @@ static int moz_Invoke_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, 
     if (expr->decl != NULL) {
         decl_t *decl = expr->decl;
         if (MOZC_USE_AST_INLINING &&
-                (MOZ_RC_COUNT(decl) == 1 || isPatternMatchOnly(decl->body))) {
+                (moz_decl_use_once(decl) || isPatternMatchOnly(decl->body))) {
             moz_ast_do_inline(ref, expr);
             return 1;
         }
@@ -1198,7 +1220,7 @@ static int _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
     for (i = 0; i < (int)ARRAY_size(e->list); i++) {
         expr_t *child = ARRAY_get(expr_ptr_t, &e->list, i);
         /* flatten */
-        if (child->type == Sequence && isPatternMatchOnly(child)) {
+        if (child->type == Sequence) {
             Sequence_t *seq = (Sequence_t *)child;
             moz_Sequence_do_flatten(e, i, seq);
             modified = 1;
@@ -1489,7 +1511,8 @@ moz_expr_factory_t *moz_compiler_get_factory()
         moz_expr_new_Tcapture,
         moz_expr_new_Tdetree,
         moz_expr_new_Tlfold,
-        moz_expr_new_Tlink,
+        moz_expr_new_Tpush,
+        moz_expr_new_Tpop,
         moz_expr_new_Tnew,
         moz_expr_new_Treplace,
         moz_expr_new_Ttag,

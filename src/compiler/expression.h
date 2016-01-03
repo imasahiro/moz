@@ -40,6 +40,7 @@ struct compiler {
     ARRAY(decl_ptr_t) decls;
     ARRAY(block_ptr_t) blocks;
     ARRAY(pstring_ptr_t) strs;
+    ARRAY(pstring_ptr_t) tags;
     ARRAY(bitset_t) sets;
 };
 
@@ -60,7 +61,8 @@ struct compiler {
     OP(Tcapture, Expr, Expr, Expr) \
     OP(Tdetree, Expr, Expr, Expr) \
     OP(Tlfold, Expr, Expr, Expr) \
-    OP(Tlink, NameUnary, NameUnary, NameUnary) \
+    OP(Tpush, Expr, Expr, Expr) \
+    OP(Tpop, Name, Expr, Expr) \
     OP(Tnew, Expr, Expr, Expr) \
     OP(Treplace, Expr, Expr, Expr) \
     OP(Ttag, Name, Expr, Expr) \
@@ -195,11 +197,16 @@ typedef struct Tlfold_t {
     expr_t base;
 } Tlfold_t;
 
-typedef struct Tlink_t {
+typedef struct Tpush_t {
     expr_t base;
     name_t name;
     expr_t *expr;
-} Tlink_t;
+} Tpush_t;
+
+typedef struct Tpop_t {
+    expr_t base;
+    name_t name;
+} Tpop_t;
 
 typedef struct Tnew_t {
     expr_t base;
@@ -288,7 +295,8 @@ typedef const struct moz_expr_factory_t {
     expr_t *(*_Tcapture)(moz_compiler_t *C);
     expr_t *(*_Tdetree)(moz_compiler_t *C);
     expr_t *(*_Tlfold)(moz_compiler_t *C);
-    expr_t *(*_Tlink)(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr);
+    expr_t *(*_Tpush)(moz_compiler_t *C);
+    expr_t *(*_Tpop)(moz_compiler_t *C, const char *str, unsigned len);
     expr_t *(*_Tnew)(moz_compiler_t *C);
     expr_t *(*_Treplace)(moz_compiler_t *C);
     expr_t *(*_Ttag)(moz_compiler_t *C, const char *str, unsigned len);

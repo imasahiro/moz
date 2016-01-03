@@ -26,22 +26,34 @@ typedef struct moz_state_t {
     struct block_t *fail;
 } moz_state_t;
 
-static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
+static unsigned moz_compiler_get_string_id(ARRAY(pstring_ptr_t) *ary, name_t *name)
 {
     pstring_t **x;
     unsigned i = 0;
-    unsigned max = ARRAY_size(C->strs);
-    char *s = (char *)ARRAY_BEGIN(*str);
-    FOR_EACH_ARRAY_(C->strs, x, i) {
-        if ((*x)->len == ARRAY_size(*str)) {
-            if (strncmp((*x)->str, s, (*x)->len) == 0) {
+    unsigned max = ARRAY_size(*ary);
+    FOR_EACH_ARRAY_(*ary, x, i) {
+        if ((*x)->len == name->len) {
+            if (strncmp((*x)->str, name->str, name->len) == 0) {
                 return i;
             }
         }
     }
-    const char *newStr = pstring_alloc(s, ARRAY_size(*str));
-    ARRAY_add(pstring_ptr_t, &C->strs, pstring_get_raw(newStr));
+    const char *newStr = pstring_alloc(name->str, name->len);
+    ARRAY_add(pstring_ptr_t, ary, pstring_get_raw(newStr));
     return max;
+}
+
+static STRING_t moz_compiler_get_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
+{
+    name_t name;
+    name.str = (char *)ARRAY_BEGIN(*str);
+    name.len = ARRAY_size(*str);
+    return moz_compiler_get_string_id(&C->strs, &name);
+}
+
+static TAG_t moz_compiler_get_tag(moz_compiler_t *C, name_t *name)
+{
+    return moz_compiler_get_string_id(&C->tags, name);
 }
 
 static BITSET_t moz_compiler_get_set(moz_compiler_t *C, bitset_t *set)
@@ -58,13 +70,6 @@ static BITSET_t moz_compiler_get_set(moz_compiler_t *C, bitset_t *set)
     bitset_copy(&tmp, set);
     ARRAY_add(bitset_t, &C->sets, &tmp);
     return max;
-
-}
-
-static TAG_t moz_compiler_get_tag(moz_compiler_t *C, name_t *name)
-{
-    asm volatile("int3");
-    return 0;
 }
 
 /* compile */
@@ -506,11 +511,17 @@ static void moz_Tlfold_to_ir(moz_compiler_t *C, moz_state_t *S, Tlfold_t *e)
     TODO(e);
 }
 
-static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
+static void moz_Tpush_to_ir(moz_compiler_t *C, moz_state_t *S, Tpush_t *e)
 {
-    TODO(e);
-    // ITLink_t *ir = IR_ALLOC_T(ITLink, S);
-    // moz_compiler_add(C, S, (IR_t *)ir);
+    ITPush_t *ir = IR_ALLOC_T(ITPush, S);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
+static void moz_Tpop_to_ir(moz_compiler_t *C, moz_state_t *S, Tpop_t *e)
+{
+    ITPop_t *ir = IR_ALLOC_T(ITPop, S);
+    ir->tagId = moz_compiler_get_tag(C, &e->name);
+    moz_compiler_add(C, S, (IR_t *)ir);
 }
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
@@ -908,6 +919,7 @@ moz_compiler_t *moz_compiler_init(moz_compiler_t *C, moz_runtime_t *R)
     C->R = R;
     ARRAY_init(decl_ptr_t, &C->decls, 1);
     ARRAY_init(pstring_ptr_t, &C->strs, 1);
+    ARRAY_init(pstring_ptr_t, &C->tags, 1);
     ARRAY_init(bitset_t, &C->sets, 1);
     ARRAY_init(block_ptr_t, &C->blocks, 1);
     return C;
@@ -917,6 +929,7 @@ void moz_compiler_dispose(moz_compiler_t *C)
 {
     ARRAY_dispose(block_ptr_t, &C->blocks);
     ARRAY_dispose(pstring_ptr_t, &C->strs);
+    ARRAY_dispose(pstring_ptr_t, &C->tags);
     ARRAY_dispose(bitset_t, &C->sets);
     ARRAY_dispose(decl_ptr_t, &C->decls);
 }
