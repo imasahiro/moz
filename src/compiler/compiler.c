@@ -1029,7 +1029,7 @@ void moz_compiler_dispose(moz_compiler_t *C)
     ARRAY_dispose(decl_ptr_t, &C->decls);
 }
 
-void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
+void moz_compiler_compile(moz_runtime_t *R, Node *node)
 {
     moz_compiler_t C;
     moz_compiler_init(&C, R);

@@ -14,7 +14,7 @@ extern "C" {
 
 static void usage(const char *arg)
 {
-    fprintf(stderr, "Usage: %s -i <input_file> -o <output_file>\n", arg);
+    fprintf(stderr, "Usage: %s -p <peg_file> -i <input_file>\n", arg);
 }
 
 int main(int argc, char *const argv[])
@@ -23,17 +23,17 @@ int main(int argc, char *const argv[])
     mozvm_loader_t L;
     moz_inst_t *inst;
 
+    const char *peg_file = NULL;
     const char *input_file = NULL;
-    const char *output_file = NULL;
     int opt;
 
-    while ((opt = getopt(argc, argv, "i:o:h")) != -1) {
+    while ((opt = getopt(argc, argv, "p:i:h")) != -1) {
         switch (opt) {
+        case 'p':
+            peg_file = optarg;
+            break;
         case 'i':
             input_file = optarg;
-            break;
-        case 'o':
-            output_file = optarg;
             break;
         case 'h':
         default: /* '?' */
@@ -41,18 +41,18 @@ int main(int argc, char *const argv[])
             exit(EXIT_FAILURE);
         }
     }
-    if (output_file == NULL) {
-        fprintf(stderr, "error: please specify output file name\n");
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
     if (input_file == NULL) {
-        fprintf(stderr, "error: please specify input file\n");
+        fprintf(stderr, "error: please specify input file name\n");
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (!mozvm_loader_load_input_file(&L, input_file)) {
-        fprintf(stderr, "error: failed to load input_file='%s'\n", input_file);
+    if (peg_file == NULL) {
+        fprintf(stderr, "error: please specify peg file\n");
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    if (!mozvm_loader_load_input_file(&L, peg_file)) {
+        fprintf(stderr, "error: failed to load peg file='%s'\n", peg_file);
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
@@ -68,7 +68,7 @@ int main(int argc, char *const argv[])
     if (parsed == 0) {
         Node *node = ast_get_parsed_node(L.R->ast);
         if (node) {
-            moz_compiler_compile(output_file, L.R, node);
+            moz_compiler_compile(L.R, node);
             NODE_GC_RELEASE(node);
         }
     }
