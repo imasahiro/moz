@@ -95,10 +95,6 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = '\0';
 }
 
-
-static void moz_expr_sweep(expr_t *e);
-static void moz_decl_sweep(decl_t *decl);
-
 static bool isByteOrSet(expr_t *e)
 {
     return e->type == Byte || e->type == Set;
@@ -145,11 +141,18 @@ static decl_t *decl_new()
     return decl;
 }
 
-static void decl_set_name(decl_t *decl, Node *node)
+decl_t *moz_decl_new(moz_compiler_t *C, const char *name, unsigned len)
 {
-    assert(tag_equal(node, "Name") || tag_equal(node, "String"));
-    decl->name.str = node->pos;
-    decl->name.len = node->len;
+    decl_t *decl = decl_new();
+    decl->name.str = name;
+    decl->name.len = len;
+    ARRAY_add(decl_ptr_t, &C->decls, decl);
+    return decl;
+}
+
+void moz_decl_mark_as_top_level(decl_t *decl)
+{
+    MOZ_RC_RETAIN(decl);
 }
 
 /* compiler */
@@ -285,7 +288,6 @@ static expr_t *moz_expr_new_Repetition(moz_compiler_t *C)
 
 static expr_t *moz_expr_new_Tcapture(moz_compiler_t *C)
 {
-    assert(0 && "TODO");
     return EXPR_ALLOC(Tcapture);
 }
 
@@ -310,11 +312,9 @@ static expr_t *moz_expr_new_Tlink(moz_compiler_t *C, const char *str, unsigned l
     return (expr_t *)e;
 }
 
-static expr_t *moz_expr_new_Tnew(moz_compiler_t *C, expr_t *expr)
+static expr_t *moz_expr_new_Tnew(moz_compiler_t *C)
 {
-    Tnew_t *e = EXPR_ALLOC_T(Tnew);
-    MOZ_RC_INIT_FIELD(e->expr, expr);
-    return (expr_t *)e;
+    return EXPR_ALLOC(Tnew);
 }
 
 static expr_t *moz_expr_new_Treplace(moz_compiler_t *C)
@@ -687,13 +687,17 @@ static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
 static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
 {
     Sequence_t *seq = EXPR_ALLOC_T(Sequence);
-    Tcapture_t *cap = EXPR_ALLOC_T(Tcapture);
+    expr_t *tnew = moz_expr_new_Tnew(C);
+    expr_t *tcap = moz_expr_new_Tcapture(C);
+
     expr_t *body = compile_expression(C, Node_get(node, 0));
+    ARRAY_add(expr_ptr_t, &seq->list, tnew);
     ARRAY_add(expr_ptr_t, &seq->list, body);
-    ARRAY_add(expr_ptr_t, &seq->list, (expr_t *)cap);
+    ARRAY_add(expr_ptr_t, &seq->list, tcap);
+    MOZ_RC_RETAIN(tnew);
     MOZ_RC_RETAIN(body);
-    MOZ_RC_RETAIN((expr_t *)cap);
-    return moz_expr_new_Tnew(C, (expr_t *)seq);
+    MOZ_RC_RETAIN(tcap);
+    return (expr_t *)seq;
 }
 
 static expr_t *compile_Treplace(moz_compiler_t *C, Node *node)
@@ -1370,7 +1374,7 @@ void moz_ast_optimize(moz_compiler_t *C)
 }
 
 /* sweep */
-static void moz_decl_sweep(decl_t *decl)
+void moz_decl_sweep(decl_t *decl)
 {
     MOZ_RC_RELEASE(decl->body, moz_expr_sweep);
     decl->body = NULL;
@@ -1416,7 +1420,8 @@ static void moz_List_sweep(List_t *e)
 }
 
 typedef void (*f_sweep)(expr_t *e);
-static void moz_expr_sweep(expr_t *e)
+
+void moz_expr_sweep(expr_t *e)
 {
     f_sweep sweep[] = {
 #define F_SWEEP_DECL(NAME, DUMP, OPT, SWEEP) (f_sweep) moz_##SWEEP##_sweep,
@@ -1433,16 +1438,15 @@ static void moz_ast_prepare(moz_compiler_t *C, Node *node)
     for (i = 0; i < decl_size; i++) {
         Node *child = Node_get(node, i);
         if (tag_equal(child, "Production")) {
-            decl_t *decl = decl_new();
+            Node *name;
             assert(Node_length(child) == 3);
-            decl_set_name(decl, Node_get(child, 1));
-            // fprintf(stderr, "%.*s\n", decl->name.len, decl->name.str);
-            // Node_print(child, C->R->C.tags);
-            ARRAY_add(decl_ptr_t, &C->decls, decl);
+            name = Node_get(child, 1);
+            assert(tag_equal(name, "Name") || tag_equal(name, "String"));
+            moz_decl_new(C, name->pos, name->len);
         }
     }
     if (ARRAY_size(C->decls) > 0) {
-        MOZ_RC_RETAIN(ARRAY_get(decl_ptr_t, &C->decls, 0));
+        moz_decl_mark_as_top_level(ARRAY_get(decl_ptr_t, &C->decls, 0));
     }
 }
 

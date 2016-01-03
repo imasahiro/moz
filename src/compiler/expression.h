@@ -61,7 +61,7 @@ struct compiler {
     OP(Tdetree, Expr, Expr, Expr) \
     OP(Tlfold, Expr, Expr, Expr) \
     OP(Tlink, NameUnary, NameUnary, NameUnary) \
-    OP(Tnew, Unary, Unary, Unary) \
+    OP(Tnew, Expr, Expr, Expr) \
     OP(Treplace, Expr, Expr, Expr) \
     OP(Ttag, Name, Expr, Expr) \
     OP(Xblock, Unary, Unary, Unary) \
@@ -203,7 +203,6 @@ typedef struct Tlink_t {
 
 typedef struct Tnew_t {
     expr_t base;
-    expr_t *expr;
 } Tnew_t;
 
 typedef struct Treplace_t {
@@ -261,11 +260,15 @@ typedef struct Xsymbol_t {
 
 /* API */
 void moz_expr_dump(int level, expr_t *e);
+decl_t *moz_decl_new(moz_compiler_t *C, const char *name, unsigned len);
+void moz_decl_mark_as_top_level(decl_t *decl);
 
 /* Internal API */
 void moz_node_to_ast(moz_compiler_t *C, Node *node);
 void moz_ast_optimize(moz_compiler_t *C);
 void moz_ast_dump(moz_compiler_t *C);
+void moz_decl_sweep(decl_t *decl);
+void moz_expr_sweep(expr_t *e);
 
 /* Expression factory */
 typedef const struct moz_expr_factory_t {
@@ -286,7 +289,7 @@ typedef const struct moz_expr_factory_t {
     expr_t *(*_Tdetree)(moz_compiler_t *C);
     expr_t *(*_Tlfold)(moz_compiler_t *C);
     expr_t *(*_Tlink)(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr);
-    expr_t *(*_Tnew)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Tnew)(moz_compiler_t *C);
     expr_t *(*_Treplace)(moz_compiler_t *C);
     expr_t *(*_Ttag)(moz_compiler_t *C, const char *str, unsigned len);
     expr_t *(*_Xblock)(moz_compiler_t *C, expr_t *expr);

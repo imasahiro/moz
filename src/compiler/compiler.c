@@ -503,15 +503,8 @@ static void moz_Tlink_to_ir(moz_compiler_t *C, moz_state_t *S, Tlink_t *e)
 
 static void moz_Tnew_to_ir(moz_compiler_t *C, moz_state_t *S, Tnew_t *e)
 {
-    /**
-     * Tnew(E1)
-     * L_head
-     *  Tnew
-     *  E1
-     */
     ITNew_t *ir = IR_ALLOC_T(ITNew, S);
     moz_compiler_add(C, S, (IR_t *)ir);
-    moz_expr_to_ir(C, S, e->expr);
 }
 
 static void moz_Treplace_to_ir(moz_compiler_t *C, moz_state_t *S, Treplace_t *e)
