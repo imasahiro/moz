@@ -80,9 +80,6 @@ static inline expr_t *_EXPR_ALLOC(size_t size, expr_type_t type)
     expr_t *e = (expr_t *)VM_CALLOC(1, size);
     MOZ_RC_INIT(e);
     e->type = type;
-    if (e->type == Empty) {
-        asm volatile("int3");
-    }
     return e;
 }
 

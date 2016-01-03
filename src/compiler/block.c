@@ -84,16 +84,6 @@ static void block_unlink(block_t *pred, block_t *succ)
     ARRAY_remove_element(block_ptr_t, &succ->preds, pred);
 }
 
-static block_t *block_get_succ(block_t *bb, unsigned idx)
-{
-    return ARRAY_get(block_ptr_t, &bb->succs, idx);
-}
-
-static block_t *block_get_pred(block_t *bb, unsigned idx)
-{
-    return ARRAY_get(block_ptr_t, &bb->preds, idx);
-}
-
 static void block_append(block_t *bb, IR_t *inst)
 {
     ARRAY_add(IR_ptr_t, &bb->insts, inst);
