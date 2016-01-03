@@ -530,6 +530,14 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
             assert(0 && "unreachable");
         }
     }
+    if (len == 1 && data[0] == data[1]) {
+        if (data[0] < 256) {
+            return moz_expr_new_Byte(C, data[0]);
+        }
+        else {
+            assert(0 && "unicode char class is not supported");
+        }
+    }
     return moz_expr_new_Set(C, data, len * 2);
 }
 

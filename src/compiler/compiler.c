@@ -43,7 +43,6 @@ static unsigned moz_compiler_add_string_id(ARRAY(pstring_ptr_t) *ary, name_t *na
     ARRAY_add(pstring_ptr_t, ary, pstring_get_raw(newStr));
     return max;
 }
-static void moz_ir_dump(moz_compiler_t *C);
 
 static STRING_t moz_compiler_add_string(moz_compiler_t *C, ARRAY(uint8_t) *str)
 {
