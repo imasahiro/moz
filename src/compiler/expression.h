@@ -267,6 +267,41 @@ void moz_node_to_ast(moz_compiler_t *C, Node *node);
 void moz_ast_optimize(moz_compiler_t *C);
 void moz_ast_dump(moz_compiler_t *C);
 
+/* Expression factory */
+typedef const struct moz_expr_factory_t {
+    expr_t *(*_Invoke)(moz_compiler_t *C, const char *str, unsigned len, decl_t *decl);
+    expr_t *(*_Any)(moz_compiler_t *C);
+    expr_t *(*_Byte)(moz_compiler_t *C, uint8_t byte);
+    expr_t *(*_Str)(moz_compiler_t *C, const char *str, unsigned len);
+    expr_t *(*_Set)(moz_compiler_t *C, unsigned *data, unsigned len);
+    expr_t *(*_And)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Choice)(moz_compiler_t *C);
+    expr_t *(*_Empty)(moz_compiler_t *C);
+    expr_t *(*_Fail)(moz_compiler_t *C);
+    expr_t *(*_Not)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Option)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Sequence)(moz_compiler_t *C);
+    expr_t *(*_Repetition)(moz_compiler_t *C);
+    expr_t *(*_Tcapture)(moz_compiler_t *C);
+    expr_t *(*_Tdetree)(moz_compiler_t *C);
+    expr_t *(*_Tlfold)(moz_compiler_t *C);
+    expr_t *(*_Tlink)(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr);
+    expr_t *(*_Tnew)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Treplace)(moz_compiler_t *C);
+    expr_t *(*_Ttag)(moz_compiler_t *C, const char *str, unsigned len);
+    expr_t *(*_Xblock)(moz_compiler_t *C, expr_t *expr);
+    expr_t *(*_Xexists)(moz_compiler_t *C, const char *str, unsigned len);
+    expr_t *(*_Xif)(moz_compiler_t *C);
+    expr_t *(*_Xis)(moz_compiler_t *C, const char *str, unsigned len);
+    expr_t *(*_Xisa)(moz_compiler_t *C, const char *str, unsigned len);
+    expr_t *(*_Xlocal)(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr);
+    expr_t *(*_Xmatch)(moz_compiler_t *C);
+    expr_t *(*_Xon)(moz_compiler_t *C);
+    expr_t *(*_Xsymbol)(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr);
+} moz_expr_factory_t;
+
+moz_expr_factory_t *moz_compiler_get_factory();
+
 #ifdef __cplusplus
 }
 #endif

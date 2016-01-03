@@ -910,9 +910,9 @@ void moz_compiler_compile(const char *output_file, moz_runtime_t *R, Node *node)
     moz_node_to_ast(&C, node);
     moz_ast_dump(&C);
     moz_ast_to_ir(&C);
-    // moz_ir_dump(&C);
     moz_ir_optimize(&C);
     moz_ir_dump(&C);
+
     ARRAY_dispose(block_ptr_t, &C.blocks);
     ARRAY_dispose(pstring_ptr_t, &C.strs);
     ARRAY_dispose(bitset_t, &C.sets);

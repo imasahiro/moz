@@ -6,6 +6,13 @@ DEF_ARRAY_OP_NOPOINTER(decl_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(expr_ptr_t);
 DEF_ARRAY_OP_NOPOINTER(uint8_t);
 
+static unsigned to_hex(uint8_t c)
+{
+    if(c >= '0' && c <= '9') return c - '0';
+    else if(c >= 'a' && c <= 'f') return c - 'a' + 10;
+    else if(c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
 
 static inline int tag_equal(Node *node, const char *tag)
 {
@@ -145,13 +152,6 @@ static void decl_set_name(decl_t *decl, Node *node)
     decl->name.len = node->len;
 }
 
-static void name_set(name_t *name, Node *node)
-{
-    assert(tag_equal(node, "Name"));
-    name->str = node->pos;
-    name->len = node->len;
-}
-
 /* compiler */
 static void compile_comment(moz_compiler_t *C, Node *node)
 {
@@ -173,7 +173,234 @@ static inline expr_t *_EXPR_ALLOC(size_t size, expr_type_t type)
     return e;
 }
 
-#define EXPR_ALLOC(T) ((T##_t *) _EXPR_ALLOC(sizeof(T##_t), T))
+#define EXPR_ALLOC(T)   _EXPR_ALLOC(sizeof(T##_t), T)
+#define EXPR_ALLOC_T(T) ((T##_t *) _EXPR_ALLOC(sizeof(T##_t), T))
+
+static expr_t *moz_expr_new_Invoke(moz_compiler_t *C, const char *str, unsigned len, decl_t *decl)
+{
+    Invoke_t *e = EXPR_ALLOC_T(Invoke);
+    e->name.str = str;
+    e->name.len = len;
+    if (decl) {
+        e->decl = decl;
+        MOZ_RC_RETAIN(decl);
+    }
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Any(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Any);
+}
+
+static expr_t *moz_expr_new_Byte(moz_compiler_t *C, uint8_t byte)
+{
+    Byte_t *e = EXPR_ALLOC_T(Byte);
+    e->byte = byte;
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Str(moz_compiler_t *C, const char *str, unsigned len)
+{
+    unsigned i;
+    Str_t *e = EXPR_ALLOC_T(Str);
+    assert(len > 0);
+    ARRAY_init(uint8_t, &e->list, len);
+    for (i = 0; i < len; i++) {
+        ARRAY_add(uint8_t, &e->list, str[i]);
+    }
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Set(moz_compiler_t *C, unsigned *data, unsigned len)
+{
+    Set_t *e = EXPR_ALLOC_T(Set);
+    unsigned i;
+    bitset_init(&e->set);
+    assert(len % 2 == 0);
+    for (i = 0; i < len / 2; i++) {
+        unsigned ch1 = data[i * 2 + 0];
+        unsigned ch2 = data[i * 2 + 1];
+        if (ch1 > 256 || ch2 > 256) {
+            assert(0 && "unicode char class is not supported");
+        }
+        for (; ch1 <= ch2; ch1++) {
+            bitset_set(&e->set, ch1);
+        }
+    }
+#if DUMP_SET
+    char buf[1024] = {};
+    dump_set(&e->set, buf);
+    fprintf(stderr, "%s\n", buf);
+#endif
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_And(moz_compiler_t *C, expr_t *expr)
+{
+    And_t *e = EXPR_ALLOC_T(And);
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Choice(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Choice);
+}
+
+static expr_t *moz_expr_new_Empty(moz_compiler_t *C)
+{
+    Empty_t *e = EXPR_ALLOC_T(Empty);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Fail(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Fail);
+}
+
+static expr_t *moz_expr_new_Not(moz_compiler_t *C, expr_t *expr)
+{
+    Not_t *e = EXPR_ALLOC_T(Not);
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Option(moz_compiler_t *C, expr_t *expr)
+{
+    Option_t *e = EXPR_ALLOC_T(Option);
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Sequence(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Sequence);
+}
+
+static expr_t *moz_expr_new_Repetition(moz_compiler_t *C)
+{
+    return EXPR_ALLOC(Repetition);
+}
+
+static expr_t *moz_expr_new_Tcapture(moz_compiler_t *C)
+{
+    assert(0 && "TODO");
+    return EXPR_ALLOC(Tcapture);
+}
+
+static expr_t *moz_expr_new_Tdetree(moz_compiler_t *C)
+{
+    assert(0 && "TODO");
+    return EXPR_ALLOC(Tdetree);
+}
+
+static expr_t *moz_expr_new_Tlfold(moz_compiler_t *C)
+{
+    assert(0 && "TODO");
+    return EXPR_ALLOC(Tlfold);
+}
+
+static expr_t *moz_expr_new_Tlink(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr)
+{
+    Tlink_t *e = EXPR_ALLOC_T(Tlink);
+    e->name.str = str;
+    e->name.len = len;
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Tnew(moz_compiler_t *C, expr_t *expr)
+{
+    Tnew_t *e = EXPR_ALLOC_T(Tnew);
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Treplace(moz_compiler_t *C)
+{
+    Treplace_t *e = EXPR_ALLOC_T(Treplace);
+    assert(0 && "TODO");
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Ttag(moz_compiler_t *C, const char *str, unsigned len)
+{
+    Ttag_t *e = EXPR_ALLOC_T(Ttag);
+    e->name.str = str;
+    e->name.len = len;
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xblock(moz_compiler_t *C, expr_t *expr)
+{
+    Xblock_t *e = EXPR_ALLOC_T(Xblock);
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xexists(moz_compiler_t *C, const char *str, unsigned len)
+{
+    Xexists_t *e = EXPR_ALLOC_T(Xexists);
+    e->name.str = str;
+    e->name.len = len;
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xif(moz_compiler_t *C)
+{
+    Xif_t *e = EXPR_ALLOC_T(Xif);
+    assert(0 && "TODO");
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xis(moz_compiler_t *C, const char *str, unsigned len)
+{
+    Xis_t *e = EXPR_ALLOC_T(Xis);
+    e->name.str = str;
+    e->name.len = len;
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xisa(moz_compiler_t *C, const char *str, unsigned len)
+{
+    Xisa_t *e = EXPR_ALLOC_T(Xisa);
+    e->name.str = str;
+    e->name.len = len;
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xlocal(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr)
+{
+    Xlocal_t *e = EXPR_ALLOC_T(Xlocal);
+    e->name.str = str;
+    e->name.len = len;
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xmatch(moz_compiler_t *C)
+{
+    Xmatch_t *e = EXPR_ALLOC_T(Xmatch);
+    assert(0 && "TODO");
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xon(moz_compiler_t *C)
+{
+    Xon_t *e = EXPR_ALLOC_T(Xon);
+    assert(0 && "TODO");
+    return (expr_t *)e;
+}
+
+static expr_t *moz_expr_new_Xsymbol(moz_compiler_t *C, const char *str, unsigned len, expr_t *expr)
+{
+    Xsymbol_t *e = EXPR_ALLOC_T(Xsymbol);
+    e->name.str = str;
+    e->name.len = len;
+    MOZ_RC_INIT_FIELD(e->expr, expr);
+    return (expr_t *)e;
+}
 
 static void _compile_List(moz_compiler_t *C, Node *node, ARRAY(expr_ptr_t) *list)
 {
@@ -189,39 +416,27 @@ static void _compile_List(moz_compiler_t *C, Node *node, ARRAY(expr_ptr_t) *list
 
 static expr_t *compile_Invoke(moz_compiler_t *C, Node *node)
 {
-    unsigned len;
-    Invoke_t *e = EXPR_ALLOC(Invoke);
-    decl_t **decl, **end;
-    e->name.str = node->pos;
-    e->name.len = len = node->len;
-    FOR_EACH_ARRAY(C->decls, decl, end) {
-        if (len == (*decl)->name.len) {
-            if (strncmp(e->name.str, (*decl)->name.str, len) == 0) {
-                e->decl = *decl;
-                MOZ_RC_RETAIN(*decl);
-                break;
-            }
+    decl_t **x, **end;
+    decl_t *decl = NULL;
+
+    FOR_EACH_ARRAY(C->decls, x, end) {
+        if (node->len == (*x)->name.len &&
+                strncmp(node->pos, (*x)->name.str, node->len) == 0) {
+            decl = *x;
+            break;
         }
     }
-    return (expr_t *)e;
+    return moz_expr_new_Invoke(C, node->pos, node->len, decl);
 }
 
 static expr_t *compile_Any(moz_compiler_t *C, Node *node)
 {
-    Any_t *e = EXPR_ALLOC(Any);
-    return (expr_t *)e;
+    return moz_expr_new_Any(C);
 }
 
 static expr_t *compile_Str(moz_compiler_t *C, Node *node)
 {
-    unsigned i, len = node->len;
-    Str_t *e = EXPR_ALLOC(Str);
-    assert(node->len > 0);
-    ARRAY_init(uint8_t, &e->list, len);
-    for (i = 0; i < len; i++) {
-        ARRAY_add(uint8_t, &e->list, node->pos[i]);
-    }
-    return (expr_t *)e;
+    return moz_expr_new_Str(C, node->pos, node->len);
 }
 
 static expr_t *compile_InvokeOrStr(moz_compiler_t *C, Node *node)
@@ -240,32 +455,61 @@ static expr_t *compile_InvokeOrStr(moz_compiler_t *C, Node *node)
 
 static expr_t *compile_Empty(moz_compiler_t *C, Node *node)
 {
-    Empty_t *e = EXPR_ALLOC(Empty);
-    return (expr_t *)e;
+    return moz_expr_new_Empty(C);
+}
+
+static int parseEscapedChar(const uint8_t *p, uint8_t *out)
+{
+    uint8_t c = *p++;
+    if (c == '\\') {
+        c = *p++;
+        switch (c) {
+        case '\\':
+            *out = '\\';
+            return 1;
+        case 'b':
+            *out = '\b';
+            return 1;
+        case 'f':
+            *out = '\f';
+            return 1;
+        case 'v':
+            *out = '\v';
+            return 1;
+        case 'n':
+            *out = '\n';
+            return 1;
+        case 'r':
+            *out = '\r';
+            return 1;
+        case 't':
+            *out = '\t';
+            return 1;
+        case 'x':
+            c = to_hex(*p++);
+            c = c << 8 | to_hex(*p);
+            *out = c;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static expr_t *compile_Byte(moz_compiler_t *C, Node *node)
 {
+    uint8_t byte;
     assert(Node_length(node) == 0);
     if (node->len == 0) {
         return compile_Empty(C, node);
     }
-    else if (node->len == 1 || (node->len == 2 && node->pos[0] == '\\')) {
-        Byte_t *byte = EXPR_ALLOC(Byte);
-        byte->byte = (uint8_t)node->pos[0];
-        return (expr_t *)byte;
+
+    byte = node->pos[0];
+    if (node->len == 1 || parseEscapedChar((const uint8_t *)node->pos, &byte)) {
+        return moz_expr_new_Byte(C, byte);
     }
     else {
         return compile_Str(C, node);
     }
-}
-
-static unsigned to_hex(uint8_t c)
-{
-    if(c >= '0' && c <= '9') return c - '0';
-    else if(c >= 'a' && c <= 'f') return c - 'a' + 10;
-    else if(c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
 }
 
 static unsigned parseUnicode4(const uint8_t *p)
@@ -316,8 +560,6 @@ static unsigned parseClass(const uint8_t *p)
 static expr_t *compile_Set(moz_compiler_t *C, Node *node)
 {
     unsigned i, len = Node_length(node);
-    Set_t *e = EXPR_ALLOC(Set);
-    bitset_init(&e->set);
     unsigned data[len * 2];
     assert(len > 0);
     memset(data, 0, sizeof(unsigned) * len * 2);
@@ -326,7 +568,6 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
         if (tag_equal(child, "Class")) {
             unsigned ch = parseClass((const uint8_t *)child->pos);
             data[i * 2 + 0] = data[i * 2 + 1] = ch;
-            bitset_set(&e->set, ch);
         }
         else if (tag_equal(child, "List")) {
             assert(Node_length(child) == 2);
@@ -346,82 +587,60 @@ static expr_t *compile_Set(moz_compiler_t *C, Node *node)
             assert(0 && "unreachable");
         }
     }
-    for (i = 0; i < len; i++) {
-        unsigned ch1 = data[i * 2 + 0];
-        unsigned ch2 = data[i * 2 + 1];
-        if (ch1 > 256 || ch2 > 256) {
-            assert(0 && "unicode char class is not supported");
-        }
-        for (; ch1 <= ch2; ch1++) {
-            bitset_set(&e->set, ch1);
-        }
-    }
-#if DUMP_SET
-    char buf[1024] = {};
-    dump_set(&e->set, buf);
-    fprintf(stderr, "%s\n", buf);
-#endif
-    return (expr_t *)e;
+    return moz_expr_new_Set(C, data, len * 2);
 }
 
 static expr_t *compile_And(moz_compiler_t *C, Node *node)
 {
-    And_t *e = EXPR_ALLOC(And);
     assert(Node_length(node) == 1);
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, Node_get(node, 0)));
-    return (expr_t *)e;
+    return moz_expr_new_And(C, compile_expression(C, Node_get(node, 0)));
 }
 
 static expr_t *compile_Choice(moz_compiler_t *C, Node *node)
 {
-    Choice_t *e = EXPR_ALLOC(Choice);
-    _compile_List(C, node, &e->list);
-    return (expr_t *)e;
+    expr_t *e = moz_expr_new_Choice(C);
+    _compile_List(C, node, &((Choice_t *)e)->list);
+    return e;
 }
 
 static expr_t *compile_Fail(moz_compiler_t *C, Node *node)
 {
-    Fail_t *e = EXPR_ALLOC(Fail);
     assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Fail(C);
 }
 
 static expr_t *compile_Not(moz_compiler_t *C, Node *node)
 {
-    Not_t *e = EXPR_ALLOC(Not);
     assert(Node_length(node) == 1);
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, Node_get(node, 0)));
-    return (expr_t *)e;
+    return moz_expr_new_Not(C, compile_expression(C, Node_get(node, 0)));
 }
 
 static expr_t *compile_Option(moz_compiler_t *C, Node *node)
 {
-    Option_t *e = EXPR_ALLOC(Option);
     assert(Node_length(node) == 1);
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, Node_get(node, 0)));
-    return (expr_t *)e;
+    return moz_expr_new_Option(C, compile_expression(C, Node_get(node, 0)));
 }
 
 static expr_t *compile_Sequence(moz_compiler_t *C, Node *node)
 {
-    Sequence_t *e = EXPR_ALLOC(Sequence);
-    _compile_List(C, node, &e->list);
-    return (expr_t *)e;
+    expr_t *e = moz_expr_new_Sequence(C);
+    _compile_List(C, node, &((Sequence_t *)e)->list);
+    return e;
 }
 
 static expr_t *compile_Repetition(moz_compiler_t *C, Node *node)
 {
-    Repetition_t *e = EXPR_ALLOC(Repetition);
+    expr_t *e = moz_expr_new_Repetition(C);
     assert(Node_length(node) == 1);
-    _compile_List(C, node, &e->list);
-    return (expr_t *)e;
+    _compile_List(C, node, &((Repetition_t *)e)->list);
+    return e;
 }
 
 static expr_t *compile_Repetition1(moz_compiler_t *C, Node *node)
 {
-    Sequence_t *e = EXPR_ALLOC(Sequence);
-    expr_t *rep = compile_Repetition(C, node);
     expr_t **x, **end;
+    Sequence_t *e = EXPR_ALLOC_T(Sequence);
+    expr_t *rep = compile_Repetition(C, node);
 
     assert(rep->type == Repetition);
     FOR_EACH_ARRAY(((Repetition_t *)rep)->list, x, end) {
@@ -435,138 +654,108 @@ static expr_t *compile_Repetition1(moz_compiler_t *C, Node *node)
 
 static expr_t *compile_Tcapture(moz_compiler_t *C, Node *node)
 {
-    Tcapture_t *e = EXPR_ALLOC(Tcapture);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Tcapture(C);
 }
 
 static expr_t *compile_Tdetree(moz_compiler_t *C, Node *node)
 {
-    Tdetree_t *e = EXPR_ALLOC(Tdetree);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Tdetree(C);
 }
 
 static expr_t *compile_Tlfold(moz_compiler_t *C, Node *node)
 {
-    Tlfold_t *e = EXPR_ALLOC(Tlfold);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Tlfold(C);
 }
 
 static expr_t *compile_Tlink(moz_compiler_t *C, Node *node)
 {
-    Tlink_t *e = EXPR_ALLOC(Tlink);
     Node *child = NULL;
+    const char *str = NULL;
+    unsigned len = 0;
     if (Node_length(node) == 1) {
-        e->name.str = NULL;
-        e->name.len = 0;
         child = Node_get(node, 0);
     }
     else {
         Node *label = Node_get(node, 0);
-        e->name.str = label->pos;
-        e->name.len = label->len;
+        str = label->pos;
+        len = label->len;
         child = Node_get(node, 1);
     }
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, child));
-    return (expr_t *)e;
+    return moz_expr_new_Tlink(C, str, len, compile_expression(C, child));
 }
 
 static expr_t *compile_Tnew(moz_compiler_t *C, Node *node)
 {
-    Tnew_t *e = EXPR_ALLOC(Tnew);
-    Sequence_t *seq = EXPR_ALLOC(Sequence);
-    Tcapture_t *cap = EXPR_ALLOC(Tcapture);
+    Sequence_t *seq = EXPR_ALLOC_T(Sequence);
+    Tcapture_t *cap = EXPR_ALLOC_T(Tcapture);
     expr_t *body = compile_expression(C, Node_get(node, 0));
     ARRAY_add(expr_ptr_t, &seq->list, body);
     ARRAY_add(expr_ptr_t, &seq->list, (expr_t *)cap);
     MOZ_RC_RETAIN(body);
     MOZ_RC_RETAIN((expr_t *)cap);
-    MOZ_RC_INIT_FIELD(e->expr, (expr_t *)seq);
-    return (expr_t *)e;
+    return moz_expr_new_Tnew(C, (expr_t *)seq);
 }
 
 static expr_t *compile_Treplace(moz_compiler_t *C, Node *node)
 {
-    Treplace_t *e = EXPR_ALLOC(Treplace);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Treplace(C);
 }
 
 static expr_t *compile_Ttag(moz_compiler_t *C, Node *node)
 {
-    Ttag_t *e = EXPR_ALLOC(Ttag);
-    e->name.str = node->pos;
-    e->name.len = node->len;
-    return (expr_t *)e;
+    return moz_expr_new_Ttag(C, node->pos, node->len);
 }
 
 static expr_t *compile_Xblock(moz_compiler_t *C, Node *node)
 {
-    Xblock_t *e = EXPR_ALLOC(Xblock);
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, Node_get(node, 0)));
-    return (expr_t *)e;
+    return moz_expr_new_Xblock(C, compile_expression(C, Node_get(node, 0)));
 }
 
 static expr_t *compile_Xexists(moz_compiler_t *C, Node *node)
 {
-    Xexists_t *e = EXPR_ALLOC(Xexists);
-    name_set(&e->name, Node_get(node, 0));
-    return (expr_t *)e;
+    Node *name = Node_get(node, 0);
+    return moz_expr_new_Xexists(C, name->pos, name->len);
 }
 
 static expr_t *compile_Xif(moz_compiler_t *C, Node *node)
 {
-    Xif_t *e = EXPR_ALLOC(Xif);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Xif(C);
 }
 
 static expr_t *compile_Xis(moz_compiler_t *C, Node *node)
 {
-    Xis_t *e = EXPR_ALLOC(Xis);
-    name_set(&e->name, Node_get(node, 0));
-    return (expr_t *)e;
+    Node *name = Node_get(node, 0);
+    return moz_expr_new_Xis(C, name->pos, name->len);
 }
 
 static expr_t *compile_Xisa(moz_compiler_t *C, Node *node)
 {
-    Xisa_t *e = EXPR_ALLOC(Xisa);
-    name_set(&e->name, Node_get(node, 0));
-    return (expr_t *)e;
+    Node *name = Node_get(node, 0);
+    return moz_expr_new_Xisa(C, name->pos, name->len);
 }
 
 static expr_t *compile_Xlocal(moz_compiler_t *C, Node *node)
 {
-    Xlocal_t *e = EXPR_ALLOC(Xlocal);
-    name_set(&e->name, Node_get(node, 0));
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, Node_get(node, 1)));
-    return (expr_t *)e;
+    Node *name = Node_get(node, 0);
+    expr_t *expr = compile_expression(C, Node_get(node, 1));
+    return moz_expr_new_Xlocal(C, name->pos, name->len, expr);
 }
 
 static expr_t *compile_Xmatch(moz_compiler_t *C, Node *node)
 {
-    Xmatch_t *e = EXPR_ALLOC(Xmatch);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Xmatch(C);
 }
 
 static expr_t *compile_Xon(moz_compiler_t *C, Node *node)
 {
-    Xon_t *e = EXPR_ALLOC(Xon);
-    assert(0 && "TODO");
-    return (expr_t *)e;
+    return moz_expr_new_Xon(C);
 }
 
 static expr_t *compile_Xsymbol(moz_compiler_t *C, Node *node)
 {
-    Xsymbol_t *e = EXPR_ALLOC(Xsymbol);
     Node *name = Node_get(node, 0);
-    Node *expr = Node_get(node, 1);
-    name_set(&e->name, name);
-    MOZ_RC_INIT_FIELD(e->expr, compile_expression(C, expr));
-    return (expr_t *)e;
+    expr_t *expr = compile_expression(C, Node_get(node, 1));
+    return moz_expr_new_Xsymbol(C, name->pos, name->len, expr);
 }
 
 static expr_t *compile_expression(moz_compiler_t *C, Node *node)
@@ -843,19 +1032,22 @@ static int moz_Invoke_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, 
             moz_ast_do_inline(ref, expr);
             return 1;
         }
-        assert(decl->body != NULL);
-        switch (decl->body->type) {
-        case Empty:
-        case Any:
-        case Byte:
-        case Str:
-        case Set:
-        case Fail:
-            moz_ast_do_inline(ref, expr);
-            return 1;
-        default:
-            break;
-        }
+        if (MOZC_USE_AST_INLINING) {
+            // Inline decl body if decl only have single expression.
+            assert(decl->body != NULL);
+            switch (decl->body->type) {
+            case Empty:
+            case Any:
+            case Byte:
+            case Str:
+            case Set:
+            case Fail:
+                moz_ast_do_inline(ref, expr);
+                return 1;
+            default:
+                break;
+            }
+            }
     }
     return 0;
 }
@@ -917,7 +1109,7 @@ static int moz_Choice_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, 
         return 1;
     }
     if (useByteMapOptimization(expr)) {
-        Set_t *set = EXPR_ALLOC(Set);
+        Set_t *set = EXPR_ALLOC_T(Set);
         bitset_init(&set->set);
         FOR_EACH_ARRAY(expr->list, x, end) {
             expr_t *child = *x;
@@ -974,7 +1166,7 @@ static void moz_Sequence_do_flatten(Sequence_t *e, int offset, Sequence_t *seq)
 
 static expr_t *moz_Sequence_concatString(Str_t *s1, Str_t *s2)
 {
-    Str_t *s3 = EXPR_ALLOC(Str);
+    Str_t *s3 = EXPR_ALLOC_T(Str);
     unsigned i;
     ARRAY_init(uint8_t, &s3->list, ARRAY_size(s1->list) + ARRAY_size(s2->list));
     for (i = 0; i < ARRAY_size(s1->list); i++) {
@@ -988,7 +1180,7 @@ static expr_t *moz_Sequence_concatString(Str_t *s1, Str_t *s2)
 
 static expr_t *moz_Sequence_concatByte(Byte_t *b1, Byte_t *b2)
 {
-    Str_t *s3 = EXPR_ALLOC(Str);
+    Str_t *s3 = EXPR_ALLOC_T(Str);
     ARRAY_init(uint8_t, &s3->list, 2);
     ARRAY_add(uint8_t, &s3->list, b1->byte);
     ARRAY_add(uint8_t, &s3->list, b2->byte);
@@ -1068,7 +1260,7 @@ static int _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
             expr_t *child2 = ARRAY_get(expr_ptr_t, &e->list, i + 1);
             if (not->expr->type == Byte && child2->type == Any) {
                 Byte_t *byte = (Byte_t *)not->expr;
-                Set_t *set = EXPR_ALLOC(Set);
+                Set_t *set = EXPR_ALLOC_T(Set);
                 bitset_init(&set->set);
                 bitset_set(&set->set, byte->byte);
                 bitset_flip(&set->set);
@@ -1271,4 +1463,41 @@ void moz_node_to_ast(moz_compiler_t *C, Node *node)
             compile_format(C, child);
         }
     }
+    moz_ast_optimize(C);
+}
+
+moz_expr_factory_t *moz_compiler_get_factory()
+{
+    static moz_expr_factory_t factory = {
+        moz_expr_new_Invoke,
+        moz_expr_new_Any,
+        moz_expr_new_Byte,
+        moz_expr_new_Str,
+        moz_expr_new_Set,
+        moz_expr_new_And,
+        moz_expr_new_Choice,
+        moz_expr_new_Empty,
+        moz_expr_new_Fail,
+        moz_expr_new_Not,
+        moz_expr_new_Option,
+        moz_expr_new_Sequence,
+        moz_expr_new_Repetition,
+        moz_expr_new_Tcapture,
+        moz_expr_new_Tdetree,
+        moz_expr_new_Tlfold,
+        moz_expr_new_Tlink,
+        moz_expr_new_Tnew,
+        moz_expr_new_Treplace,
+        moz_expr_new_Ttag,
+        moz_expr_new_Xblock,
+        moz_expr_new_Xexists,
+        moz_expr_new_Xif,
+        moz_expr_new_Xis,
+        moz_expr_new_Xisa,
+        moz_expr_new_Xlocal,
+        moz_expr_new_Xmatch,
+        moz_expr_new_Xon,
+        moz_expr_new_Xsymbol,
+    };
+    return &factory;
 }
