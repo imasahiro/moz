@@ -182,7 +182,7 @@ DEF_ARRAY_OP__(T, T)
 #define ARRAY_ensureSize(T, a, size) ARRAY_##T##_ensureSize(a, size)
 #define ARRAY_n(a, n)  ((a).list+n)
 #define ARRAY_size(a)  ((a).size)
-#define ARRAY_first(a) ARRAY_BEGIN(a)
+#define ARRAY_first(a) ARRAY_n(a, 0)
 #define ARRAY_last(a)  ARRAY_n(a, ((a).size-1))
 #define ARRAY_init_1(T, a, e1) do {\
     ARRAY_init(T, a, 4);\
@@ -190,16 +190,17 @@ DEF_ARRAY_OP__(T, T)
 } while(0)
 
 #define FOR_EACH_ARRAY_(a, x, i)\
-    for(i=0, x = ARRAY_n(a, i); i < ARRAY_size(a); x = ARRAY_n(a,(++i)))
+    for(i = 0, x = ARRAY_n(a, i); i < ARRAY_size(a); x = ARRAY_n(a,(++i)))
 
 #define ARRAY_BEGIN(A) ARRAY_n(A, 0)
-#define ARRAY_END(A)   ARRAY_n(A,ARRAY_size(A))
+#define ARRAY_END(A)   ARRAY_n(A, ARRAY_size(A))
 
 #define FOR_EACH_ARRAY(a, x, e)\
     for(x = ARRAY_BEGIN(a), e = ARRAY_END(a); x != e; ++x)
 
 #define FOR_EACH_ARRAY_R(a, x, e)\
-    for(x = ARRAY_last(a), e = ARRAY_n(a, -1); x != e; --x)
+    if (ARRAY_size(a) == 0) {} else \
+        for(x = ARRAY_last(a), e = ARRAY_n(a, -1); x != e; --x)
 
 #ifdef __cplusplus
 }

@@ -13,6 +13,20 @@ void test_array_add()
     ARRAY_dispose(int, &a);
 }
 
+void test_array_each_empty()
+{
+    ARRAY(int) a;
+    ARRAY_init(int, &a, 1);
+    int *x, *e;
+    FOR_EACH_ARRAY(a, x, e) {
+        assert(0 && "unreachable");
+    }
+    FOR_EACH_ARRAY_R(a, x, e) {
+        assert(0 && "unreachable");
+    }
+    ARRAY_dispose(int, &a);
+}
+
 void test_array_each()
 {
     int ary[] = {1, 2, 3, 4};
@@ -41,11 +55,13 @@ void test_array_each()
         loop++;
     }
     assert(loop == 4);
+    ARRAY_dispose(int, &a);
 }
 
 int main(int argc, char const* argv[])
 {
     test_array_add();
     test_array_each();
+    test_array_each_empty();
     return 0;
 }

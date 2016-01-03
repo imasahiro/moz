@@ -94,6 +94,7 @@ typedef struct decl {
     expr_type_t type;
     name_t name;
     struct expr *body;
+    struct block_t *inst;
 } decl_t;
 
 typedef struct expr {
