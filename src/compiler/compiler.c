@@ -421,6 +421,12 @@ static void moz_Sequence_to_ir(moz_compiler_t *C, moz_state_t *S, Sequence_t *e)
     moz_compiler_set_label(C, S, state.next);
 }
 
+OPTIMIZE static void moz_Repetition_to_RAny(moz_compiler_t *C, moz_state_t *S)
+{
+    IRAny_t *ir = IR_ALLOC_T(IRAny, S);
+    moz_compiler_add(C, S, (IR_t *)ir);
+}
+
 OPTIMIZE static void moz_Repetition_to_RSet(moz_compiler_t *C, moz_state_t *S, Set_t *e)
 {
     IRSet_t *ir = IR_ALLOC_T(IRSet, S);
@@ -464,6 +470,9 @@ static void moz_Repetition_to_ir(moz_compiler_t *C, moz_state_t *S, Repetition_t
     if (ARRAY_size(e->list) == 1) {
         expr_t *expr = ARRAY_get(expr_ptr_t, &e->list, 0);
         switch (expr->type) {
+        case Any:
+            moz_Repetition_to_RAny(C, S);
+            return;
         case Set:
             moz_Repetition_to_RSet(C, S, (Set_t *)expr);
             return;
@@ -920,6 +929,13 @@ static void moz_inst_dump(moz_compiler_t *C, IR_t *ir)
         fprintf(stderr, " tag='%s'\n",
                 ARRAY_get(pstring_ptr_t, &C->tags, ((ITTag_t *)ir)->tagId)->str);
         break;
+
+    case IAny:
+    case IRAny:
+    case INAny:
+        moz_inst_header_dump(ir, ir->type != IRAny, 1);
+        break;
+
     case IUSet:
     case IUByte:
     case IRUByte:
@@ -927,8 +943,6 @@ static void moz_inst_dump(moz_compiler_t *C, IR_t *ir)
     case IOUByte:
     case IOUSet:
 
-    case IAny:
-    case INAny:
     case ILookup:
     case IMemo:
     case IMemoFail:

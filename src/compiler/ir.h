@@ -19,6 +19,7 @@
     OP(IUByte) \
     OP(IUSet) \
     OP(IRByte) \
+    OP(IRAny) \
     OP(IRStr) \
     OP(IRSet) \
     OP(IRUByte) \
@@ -147,6 +148,10 @@ typedef struct IUSet {
     VMIR_BASE;
     BITSET_t setId;
 } IUSet_t;
+
+typedef struct IRAny {
+    VMIR_BASE;
+} IRAny_t;
 
 typedef struct IRByte {
     VMIR_BASE;

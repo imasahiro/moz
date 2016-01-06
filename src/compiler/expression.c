@@ -1226,18 +1226,20 @@ static int _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
         if (child->type == Not && i + 1 < (int)ARRAY_size(e->list)) {
             Not_t *not = (Not_t *)(child);
             expr_t *child2 = ARRAY_get(expr_ptr_t, &e->list, i + 1);
-            if (not->expr->type == Byte && child2->type == Any) {
+            if (not->expr->type == Byte) {
                 Byte_t *byte = (Byte_t *)not->expr;
-                Set_t *set = EXPR_ALLOC_T(Set);
-                bitset_init(&set->set);
-                bitset_set(&set->set, byte->byte);
-                bitset_flip(&set->set);
-                ARRAY_set(expr_ptr_t, &e->list, i, (expr_t *)set);
-                ARRAY_remove(expr_ptr_t, &e->list, i + 1);
-                MOZ_RC_RETAIN((expr_t *)set);
-                MOZ_RC_RELEASE(child, moz_expr_sweep);
-                MOZ_RC_RELEASE(child2, moz_expr_sweep);
-                modified = 1;
+                if (child2->type == Any) {
+                    Set_t *set = EXPR_ALLOC_T(Set);
+                    bitset_init(&set->set);
+                    bitset_set(&set->set, byte->byte);
+                    bitset_flip(&set->set);
+                    ARRAY_set(expr_ptr_t, &e->list, i, (expr_t *)set);
+                    ARRAY_remove(expr_ptr_t, &e->list, i + 1);
+                    MOZ_RC_RETAIN((expr_t *)set);
+                    MOZ_RC_RELEASE(child, moz_expr_sweep);
+                    MOZ_RC_RELEASE(child2, moz_expr_sweep);
+                    modified = 1;
+                }
             }
         }
     }
