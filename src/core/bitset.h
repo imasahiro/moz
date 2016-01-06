@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 #include <stdint.h>
+#include <string.h> // for memcpy
 #ifndef BITSET_H
 #define BITSET_H
 
@@ -95,25 +96,10 @@ static inline void bitset_copy(bitset_t *set1, bitset_t *set2)
     memcpy(set1, set2, sizeof(*set1));
 }
 
-static inline bool bitset_equal(bitset_t *set1, bitset_t *set2)
+static inline int bitset_equal(bitset_t *set1, bitset_t *set2)
 {
     return memcmp(set1, set2, sizeof(*set1)) == 0;
 }
-
-#if 0
-#include <stdio.h>
-int main(int argc, char const* argv[])
-{
-    bitset_t set;
-    bitset_init(&set);
-    bitset_set(&set, 2);
-    fprintf(stderr, "%d\n", bitset_get(&set, 0));
-    fprintf(stderr, "%d\n", bitset_get(&set, 1));
-    fprintf(stderr, "%d\n", bitset_get(&set, 2));
-    fprintf(stderr, "%d\n", bitset_get(&set, 3));
-    return 0;
-}
-#endif
 
 #ifdef __cplusplus
 }
