@@ -35,7 +35,7 @@ typedef struct block_t *block_ptr_t;
 DEF_ARRAY_STRUCT0(block_ptr_t, unsigned);
 DEF_ARRAY_T(block_ptr_t);
 
-struct compiler {
+struct moz_compiler_t {
     moz_runtime_t *R;
     ARRAY(decl_ptr_t) decls;
     ARRAY(block_ptr_t) blocks;

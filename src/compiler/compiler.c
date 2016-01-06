@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "mozvm.h"
 #include "compiler.h"
 #include "expression.h"
@@ -6,7 +7,7 @@
 #include "worklist.h"
 #include "dump.h"
 #include "block.c"
-#include <assert.h>
+#include "module.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1048,8 +1049,9 @@ void moz_compiler_dispose(moz_compiler_t *C)
     ARRAY_dispose(decl_ptr_t, &C->decls);
 }
 
-void moz_compiler_compile(moz_runtime_t *R, Node *node)
+moz_module_t *moz_compiler_compile(moz_runtime_t *R, Node *node)
 {
+    moz_module_t *M;
     moz_compiler_t C;
     moz_compiler_init(&C, R);
     moz_node_to_ast(&C, node);
@@ -1057,7 +1059,9 @@ void moz_compiler_compile(moz_runtime_t *R, Node *node)
     moz_ast_to_ir(&C);
     moz_ir_optimize(&C);
     moz_ir_dump(&C);
+    M = moz_vm2_module_compile(&C);
     moz_compiler_dispose(&C);
+    return M;
 }
 
 #ifdef __cplusplus
