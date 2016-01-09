@@ -781,6 +781,7 @@ static int simplify_cfg(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, block_t *
             block_set_type(pred, bb->type);
             block_unlink(pred, bb);
             WORK_LIST_push(block_ptr_t, moz_compiler_ptr_t, W, pred);
+            modified++;
         }
         if (modified == preds_size) {
             ARRAY_remove_element(block_ptr_t, &C->blocks, bb);
@@ -849,7 +850,6 @@ static void add_handler_block(WORK_LIST(block_ptr_t, moz_compiler_ptr_t) *W, moz
         }
     }
 }
-
 
 static void moz_ir_optimize(moz_compiler_t *C)
 {
