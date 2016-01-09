@@ -95,7 +95,7 @@ typedef struct ITableJump {
 typedef struct IInvoke {
     VMIR_BASE;
     union val {
-        decl_t *decl;
+        struct decl *decl;
         mozaddr_t addr;
     } v;
 } IInvoke_t;

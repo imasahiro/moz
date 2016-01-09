@@ -5,6 +5,10 @@
 #ifndef MOZ_MODULE_H
 #define MOZ_MODULE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct moz_parser_runtime_t {
     AstMachine *ast;
     symtable_t *table;
@@ -25,5 +29,9 @@ struct moz_module_t {
 
 struct moz_compiler_t;
 moz_module_t *moz_vm2_module_compile(struct moz_compiler_t *C);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */

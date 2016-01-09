@@ -73,7 +73,6 @@ void test_buffer_writer_write_many()
     assert(moz_buffer_writer_length(&W) == 0);
 }
 
-
 int main(int argc, char const* argv[])
 {
     test_buffer_reader_read8();

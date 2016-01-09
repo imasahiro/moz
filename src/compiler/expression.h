@@ -11,39 +11,6 @@
 extern "C" {
 #endif
 
-typedef pstring_t *pstring_ptr_t;
-
-DEF_ARRAY_STRUCT0(pstring_ptr_t, unsigned);
-DEF_ARRAY_T(pstring_ptr_t);
-
-DEF_ARRAY_STRUCT0(bitset_t, unsigned);
-DEF_ARRAY_T(bitset_t);
-
-typedef struct decl *decl_ptr_t;
-typedef struct expr *expr_ptr_t;
-
-DEF_ARRAY_STRUCT0(decl_ptr_t, unsigned);
-DEF_ARRAY_T(decl_ptr_t);
-
-DEF_ARRAY_STRUCT0(expr_ptr_t, unsigned);
-DEF_ARRAY_T(expr_ptr_t);
-
-DEF_ARRAY_STRUCT0(uint8_t, unsigned);
-DEF_ARRAY_T(uint8_t);
-
-typedef struct block_t *block_ptr_t;
-DEF_ARRAY_STRUCT0(block_ptr_t, unsigned);
-DEF_ARRAY_T(block_ptr_t);
-
-struct moz_compiler_t {
-    moz_runtime_t *R;
-    ARRAY(decl_ptr_t) decls;
-    ARRAY(block_ptr_t) blocks;
-    ARRAY(pstring_ptr_t) strs;
-    ARRAY(pstring_ptr_t) tags;
-    ARRAY(bitset_t) sets;
-};
-
 #define FOR_EACH_BASE_AST(OP) \
     OP(Empty, Expr, Expr, Expr) \
     OP(Invoke, Name, Invoke, Invoke) \
