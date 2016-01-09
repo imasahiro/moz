@@ -1,9 +1,12 @@
 #include <memory.h>
-// #include <byteswap.h>
 #include "karray.h"
 
 #ifndef MOZ_BUFFER_H
 #define MOZ_BUFFER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 DEF_ARRAY_T_OP_NOPOINTER(uint8_t);
 
@@ -20,28 +23,28 @@ typedef struct moz_buffer_writer_t {
     struct moz_buffer_t buf;
 } moz_buffer_writer_t;
 
-static inline uint16_t __swap_byte_order16(uint16_t value)
-{
-    uint16_t b0 = value << 8;
-    uint16_t b1 = value >> 8;
-    return b0 | b1;
-}
-
-static inline uint32_t __swap_byte_order32(uint32_t value)
-{
-    uint32_t b0 = value & 0x000000ff;
-    uint32_t b1 = value & 0x0000ff00;
-    uint32_t b2 = value & 0x00ff0000;
-    uint32_t b3 = value & 0xff000000;
-    return (b0 << 24) | (b1 << 8) | (b2 >> 8) | (b3 >> 24);
-}
-
-static inline uint64_t __swap_byte_order64(uint64_t value)
-{
-    uint64_t b0 = __swap_byte_order32((uint32_t)(value));
-    uint32_t b1 = __swap_byte_order32((uint32_t)(value >> 32));
-    return (b0 << 32) | b1;
-}
+// static inline uint16_t __swap_byte_order16(uint16_t value)
+// {
+//     uint16_t b0 = value << 8;
+//     uint16_t b1 = value >> 8;
+//     return b0 | b1;
+// }
+//
+// static inline uint32_t __swap_byte_order32(uint32_t value)
+// {
+//     uint32_t b0 = value & 0x000000ff;
+//     uint32_t b1 = value & 0x0000ff00;
+//     uint32_t b2 = value & 0x00ff0000;
+//     uint32_t b3 = value & 0xff000000;
+//     return (b0 << 24) | (b1 << 8) | (b2 >> 8) | (b3 >> 24);
+// }
+//
+// static inline uint64_t __swap_byte_order64(uint64_t value)
+// {
+//     uint64_t b0 = __swap_byte_order32((uint32_t)(value));
+//     uint32_t b1 = __swap_byte_order32((uint32_t)(value >> 32));
+//     return (b0 << 32) | b1;
+// }
 
 static inline int moz_buffer_reader_has_next(moz_buffer_reader_t *R)
 {
@@ -137,21 +140,25 @@ static inline void moz_buffer_writer_write64(moz_buffer_writer_t *W, uint64_t v)
     ARRAY_size(W->buf.buf) += n;
 }
 
-static void moz_buffer_writer_init(moz_buffer_writer_t *W, unsigned capacity)
+static inline void moz_buffer_writer_init(moz_buffer_writer_t *W, unsigned capacity)
 {
     ARRAY_init(uint8_t, &W->buf.buf, capacity);
 }
 
-static unsigned moz_buffer_writer_length(moz_buffer_writer_t *W)
+static inline unsigned moz_buffer_writer_length(moz_buffer_writer_t *W)
 {
     return ARRAY_size(W->buf.buf);
 }
 
 
-static void moz_buffer_writer_dispose(moz_buffer_writer_t *W)
+static inline void moz_buffer_writer_dispose(moz_buffer_writer_t *W)
 {
     ARRAY_dispose(uint8_t, &W->buf.buf);
     memset(W, 0, sizeof(moz_buffer_writer_t));
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard */

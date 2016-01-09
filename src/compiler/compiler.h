@@ -26,14 +26,11 @@ DEF_ARRAY_T(decl_ptr_t);
 DEF_ARRAY_STRUCT0(expr_ptr_t, unsigned);
 DEF_ARRAY_T(expr_ptr_t);
 
-#ifndef LOADER_H
-DEF_ARRAY_STRUCT0(uint8_t, unsigned);
-DEF_ARRAY_T(uint8_t);
-#endif
-
 typedef struct block_t *block_ptr_t;
 DEF_ARRAY_STRUCT0(block_ptr_t, unsigned);
 DEF_ARRAY_T(block_ptr_t);
+
+struct IR;
 
 typedef struct moz_compiler_t {
     moz_runtime_t *R;
@@ -47,6 +44,7 @@ typedef struct moz_compiler_t {
 moz_compiler_t *moz_compiler_init(moz_compiler_t *C, moz_runtime_t *R);
 void moz_compiler_dispose(moz_compiler_t *C);
 struct moz_module_t *moz_compiler_compile(moz_runtime_t *R, Node *node);
+void moz_inst_dump(moz_compiler_t *C, struct IR *ir);
 
 #ifdef __cplusplus
 }

@@ -58,7 +58,6 @@ typedef enum ir_type {
 #define DEFINE_ENUM(NAME) NAME,
     FOR_EACH_IR(DEFINE_ENUM)
 #undef DEFINE_ENUM
-    MAX_IR
 } ir_type_t;
 
 #define VMIR_BASE IR_t base

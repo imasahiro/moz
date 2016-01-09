@@ -11,6 +11,9 @@
 extern "C" {
 #endif
 
+DEF_ARRAY_STRUCT0(uint8_t, unsigned);
+DEF_ARRAY_T(uint8_t);
+
 #define FOR_EACH_BASE_AST(OP) \
     OP(Empty, Expr, Expr, Expr) \
     OP(Invoke, Name, Invoke, Invoke) \

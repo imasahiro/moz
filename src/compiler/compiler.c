@@ -876,7 +876,7 @@ static void moz_inst_header_dump(IR_t *ir, int fail_block, int line_feed)
     }
 }
 
-static void moz_inst_dump(moz_compiler_t *C, IR_t *ir)
+void moz_inst_dump(moz_compiler_t *C, IR_t *ir)
 {
     char buf[128] = {};
     switch (ir->type) {
