@@ -1,0 +1,426 @@
+/**
+ * Instructions of MozVM2
+ * MozVM2 is originally based on Nez parsing library[1]'s virtual machine.
+ * [1] Nez parsing library. https://github.com/nez-peg/nez
+ */
+DEF(ILabel)
+{
+    /* do nothing */
+}
+
+DEF(IExit, int8_t status)
+{
+    runtime->cur = GET_POS();
+    return status;
+}
+
+DEF(IJump, mozaddr_t jump)
+{
+    JUMP(jump);
+}
+
+DEF(ITableJump, uint16_t tblId)
+{
+    jump_table3_t *tbl = runtime->C.jumps3 + tblId;
+    int jump = jump_table3_jump(tbl, *GET_CURRENT());
+    JUMP(jump);
+}
+
+DEF(IInvoke, mozaddr_t target)
+{
+    PUSH(PC + 1);
+    JUMP(jump);
+}
+
+DEF(IPLoad)
+{
+    SET_POS((mozpos_t)POP());
+}
+
+DEF(IPStore)
+{
+    PUSH(GET_POS());
+}
+
+DEF(IRet)
+{
+    moz_inst_t *next = (moz_inst_t *)POP();
+    PC = next;
+}
+
+DEF(IFail)
+{
+    moz_inst_t *next = (moz_inst_t *)POP();
+    PC = next;
+}
+
+DEF(IAny, mozaddr_t fail)
+{
+    if (EOS()) {
+        FAIL();
+    }
+    CONSUME();
+}
+
+DEF(IByte, mozaddr_t fail, uint8_t ch)
+{
+    if (*GET_CURRENT() != ch) {
+        FAIL();
+    }
+    CONSUME();
+}
+
+DEF(IStr, mozaddr_t fail, STRING_t strId)
+{
+    const char *str = STRING_GET_IMPL(runtime, strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 0) {
+        FAIL();
+    }
+    CONSUME_N(len);
+}
+
+DEF(ISet, mozaddr_t fail, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(runtime, setId);
+    if (!bitset_get(set, *GET_CURRENT())) {
+        FAIL();
+    }
+    CONSUME();
+}
+
+DEF(IUByte, mozaddr_t fail)
+{
+    ABORT("not implemented");
+}
+
+DEF(IUSet, mozaddr_t fail)
+{
+    ABORT("not implemented");
+}
+
+DEF(INAny, mozaddr_t fail)
+{
+    if (!EOS()) {
+        FAIL();
+    }
+}
+
+DEF(INByte, mozaddr_t fail, uint8_t ch)
+{
+    if (*GET_CURRENT() == ch) {
+        FAIL();
+    }
+}
+
+DEF(INStr, mozaddr_t fail, STRING_t strId)
+{
+    const char *str = STRING_GET_IMPL(runtime, strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
+        FAIL();
+    }
+}
+
+DEF(INSet, mozaddr_t fail, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(runtime, setId);
+    if (bitset_get(set, *GET_CURRENT())) {
+        FAIL();
+    }
+}
+
+DEF(IRAny)
+{
+    while (!EOS()) {
+        CONSUME();
+    }
+}
+
+DEF(IRByte, uint8_t ch)
+{
+    while (*GET_CURRENT() == ch) {
+        CONSUME();
+    }
+}
+
+DEF(IRStr, STRING_t strId)
+{
+    const char *str = STRING_GET_IMPL(runtime, strId);
+    unsigned len = pstring_length(str);
+    while (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
+        CONSUME_N(len);
+    }
+}
+
+DEF(IRSet, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(runtime, setId);
+    while (bitset_get(set, *GET_CURRENT())) {
+        CONSUME();
+    }
+}
+
+DEF(IRUByte)
+{
+    ABORT("not implemented");
+}
+
+DEF(IRUSet)
+{
+    ABORT("not implemented");
+}
+
+DEF(IOByte, uint8_t ch)
+{
+    if (*GET_CURRENT() == ch) {
+        CONSUME();
+    }
+}
+
+DEF(IOStr, STRING_t strId)
+{
+    const char *str = STRING_GET_IMPL(runtime, strId);
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(GET_CURRENT(), str, len) == 1) {
+        CONSUME_N(len);
+    }
+}
+
+DEF(IOSet, BITSET_t setId)
+{
+    bitset_t *set = BITSET_GET_IMPL(runtime, setId);
+    if (bitset_get(set, *GET_CURRENT())) {
+        CONSUME();
+    }
+}
+
+DEF(IOUByte)
+{
+    ABORT("not implemented");
+}
+
+DEF(IOUSet)
+{
+    ABORT("not implemented");
+}
+
+DEF(ILookup, uint16_t memoId, mozaddr_t skip)
+{
+    ABORT("not implemented");
+    // MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId);
+    // if (entry) {
+    //     if (entry->failed == MEMO_ENTRY_FAILED) {
+    //         FAIL();
+    //     }
+    //     CONSUME_N(entry->consumed);
+    //     JUMP(skip);
+    // }
+    (void)memoId; (void)skip;
+}
+
+DEF(IMemo, uint16_t memoId)
+{
+    ABORT("not implemented");
+    // long saved, ast_tx;
+    // moz_inst_t *jump;
+    // mozpos_t pos;
+    // POP_FRAME(pos, jump, ast_tx, saved);
+    // long length = GET_POS() - pos;
+    // memo_set(MEMO_GET(), pos, memoId, NULL, length);
+    // (void)saved; (void)ast_tx; (void)jump;
+    (void)memoId;
+}
+
+DEF(IMemoFail, uint16_t memoId)
+{
+    memo_fail(MEMO_GET(), GET_POS(), memoId);
+    FAIL();
+}
+
+DEF(ITStart)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    PUSH(ast_save_tx(ast));
+}
+
+DEF(ITCommit, TAG_t tagId)
+{
+    long tx = POP();
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_commit_tx(ast, tagId, tx);
+}
+
+DEF(ITAbort)
+{
+    ABORT("not implemented");
+}
+
+DEF(ITPush)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_push(ast);
+}
+
+DEF(ITPop, TAG_t tagId)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_pop(ast, tagId);
+}
+
+DEF(ITFoldL, int8_t shift, TAG_t tagId)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_swap(ast, GET_POS() + shift, tagId);
+}
+
+DEF(ITNew, int8_t shift)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_new(ast, GET_POS() + shift);
+}
+
+DEF(ITCapture, int8_t shift)
+{
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_capture(ast, GET_POS() + shift);
+}
+
+DEF(ITTag, TAG_t tagId)
+{
+    tag_t *tag = TAG_GET_IMPL(runtime, tagId);
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_tag(ast, tag);
+}
+
+DEF(ITReplace, STRING_t strId)
+{
+    const char *str = STRING_GET_IMPL(runtime, strId);
+    AstMachine *ast = AST_MACHINE_GET();
+    ast_log_replace(ast, str);
+}
+
+DEF(ITLookup, TAG_t tagId, uint16_t memoId, mozaddr_t skip)
+{
+    ABORT("not implemented");
+    // AstMachine *ast = AST_MACHINE_GET();
+    // MemoEntry_t *entry = memo_get(MEMO_GET(), GET_POS(), memoId);
+    // if (entry) {
+    //     if (entry->failed == MEMO_ENTRY_FAILED) {
+    //         FAIL();
+    //     }
+    //     CONSUME_N(entry->consumed);
+    //     ast_log_link(ast, tagId, entry->result);
+    //     JUMP(skip);
+    // }
+    (void)memoId; (void)skip;
+}
+
+DEF(ITMemo, uint16_t memoId)
+{
+    ABORT("not implemented");
+    // AstMachine *ast = AST_MACHINE_GET();
+    // long length;
+    // long saved, ast_tx;
+    // moz_inst_t *jump;
+    // mozpos_t pos;
+    // Node *node;
+    // POP_FRAME(pos, jump, ast_tx, saved);
+    // length = GET_POS() - pos;
+    // node = ast_get_last_linked_node(ast);
+    // memo_set(MEMO_GET(), pos, memoId, node, length);
+    // (void)saved; (void)ast_tx; (void)jump;
+    (void)memoId;
+}
+
+DEF(ISOpen)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    PUSH(symtable_savepoint(tbl));
+}
+
+DEF(ISClose)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    long saved = POP();
+    symtable_rollback(tbl, saved);
+}
+
+DEF(ISMask, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    PUSH(symtable_savepoint(tbl));
+    symtable_add_symbol_mask(tbl, tableName);
+}
+
+DEF(ISDef, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    token_t captured;
+    token_init(&captured, (const char *)POP(), GET_CURRENT());
+    symtable_add_symbol(tbl, tableName, &captured);
+}
+
+DEF(ISIsDef, TAG_t tagId, STRING_t strId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName   = TBL_GET_IMPL(runtime, tagId);
+    const char *symbol = STRING_GET_IMPL(runtime, strId);
+    token_t t;
+    t.s = symbol;
+    t.len = pstring_length(symbol);
+    if (!symtable_contains(tbl, tableName, &t)) {
+        FAIL();
+    }
+}
+
+DEF(ISExists, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    if (!symtable_has_symbol(tbl, tableName)) {
+        FAIL();
+    }
+}
+
+DEF(ISMatch, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    token_t t;
+    if (symtable_get_symbol(tbl, tableName, &t)) {
+        if (token_equal_string(&t, GET_CURRENT())) {
+            CONSUME_N(token_length(&t));
+            NEXT();
+        }
+    }
+    FAIL();
+}
+
+DEF(ISIs, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    token_t t;
+    if (symtable_get_symbol(tbl, tableName, &t)) {
+        token_t captured;
+        token_init(&captured, (const char *)POP(), GET_CURRENT());
+        if (token_equal(&t, &captured)) {
+            NEXT();
+        }
+    }
+    FAIL();
+}
+
+DEF(ISIsa, TAG_t tagId)
+{
+    symtable_t *tbl = SYMTABLE_GET();
+    token_t captured;
+    tag_t *tableName = TBL_GET_IMPL(runtime, tagId);
+    token_init(&captured, (const char *)POP(), GET_CURRENT());
+    if (!symtable_contains(tbl, tableName, &captured)) {
+        FAIL();
+    }
+}
