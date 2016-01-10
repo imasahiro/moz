@@ -97,6 +97,7 @@ TXT
       if cond != nil
         out.puts "#ifdef " + cond
       end
+      out.puts tab2 + "fprintf(out, \"#{name}:\");"
       out.puts tab2 + "dump_#{type}(out, R, *(#{type} *) inst);"
       out.puts tab2 + "inst += sizeof(#{type});"
       if cond != nil

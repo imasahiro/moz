@@ -25,8 +25,8 @@ static const char *IR_TYPE_NAME[] = {
 #define dump_uint8_t(out, R, u8)     fprintf(out, "0x%x ", u8);
 #define dump_uint16_t(out, R, u16)   fprintf(out, "0x%x ", u16);
 #define dump_BITSET_t(out, R, setId) fprintf(out, "set(%d) ", setId);
-#define dump_STRING_t(out, R, strId) fprintf(out, "str(%d) ", strId);
-#define dump_TAG_t(out, R, tagId)    fprintf(out, "tag(%d) ", tagId);
+#define dump_STRING_t(out, R, strId) fprintf(out, "'%s' ", R->C.strs[strId]);
+#define dump_TAG_t(out, R, tagId)    fprintf(out, "'%s' ", R->C.tags[tagId]);
 #include "vm2_inst.h"
 
 #ifdef __cplusplus
@@ -118,7 +118,7 @@ static void moz_vm2_module_dump(moz_module_t *_M)
     uint8_t *inst = M->compiled_code;
     while (inst != M->compiled_code_end) {
         fprintf(stderr, "%05ld ", inst - M->compiled_code);
-        inst = mozvm2_dump(stderr, NULL, (moz_inst_t *)inst);
+        inst = mozvm2_dump(stderr, M->runtime, (moz_inst_t *)inst);
         fprintf(stderr, "\n");
     }
 }
