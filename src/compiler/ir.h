@@ -12,12 +12,15 @@
     OP(IRet) \
     OP(IFail) \
     OP(IAny) \
-    OP(INAny) \
     OP(IByte) \
     OP(IStr) \
     OP(ISet) \
     OP(IUByte) \
     OP(IUSet) \
+    OP(INAny) \
+    OP(INByte) \
+    OP(INStr) \
+    OP(INSet) \
     OP(IRByte) \
     OP(IRAny) \
     OP(IRStr) \
@@ -119,10 +122,6 @@ typedef struct IAny {
     VMIR_BASE;
 } IAny_t;
 
-typedef struct INAny {
-    VMIR_BASE;
-} INAny_t;
-
 typedef struct IByte {
     VMIR_BASE;
     uint8_t byte;
@@ -147,6 +146,25 @@ typedef struct IUSet {
     VMIR_BASE;
     BITSET_t setId;
 } IUSet_t;
+
+typedef struct INAny {
+    VMIR_BASE;
+} INAny_t;
+
+typedef struct INByte {
+    VMIR_BASE;
+    uint8_t byte;
+} INByte_t;
+
+typedef struct INStr {
+    VMIR_BASE;
+    STRING_t strId;
+} INStr_t;
+
+typedef struct INSet {
+    VMIR_BASE;
+    BITSET_t setId;
+} INSet_t;
 
 typedef struct IRAny {
     VMIR_BASE;
@@ -326,5 +344,8 @@ typedef struct ISIsa {
     VMIR_BASE;
     TAG_t tagId;
 } ISIsa_t;
+
+/* Internal API */
+uintptr_t moz_ir_max_id();
 
 #endif /* end of include guard */

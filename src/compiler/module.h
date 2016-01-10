@@ -23,11 +23,13 @@ typedef struct moz_parser_runtime_t {
 typedef struct moz_module_t moz_module_t;
 
 struct moz_module_t {
-    int (*parse)(moz_module_t *, moz_parser_runtime_t *);
-    int (*dispose)(moz_module_t *);
+    int (*parse)(moz_module_t *, char *input, size_t input_size);
+    void (*dump)(moz_module_t *);
+    void (*dispose)(moz_module_t *);
 };
 
 struct moz_compiler_t;
+/* Internal API */
 moz_module_t *moz_vm2_module_compile(struct moz_compiler_t *C);
 
 #ifdef __cplusplus

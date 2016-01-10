@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-#define MOZVM_OPCODE_SIZE 1
+#define MOZVM_MOZVM1_OPCODE_SIZE 1
 #include "vm_inst.h"
 
 // #define LOADER_DEBUG 1
@@ -643,7 +643,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is, int opt)
 
     while (j < (int)ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);
-        unsigned shift = opcode_size(opcode);
+        unsigned shift = mozvm1_opcode_size(opcode);
         mozaddr_t *ref;
         int i, *table = NULL;
         uint8_t *p;
@@ -660,7 +660,7 @@ static void mozvm_loader_load(mozvm_loader_t *L, input_stream_t *is, int opt)
             // L0: Jump L3  |  L0: Ret
             // ...          |
             // L3: Ret      |
-            if (1 && opcode_size(Jump) == opcode_size(Ret)) {
+            if (1 && mozvm1_opcode_size(Jump) == mozvm1_opcode_size(Ret)) {
                 if (get_opcode(L, L->table[*ref]) == Ret) {
                     set_opcode(L, j, Ret);
                 }
@@ -726,7 +726,7 @@ L_encode_jumps:
     j = 0;
     while (j < ARRAY_size(L->buf)) {
         uint8_t opcode = get_opcode(L, j);;
-        unsigned shift = opcode_size(opcode);
+        unsigned shift = mozvm1_opcode_size(opcode);
         set_opcode(L, j, addr[opcode]);
         j += shift;
     }
@@ -998,7 +998,7 @@ static void mozvm_loader_dump(mozvm_loader_t *L, int print)
         int table_size = 0;
         for (p = e->begin; p < e->end; p += shift, idx++) {
             opcode = *p;
-            shift = opcode_size(opcode);
+            shift = mozvm1_opcode_size(opcode);
 #ifdef MOZVM_PROFILE_INST
             if (L->R->C.profile) {
                 OP_PRINT("%8ld, ", L->R->C.profile[j]);

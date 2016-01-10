@@ -51,6 +51,16 @@ static inline int moz_buffer_reader_has_next(moz_buffer_reader_t *R)
     return R->buf.pos < R->buf.buf.size;
 }
 
+static inline void moz_buffer_reader_set_pos(moz_buffer_reader_t *R, unsigned pos)
+{
+    R->buf.pos = pos;
+}
+
+static inline uint8_t *moz_buffer_reader_get_raw_buffer(moz_buffer_reader_t *R)
+{
+    return R->buf.buf.list + R->buf.pos;
+}
+
 static inline uint8_t moz_buffer_reader_read8(moz_buffer_reader_t *R)
 {
     return R->buf.buf.list[R->buf.pos++];
@@ -149,7 +159,6 @@ static inline unsigned moz_buffer_writer_length(moz_buffer_writer_t *W)
 {
     return ARRAY_size(W->buf.buf);
 }
-
 
 static inline void moz_buffer_writer_dispose(moz_buffer_writer_t *W)
 {

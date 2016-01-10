@@ -6,7 +6,9 @@
 #include <getopt.h>
 #include <sys/time.h>
 #include "nez_moz.h"
+#include "core/input_source.h"
 #include "compiler/compiler.h"
+#include "compiler/module.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +17,15 @@ extern "C" {
 static void usage(const char *arg)
 {
     fprintf(stderr, "Usage: %s -p <peg_file> -i <input_file>\n", arg);
+}
+
+static void parse(moz_module_t *M, const char *input_file)
+{
+    size_t input_size = 0;
+    char *input = (char *)load_file(input_file, &input_size, 32);
+    M->dump(M);
+    M->parse(M, input, input_size);
+    M->dispose(M);
 }
 
 int main(int argc, char *const argv[])
@@ -68,8 +79,9 @@ int main(int argc, char *const argv[])
     if (parsed == 0) {
         Node *node = ast_get_parsed_node(L.R->ast);
         if (node) {
-            moz_compiler_compile(L.R, node);
+            moz_module_t *M = moz_compiler_compile(L.R, node);
             NODE_GC_RELEASE(node);
+            parse(M, input_file);
         }
     }
     else {

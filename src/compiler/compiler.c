@@ -84,6 +84,11 @@ static const char *IR_TYPE_NAME[] = {
 #undef DEFINE_IR_NAME
 };
 
+uintptr_t moz_ir_max_id()
+{
+    return _MAX_IR_ID;
+}
+
 static IR_t *_IR_ALLOC(size_t size, ir_type_t type, moz_state_t *S)
 {
     IR_t *ir = (IR_t *)VM_CALLOC(1, size);
