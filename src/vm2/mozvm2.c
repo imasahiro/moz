@@ -53,7 +53,7 @@ void moz_vm2_print_stats()
     moz_inst_t *jump_; \
     mozpos_t pos_; \
     POP_FRAME(pos_, jump_, ast_tx_, saved_); \
-    if (pos_ < GET_POS()) { \
+    if (pos_ < CURRENT) { \
         SET_POS(pos_); \
     } \
     ast_rollback_tx(AST_MACHINE_GET(), ast_tx_); \
@@ -61,7 +61,7 @@ void moz_vm2_print_stats()
     PC = jump_; \
 } while (0)
 
-#define FAIL() do {\
+#define FAIL(fail) do {\
     ABORT("not implemented"); \
     /*FAIL_IMPL();*/ \
     NEXT(); \
@@ -87,17 +87,15 @@ long moz_vm2_runtime_parse(moz_runtime_t *runtime,
     runtime->head = runtime->cur = head;
     runtime->tail = tail;
 #define SET_POS(P)    CURRENT = (P)
-#define GET_POS()     GET_CURRENT()
-#define GET_CURRENT() (CURRENT)
 #define CONSUME()     CONSUME_N(1)
 #define CONSUME_N(N)  CURRENT += N
 
-    PUSH_FRAME(GET_POS(), &bytecode[0], &bytecode[2]);
+    PUSH_FRAME(CURRENT, &bytecode[0], &bytecode[2]);
 #define SYMTABLE_GET() (TBL)
 #define AST_MACHINE_GET() (AST)
 #define MEMO_GET() (MEMO)
 #define HEAD (runtime)->head
-#define EOS() (GET_CURRENT() == runtime->tail)
+#define EOS() (CURRENT == runtime->tail)
 
     AstMachine *AST = runtime->ast;
     symtable_t *TBL = runtime->table;
@@ -113,7 +111,7 @@ long moz_vm2_runtime_parse(moz_runtime_t *runtime,
 #define DISPATCH_END()     ABORT("unreachable");
 #define DISPATCH() goto *__table[*PC++]
 #define NEXT() DISPATCH()
-#define JUMP(N) PC += N; DISPATCH()
+#define JUMP(N) PC = N; DISPATCH()
 #define OP_CASE(OP) LABEL(OP):
 
 #define read_uint8_t(PC)   *(PC);              PC += sizeof(uint8_t)
