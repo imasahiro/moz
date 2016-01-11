@@ -1,0 +1,5 @@
+File = { '-'? INT } S*
+INT = '0' / [1-9] DIGIT*
+DIGIT = [0-9]
+FRAC = '.' DIGIT+
+S = [ \r\n]

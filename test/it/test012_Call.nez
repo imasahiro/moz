@@ -1,0 +1,4 @@
+// --option:+asis:-inline:-ast
+File = { @Call }
+Call = { NONTERMINAL }
+NONTERMINAL = 'a'

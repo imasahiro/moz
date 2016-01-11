@@ -1,0 +1,7 @@
+// --option:-inline:-ast
+File = { TERM / String }
+
+TERM = '[]'
+
+String
+	= '"' { ('\\"' / '\\\\' / !'"' .)* #String } '"'

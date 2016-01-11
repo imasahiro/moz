@@ -1,0 +1,3 @@
+Symbol = <def name NAME> S { <is name> #Name }?
+NAME = [A-Za-z]+
+S = [ \t]+

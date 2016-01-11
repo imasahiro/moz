@@ -1,0 +1,3 @@
+// --option:-inline:-ast
+File = { BSET }
+BSET = [a-c]*
