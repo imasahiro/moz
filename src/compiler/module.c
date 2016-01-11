@@ -91,14 +91,16 @@ typedef struct moz_vm2_module_t {
     uint8_t *compiled_code_end;
 } moz_vm2_module_t;
 
+long moz_vm2_runtime_parse(moz_runtime_t *runtime,
+        const moz_inst_t *PC,
+        char *head, char *tail);
+
 static int moz_vm2_module_parse(moz_module_t *_M, char *input, size_t input_size)
 {
     moz_vm2_module_t *M = (moz_vm2_module_t *) _M;
-    (void)M;
-    (void)input;
-    (void)input_size;
-    asm volatile("int3");
-    return 0;
+    return moz_vm2_runtime_parse(M->runtime,
+            M->compiled_code,
+            input, input + input_size);
 }
 
 static void moz_vm2_module_dispose(moz_module_t *_M)

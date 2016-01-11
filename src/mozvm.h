@@ -66,6 +66,7 @@ typedef struct moz_runtime_t {
     symtable_t *table;
     memo_t *memo;
     mozpos_t head;
+    mozpos_t cur;
     const char *tail;
     const char *input;
     long *stack;
@@ -75,7 +76,6 @@ typedef struct moz_runtime_t {
     MemoPoint *memo_points;
 #endif
 #ifdef MOZVM_ENABLE_JIT
-    mozpos_t cur;
     jit_context_t *jit_context;
 #endif
     mozvm_constant_t C;

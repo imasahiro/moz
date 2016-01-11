@@ -26,7 +26,7 @@ DEF(ITableJump, uint16_t tblId)
     JUMP(jump);
 }
 
-DEF(IInvoke, mozaddr_t target)
+DEF(IInvoke, mozaddr_t jump)
 {
     PUSH(PC + 1);
     JUMP(jump);
