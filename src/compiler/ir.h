@@ -63,6 +63,12 @@ typedef enum ir_type {
 #undef DEFINE_ENUM
 } ir_type_t;
 
+static const char *IR_TYPE_NAME[] = {
+#define DEFINE_IR_NAME(NAME) #NAME,
+    FOR_EACH_IR(DEFINE_IR_NAME)
+#undef DEFINE_IR_NAME
+};
+
 #define VMIR_BASE IR_t base
 
 typedef struct IR {

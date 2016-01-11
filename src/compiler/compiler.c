@@ -78,12 +78,6 @@ static BITSET_t moz_compiler_add_set(moz_compiler_t *C, bitset_t *set)
 
 static uintptr_t _MAX_IR_ID = 0;
 
-static const char *IR_TYPE_NAME[] = {
-#define DEFINE_IR_NAME(NAME) #NAME,
-    FOR_EACH_IR(DEFINE_IR_NAME)
-#undef DEFINE_IR_NAME
-};
-
 uintptr_t moz_ir_max_id()
 {
     return _MAX_IR_ID;

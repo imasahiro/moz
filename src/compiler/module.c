@@ -5,20 +5,6 @@
 #include "block.h"
 #define MOZVM_MOZVM2_DUMP 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-static const char *IR_TYPE_NAME[] = {
-#define DEFINE_IR_NAME(NAME) #NAME,
-    FOR_EACH_IR(DEFINE_IR_NAME)
-#undef DEFINE_IR_NAME
-};
-
-#ifdef __cplusplus
-}
-#endif
-
 #define dump_opcode(out, R, opcode)  fprintf(out, "%s ", IR_TYPE_NAME[opcode]);
 #define dump_mozaddr_t(out, R, addr) fprintf(out, "%05d ", addr);
 #define dump_int8_t(out, R, i8)      fprintf(out, "0x%x ", i8);
