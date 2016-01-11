@@ -3,6 +3,7 @@
 #include "core/buffer.h"
 #include "ir.h"
 #include "block.h"
+#define MOZVM_MOZVM2_OPCODE_SIZE 1
 #define MOZVM_MOZVM2_DUMP 1
 
 #define dump_opcode(out, R, opcode)  fprintf(out, "%s ", IR_TYPE_NAME[opcode]);
@@ -27,6 +28,7 @@ DEF_ARRAY_OP_NOPOINTER(mozaddr_t);
 
 typedef struct mozaddr_resolver_t {
     mozaddr_t *address;
+    unsigned address_size;
     ARRAY(mozaddr_t) labels;
     ARRAY(mozaddr_t) targets;
 } mozaddr_resolver_t;
@@ -37,9 +39,10 @@ typedef struct moz_bytecode_writer_t {
     mozaddr_resolver_t resolver;
 } moz_bytecode_writer_t;
 
-static void mozaddr_resolver_init(mozaddr_resolver_t *resolver, mozaddr_t *address)
+static void mozaddr_resolver_init(mozaddr_resolver_t *resolver, mozaddr_t *address, unsigned address_size)
 {
     resolver->address = address;
+    resolver->address_size = address_size;
     ARRAY_init(mozaddr_t, &resolver->labels, 1);
     ARRAY_init(mozaddr_t, &resolver->targets, 1);
 }
@@ -58,15 +61,42 @@ static void mozaddr_resolver_add_label(mozaddr_resolver_t *resolver, moz_buffer_
     moz_buffer_writer_write32(W, INT32_MIN);
 }
 
+static moz_inst_t *get_inst_head(mozaddr_resolver_t *resolver, uint8_t *code, mozaddr_t label)
+{
+    unsigned i;
+    for (i = 0; i < resolver->address_size; i++) {
+        mozaddr_t head = resolver->address[i];
+        mozaddr_t tail = head + mozvm2_opcode_size(*(code + head));
+        if (head <= label && label <= tail) {
+            return code + tail;
+        }
+    }
+    // Label not found.
+    assert(0 && "unreachable");
+    return NULL;
+}
+
 static void mozaddr_resolver_resolve(mozaddr_resolver_t *resolver, uint8_t *code)
 {
     unsigned i;
     assert(ARRAY_size(resolver->labels) == ARRAY_size(resolver->targets));
     for (i = 0; i < ARRAY_size(resolver->labels); i++) {
+        /*
+         * bytecode format
+         * ---+-------------+-----------------+-----+-----------------+---
+         * ...|bytecode type|bytecode operands|label|bytecode operands|...
+         * ---+-------------+-----------------+-----+-----------------+---
+         *    ^                                ^^^^^                  ^
+         *    |                                                       |
+         *    +- head                                          tail --+
+         */
         mozaddr_t label = *ARRAY_n(resolver->labels, i);
         mozaddr_t *addr = (mozaddr_t *)(code + label);
         mozaddr_t id = *ARRAY_n(resolver->targets, i);
-        *addr = resolver->address[id];
+        moz_inst_t *target = code + resolver->address[id];
+        moz_inst_t *tail = get_inst_head(resolver, code, label);
+        intptr_t offset = (intptr_t)(target - tail);
+        *addr = (mozaddr_t) offset;
     }
 }
 
@@ -459,7 +489,8 @@ moz_module_t *moz_vm2_module_compile(struct moz_compiler_t *C)
     uint8_t *code;
 
     W.compiler = C;
-    mozaddr_resolver_init(&W.resolver, address);
+    memset(address, 0, sizeof(mozaddr_t) * moz_ir_max_id());
+    mozaddr_resolver_init(&W.resolver, address, moz_ir_max_id());
     moz_buffer_writer_init(&W.writer, 32);
 
     FOR_EACH_ARRAY(C->blocks, I, E) {

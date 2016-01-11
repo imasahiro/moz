@@ -77,7 +77,7 @@ static int run(const char *peg_file, const char *input_file, struct parse_result
     }
     moz_module_t *M = moz_compiler_compile(L.R, node);
     NODE_GC_RELEASE(node);
-    if (parse(M, input_file) == 0) {
+    if (parse(M, input_file) != 0) {
         result->error = "Failed to parse input file";
         result->parsed = 0;
         goto L_finally;

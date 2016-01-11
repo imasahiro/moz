@@ -44,14 +44,21 @@ DEF(IPStore)
 
 DEF(IRet)
 {
-    moz_inst_t *next = (moz_inst_t *)POP();
+    moz_inst_t *next;
+    moz_inst_t *fail;
+    mozpos_t pos;
+    POP_FRAME(pos, next, fail);
     PC = next;
 }
 
 DEF(IFail)
 {
-    moz_inst_t *next = (moz_inst_t *)POP();
-    PC = next;
+    moz_inst_t *next;
+    moz_inst_t *fail;
+    mozpos_t pos;
+    POP_FRAME(pos, next, fail);
+    CURRENT = pos;
+    PC = fail;
 }
 
 DEF(IAny, mozaddr_t fail)
@@ -92,11 +99,13 @@ DEF(ISet, mozaddr_t fail, BITSET_t setId)
 DEF(IUByte, mozaddr_t fail)
 {
     ABORT("not implemented");
+    (void)fail;
 }
 
 DEF(IUSet, mozaddr_t fail)
 {
     ABORT("not implemented");
+    (void)fail;
 }
 
 DEF(INAny, mozaddr_t fail)
@@ -232,10 +241,10 @@ DEF(IMemo, uint16_t memoId)
     (void)memoId;
 }
 
-DEF(IMemoFail, uint16_t memoId)
+DEF(IMemoFail, mozaddr_t fail, uint16_t memoId)
 {
     memo_fail(MEMO_GET(), CURRENT, memoId);
-    FAIL();
+    FAIL(fail);
 }
 
 DEF(ITStart)
@@ -313,7 +322,7 @@ DEF(ITLookup, TAG_t tagId, uint16_t memoId, mozaddr_t skip)
     //     ast_log_link(ast, tagId, entry->result);
     //     JUMP(skip);
     // }
-    (void)memoId; (void)skip;
+    (void)memoId; (void)skip; (void)tagId;
 }
 
 DEF(ITMemo, uint16_t memoId)

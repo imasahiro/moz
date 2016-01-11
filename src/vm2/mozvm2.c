@@ -62,9 +62,7 @@ void moz_vm2_print_stats()
 } while (0)
 
 #define FAIL(fail) do {\
-    ABORT("not implemented"); \
-    /*FAIL_IMPL();*/ \
-    NEXT(); \
+    JUMP(fail); \
 } while (0)
 
 #define PUSH(X) *SP++ = (long)(X)
@@ -111,7 +109,7 @@ int moz_vm2_runtime_parse(moz_runtime_t *runtime,
 #define DISPATCH_END()     ABORT("unreachable");
 #define DISPATCH() goto *__table[*PC++]
 #define NEXT() DISPATCH()
-#define JUMP(N) PC = N; DISPATCH()
+#define JUMP(N) PC += N; DISPATCH()
 #define OP_CASE(OP) LABEL(OP):
 
 #define read_uint8_t(PC)   *(PC);              PC += sizeof(uint8_t)
