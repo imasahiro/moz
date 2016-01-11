@@ -19,13 +19,15 @@ static void usage(const char *arg)
     fprintf(stderr, "Usage: %s -p <peg_file> -i <input_file>\n", arg);
 }
 
-static void parse(moz_module_t *M, const char *input_file)
+static int parse(moz_module_t *M, const char *input_file)
 {
     size_t input_size = 0;
     char *input = (char *)load_file(input_file, &input_size, 32);
+    int result;
     M->dump(M);
-    M->parse(M, input, input_size);
+    result = M->parse(M, input, input_size);
     M->dispose(M);
+    return result;
 }
 
 int main(int argc, char *const argv[])
@@ -37,6 +39,7 @@ int main(int argc, char *const argv[])
     const char *peg_file = NULL;
     const char *input_file = NULL;
     int opt;
+    Node *node;
 
     while ((opt = getopt(argc, argv, "p:i:h")) != -1) {
         switch (opt) {
@@ -76,18 +79,22 @@ int main(int argc, char *const argv[])
     moz_runtime_set_source(L.R, L.input, L.input + L.input_size);
     inst = moz_runtime_parse_init(L.R, L.input, inst);
     parsed = moz_runtime_parse(L.R, L.input, inst);
-    if (parsed == 0) {
-        Node *node = ast_get_parsed_node(L.R->ast);
-        if (node) {
-            moz_module_t *M = moz_compiler_compile(L.R, node);
-            NODE_GC_RELEASE(node);
-            parse(M, input_file);
-        }
+    if (parsed != 0) {
+        fprintf(stderr, "peg parse error\n");
+        goto L_finally;
     }
-    else {
-        fprintf(stderr, "parse error\n");
+    node = ast_get_parsed_node(L.R->ast);
+    if (node == NULL) {
+        fprintf(stderr, "peg parse error\n");
+        goto L_finally;
+    }
+    moz_module_t *M = moz_compiler_compile(L.R, node);
+    NODE_GC_RELEASE(node);
+    if (parse(M, input_file) == 0) {
+        fprintf(stderr, "peg parse error\n");
     }
 
+L_finally:
     moz_runtime_dispose(L.R);
     mozvm_loader_dispose(&L);
     NodeManager_dispose();

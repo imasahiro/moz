@@ -72,7 +72,7 @@ void moz_vm2_print_stats()
 
 #define ABORT(MSG) fprintf(stderr, "%s\n", MSG);__asm volatile("int3")
 
-long moz_vm2_runtime_parse(moz_runtime_t *runtime,
+int moz_vm2_runtime_parse(moz_runtime_t *runtime,
         const moz_inst_t *PC,
         const char *head, const char *tail)
 {

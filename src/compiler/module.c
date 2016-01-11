@@ -77,7 +77,7 @@ typedef struct moz_vm2_module_t {
     uint8_t *compiled_code_end;
 } moz_vm2_module_t;
 
-long moz_vm2_runtime_parse(moz_runtime_t *runtime,
+int moz_vm2_runtime_parse(moz_runtime_t *runtime,
         const moz_inst_t *PC,
         char *head, char *tail);
 
