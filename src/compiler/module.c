@@ -208,12 +208,12 @@ static void moz_IInvoke_encode(moz_bytecode_writer_t *W, IInvoke_t *ir)
 
 static void moz_IPLoad_encode(moz_bytecode_writer_t *W, IPLoad_t *ir)
 {
-    TODO((IR_t *)ir);
+    /* do nothing */
 }
 
 static void moz_IPStore_encode(moz_bytecode_writer_t *W, IPStore_t *ir)
 {
-    TODO((IR_t *)ir);
+    /* do nothing */
 }
 
 static void moz_IRet_encode(moz_bytecode_writer_t *W, IRet_t *ir)
@@ -384,12 +384,12 @@ static void moz_ITFoldL_encode(moz_bytecode_writer_t *W, ITFoldL_t *ir)
 
 static void moz_ITNew_encode(moz_bytecode_writer_t *W, ITNew_t *ir)
 {
-    TODO((IR_t *)ir);
+    moz_buffer_writer_write8(&W->writer, 0);
 }
 
 static void moz_ITCapture_encode(moz_bytecode_writer_t *W, ITCapture_t *ir)
 {
-    TODO((IR_t *)ir);
+    moz_buffer_writer_write8(&W->writer, 0);
 }
 
 static void moz_ITTag_encode(moz_bytecode_writer_t *W, ITTag_t *ir)
