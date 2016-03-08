@@ -81,7 +81,7 @@ int moz_vm2_runtime_parse(moz_runtime_t *runtime,
     long *SP = runtime->stack;
     long *FP = runtime->fp;
 
-    const char *CURRENT = head;
+    const unsigned char *CURRENT = head;
     runtime->head = runtime->cur = head;
     runtime->tail = tail;
 #define SET_POS(P)    CURRENT = (P)

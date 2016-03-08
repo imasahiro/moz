@@ -394,7 +394,7 @@ static void moz_ITCapture_encode(moz_bytecode_writer_t *W, ITCapture_t *ir)
 
 static void moz_ITTag_encode(moz_bytecode_writer_t *W, ITTag_t *ir)
 {
-    TODO((IR_t *)ir);
+    moz_buffer_writer_write16(&W->writer, ir->tagId);
 }
 
 static void moz_ITReplace_encode(moz_bytecode_writer_t *W, ITReplace_t *ir)
