@@ -1063,6 +1063,13 @@ moz_module_t *moz_compiler_compile(moz_runtime_t *R, Node *node)
     return M;
 }
 
+void dump_set2(bitset_t *set)
+{
+    char buf[1024] = {};
+    dump_set(set, buf);
+    fprintf(stderr, "%s\n", buf);
+}
+
 #ifdef __cplusplus
 }
 #endif

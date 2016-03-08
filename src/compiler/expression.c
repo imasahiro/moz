@@ -1102,6 +1102,8 @@ static int moz_Choice_optimize(moz_compiler_t *C, expr_t *parent, expr_t **ref, 
                 break;
             }
             if (invert) {
+                //XXX Should not accept '\0'
+                bitset_set(&bitset, 0);
                 bitset_flip(&bitset);
             }
             bitset_or(&set->set, &bitset);
@@ -1232,6 +1234,8 @@ static int _moz_Sequence_optimize(moz_compiler_t *C, Sequence_t *e)
                     Set_t *set = EXPR_ALLOC_T(Set);
                     bitset_init(&set->set);
                     bitset_set(&set->set, byte->byte);
+                    //XXX Should not accept '\0'
+                    bitset_set(&set->set, 0);
                     bitset_flip(&set->set);
                     ARRAY_set(expr_ptr_t, &e->list, i, (expr_t *)set);
                     ARRAY_remove(expr_ptr_t, &e->list, i + 1);
