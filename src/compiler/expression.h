@@ -11,8 +11,10 @@
 extern "C" {
 #endif
 
+#ifndef MOZ_BUFFER_H
 DEF_ARRAY_STRUCT0(uint8_t, unsigned);
 DEF_ARRAY_T(uint8_t);
+#endif
 
 #define FOR_EACH_BASE_AST(OP) \
     OP(Empty, Expr, Expr, Expr) \

@@ -2,6 +2,7 @@
 #include "core/karray.h"
 #include "core/buffer.h"
 #include "ir.h"
+#include "expression.h"
 #include "block.h"
 #define MOZVM_MOZVM2_OPCODE_SIZE 1
 #define MOZVM_MOZVM2_DUMP 1
@@ -193,7 +194,7 @@ static void moz_IExit_encode(moz_bytecode_writer_t *W, IExit_t *ir)
 
 static void moz_IJump_encode(moz_bytecode_writer_t *W, IJump_t *ir)
 {
-    TODO((IR_t *)ir);
+    mozaddr_resolver_add_label(&W->resolver, &W->writer, ir->v.target);
 }
 
 static void moz_ITableJump_encode(moz_bytecode_writer_t *W, ITableJump_t *ir)
@@ -203,7 +204,7 @@ static void moz_ITableJump_encode(moz_bytecode_writer_t *W, ITableJump_t *ir)
 
 static void moz_IInvoke_encode(moz_bytecode_writer_t *W, IInvoke_t *ir)
 {
-    TODO((IR_t *)ir);
+    mozaddr_resolver_add_label(&W->resolver, &W->writer, ir->v.decl->inst);
 }
 
 static void moz_IPLoad_encode(moz_bytecode_writer_t *W, IPLoad_t *ir)
@@ -369,12 +370,12 @@ static void moz_ITAbort_encode(moz_bytecode_writer_t *W, ITAbort_t *ir)
 
 static void moz_ITPush_encode(moz_bytecode_writer_t *W, ITPush_t *ir)
 {
-    TODO((IR_t *)ir);
+    /* do nothing */
 }
 
 static void moz_ITPop_encode(moz_bytecode_writer_t *W, ITPop_t *ir)
 {
-    TODO((IR_t *)ir);
+    moz_buffer_writer_write16(&W->writer, ir->tagId);
 }
 
 static void moz_ITFoldL_encode(moz_bytecode_writer_t *W, ITFoldL_t *ir)
