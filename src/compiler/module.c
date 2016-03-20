@@ -204,6 +204,7 @@ static void moz_ITableJump_encode(moz_bytecode_writer_t *W, ITableJump_t *ir)
 
 static void moz_IInvoke_encode(moz_bytecode_writer_t *W, IInvoke_t *ir)
 {
+    mozaddr_resolver_add_label(&W->resolver, &W->writer, ir->base.fail);
     mozaddr_resolver_add_label(&W->resolver, &W->writer, ir->v.decl->inst);
 }
 

@@ -26,12 +26,6 @@ DEF(ITableJump, uint16_t tblId)
     JUMP(jump);
 }
 
-DEF(IInvoke, mozaddr_t jump)
-{
-    PUSH(PC + 1);
-    JUMP(jump);
-}
-
 DEF(IPLoad)
 {
     SET_POS((mozpos_t)POP());
@@ -40,6 +34,12 @@ DEF(IPLoad)
 DEF(IPStore)
 {
     PUSH(CURRENT);
+}
+
+DEF(IInvoke, mozaddr_t fail, mozaddr_t funcaddr)
+{
+    PUSH_FRAME(CURRENT, PC, fail);
+    JUMP(funcaddr);
 }
 
 DEF(IRet)
