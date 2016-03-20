@@ -1,0 +1,7 @@
+File = Object
+
+Object = '{' Value '}'
+       / Value
+
+Value = { 'null'  #Null }
+
