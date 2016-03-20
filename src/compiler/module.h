@@ -9,21 +9,11 @@
 extern "C" {
 #endif
 
-typedef struct moz_parser_runtime_t {
-    AstMachine *ast;
-    symtable_t *table;
-    memo_t *memo;
-    const char *input_pos;
-    const char *input_begin;
-    const char *input_end;
-    long *stack;
-    long *frame;
-} moz_parser_runtime_t;
-
 typedef struct moz_module_t moz_module_t;
 
 struct moz_module_t {
-    int (*parse)(moz_module_t *, char *input, size_t input_size);
+    struct moz_runtime_t *runtime;
+    int (*parse)(moz_module_t *, char *input, size_t input_size, Node **result);
     void (*dump)(moz_module_t *);
     void (*dispose)(moz_module_t *);
 };

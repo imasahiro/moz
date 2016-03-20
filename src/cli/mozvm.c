@@ -24,8 +24,13 @@ static int parse(moz_module_t *M, const char *input_file)
     size_t input_size = 0;
     char *input = (char *)load_file(input_file, &input_size, 32);
     int result;
+    Node *node = NULL;
     M->dump(M);
-    result = M->parse(M, input, input_size);
+    result = M->parse(M, input, input_size, &node);
+    if (node != NULL) {
+        Node_print(node, M->runtime->C.tags);
+        NODE_GC_RELEASE(node);
+    }
     M->dispose(M);
     return result;
 }

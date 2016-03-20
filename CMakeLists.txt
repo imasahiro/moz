@@ -193,7 +193,7 @@ foreach(peg ${test_files})
     string(REPLACE ".nez" ".txt" input ${peg})
     string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR}/test/it/ "" test_name ${peg})
     add_test(${test_name} mozvm -p ${peg} -i ${input})
-    set_tests_properties(${test_name} PROPERTIES TIMEOUT 5)
+    set_tests_properties(${test_name} PROPERTIES TIMEOUT 2)
 endforeach(peg test_files)
 
 install(TARGETS nez LIBRARY DESTINATION lib)
