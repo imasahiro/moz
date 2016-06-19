@@ -77,6 +77,7 @@ add_custom_command(OUTPUT vm_core.c vm_inst.h
 add_custom_target(generate_vm_core DEPENDS
     "${CMAKE_CURRENT_BINARY_DIR}/vm_core.c")
 add_dependencies(moz generate_vm_core)
+add_dependencies(nez generate_vm_core)
 
 # vm2
 add_custom_command(OUTPUT vm2_core.c vm_inst.h
