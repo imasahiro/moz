@@ -1,3 +1,0 @@
-// --option:-inline:-ast
-File = { NONTERMINAL }
-NONTERMINAL = ('a'? 'b'?)*
