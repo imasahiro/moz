@@ -402,7 +402,8 @@ static unsigned moz_ir_encode(moz_bytecode_writer_t *W, IR_t *ir)
     encode[ir->type](W, ir);
     W->linker.address_head[ir->id] = pos;
     W->linker.address_tail[ir->id] = moz_buffer_writer_length(&W->writer);
-    fprintf(stderr, "%03d, %u\n", ir->id, pos);
+    fprintf(stderr, "id:%03d addr=(%u, %u)\n",
+            ir->id, pos, moz_buffer_writer_length(&W->writer));
     return pos;
 }
 

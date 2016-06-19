@@ -39,20 +39,21 @@ static void mozlinker_add_label(mozlinker_t *linker, moz_buffer_writer_t *W, blo
     moz_buffer_writer_write32(W, calleeId);
 }
 
-// static void mozlinker_dump_address(mozlinker_t *linker)
-// {
-//     unsigned i;
-//     for (i = 0; i < linker->address_size; i++) {
-//         mozaddr_t head = linker->address_head[i];
-//         mozaddr_t tail = linker->address_tail[i];
-//         fprintf(stderr, "%3d %4d-%4d\n", i, head, tail);
-//     }
-// }
+static void mozlinker_dump_address(mozlinker_t *linker)
+{
+    unsigned i;
+    for (i = 0; i < linker->address_size; i++) {
+        mozaddr_t head = linker->address_head[i];
+        mozaddr_t tail = linker->address_tail[i];
+        fprintf(stderr, "%3d (head,tail)=(%4d,%4d)\n", i, head, tail);
+    }
+}
 
 static void mozlinker_resolve(mozlinker_t *linker, uint8_t *code)
 {
     unsigned i;
     assert(ARRAY_size(linker->labels) == ARRAY_size(linker->targets));
+    mozlinker_dump_address(linker);
     for (i = 0; i < ARRAY_size(linker->labels); i++) {
         /*
          * bytecode format
@@ -63,9 +64,12 @@ static void mozlinker_resolve(mozlinker_t *linker, uint8_t *code)
          *    |                                                       |
          *    +- head                                          tail --+
          */
-        mozaddr_t callerId = *ARRAY_n(linker->labels, i);
+        mozaddr_t labelOffset = *ARRAY_n(linker->labels, i);
         mozaddr_t targetId = *ARRAY_n(linker->targets, i);
-        mozaddr_t *addr = (mozaddr_t *)(code + callerId);
+        int callerId = *(int *)(code + labelOffset);
+        fprintf(stderr, "labelOffset:%d, targetId:%d, callerId:%d\n",
+                labelOffset, targetId, callerId);
+        mozaddr_t *addr = (mozaddr_t *)(code + labelOffset);
         moz_inst_t *callee_addr_head = code + linker->address_head[targetId];
         moz_inst_t *caller_addr_tail = code + linker->address_tail[callerId];
         *addr = (mozaddr_t)(intptr_t) (callee_addr_head - caller_addr_tail);
